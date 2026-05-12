@@ -1,7 +1,7 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
+import KioskDashboard from './components/KioskDashboard.vue'
 </script>
 
 <template>
-  <HelloWorld />
+  <KioskDashboard />
 </template>

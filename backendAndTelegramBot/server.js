@@ -2,9 +2,11 @@ const express = require('express');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { Bonjour } = require('bonjour-service');
 
 const app = express();
 const port = 3000;
+const bonjour = new Bonjour();
 
 // Path to SSL certificates
 const options = {
@@ -20,4 +22,8 @@ app.get('/', (req, res) => {
 // Create HTTPS server
 https.createServer(options, app).listen(port, () => {
   console.log(`HTTPS Server running at https://localhost:${port}/`);
+  
+  // Publish mDNS service for gateway.local
+  bonjour.publish({ name: 'gateway', type: 'https', port: port, host: 'gateway.local' });
+  console.log('mDNS service "gateway.local" published.');
 });
