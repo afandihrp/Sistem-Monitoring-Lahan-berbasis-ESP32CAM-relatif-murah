@@ -1,0 +1,113 @@
+const { WebSocketServer } = require('ws');
+
+// Track connected camera devices
+const devices = new Map();
+
+function heartbeat() {
+  this.isAlive = true;
+}
+
+function broadcastDeviceList(wss) {
+  const deviceList = Array.from(devices.values()).map(device => ({
+    id: device.id,
+    name: device.name,
+    status: device.status,
+    ip: device.ip,
+    mac: device.mac,
+    type: device.type,
+    lastSeen: device.lastSeen
+  }));
+
+  const payload = JSON.stringify({ type: 'device_list', devices: deviceList });
+  
+  wss.clients.forEach((client) => {
+    // Only send to Kiosks (not the camera itself)
+    if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+      client.send(payload);
+    }
+  });
+}
+
+function initWebSocket(server) {
+  const wss = new WebSocketServer({ server });
+
+  wss.on('connection', (ws, req) => {
+    const isCamera = req.url.startsWith('/camera');
+    const remoteIp = req.socket.remoteAddress.replace('::ffff:', '');
+    const macAddress = req.headers['x-mac-address'] || 'Unknown MAC';
+    
+    console.log(`Connection attempt: URL=${req.url}, isCamera=${isCamera}, IP=${remoteIp}`);
+    
+    ws.isAlive = true;
+    ws.on('pong', heartbeat);
+    ws.path = req.url; // Store path to identify client type later
+
+    if (isCamera) {
+      console.log(`Camera connected: ${remoteIp} (MAC: ${macAddress})`);
+      const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
+      devices.set(deviceId, {
+        id: deviceId,
+        name: macAddress !== 'Unknown MAC' ? `ESP32-CAM [${macAddress}]` : `ESP32-CAM (${remoteIp})`,
+        status: 'Online',
+        ip: remoteIp,
+        mac: macAddress,
+        type: 'Camera',
+        lastSeen: new Date().toLocaleTimeString()
+      });
+      broadcastDeviceList(wss);
+    } else {
+      console.log('Kiosk connected.');
+      // Send current device list to the new Kiosk immediately
+      broadcastDeviceList(wss);
+    }
+    
+    ws.on('message', (message, isBinary) => {
+      if (isBinary && isCamera) {
+        // Broadcast binary camera frames to all Kiosks
+        wss.clients.forEach((client) => {
+          if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+            client.send(message, { binary: true });
+          }
+        });
+      } else if (!isBinary) {
+        console.log(`Received text message from ${isCamera ? 'Camera' : 'Kiosk'}: ${message}`);
+      }
+    });
+
+    ws.on('close', () => {
+      if (isCamera) {
+        const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
+        const device = devices.get(deviceId);
+        if (device) {
+          device.status = 'Offline';
+          device.lastSeen = new Date().toLocaleTimeString();
+          console.log(`Camera ${remoteIp} disconnected.`);
+          broadcastDeviceList(wss);
+        }
+      } else {
+        console.log('Kiosk connection closed.');
+      }
+    });
+  });
+
+  // Heartbeat interval check every 30 seconds
+  const interval = setInterval(function ping() {
+    wss.clients.forEach(function each(ws) {
+      if (ws.isAlive === false) {
+        console.log(`Terminating inactive connection: ${ws.path}`);
+        return ws.terminate();
+      }
+
+      ws.isAlive = false;
+      ws.ping();
+    });
+  },2000);
+
+  wss.on('close', function close() {
+    clearInterval(interval);
+  });
+
+  return wss;
+}
+
+module.exports = initWebSocket;

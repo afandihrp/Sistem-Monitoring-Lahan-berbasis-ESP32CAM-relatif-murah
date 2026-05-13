@@ -2,12 +2,13 @@ const express = require('express');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { Bonjour } = require('bonjour-service');
-const { WebSocketServer } = require('ws');
+
+const initWebSocket = require('./src/websocket');
+const createRouter = require('./src/routes');
+const { publishService } = require('./src/services/mdns');
 
 const app = express();
 const port = 3000;
-const bonjour = new Bonjour();
 
 // Path to SSL certificates
 const options = {
@@ -15,141 +16,18 @@ const options = {
   cert: fs.readFileSync(path.join(__dirname, 'server.cert'))
 };
 
-// Hello World route
-app.get('/', (req, res) => {
-  res.send('hello world');
-});
-
-// Action route to control frontend stream
-app.get('/action', (req, res) => {
-  const action = req.query.do;
-  if (action === 'left' || action === 'right') {
-    const payload = JSON.stringify({ type: 'stream_action', direction: action });
-    wss.clients.forEach((client) => {
-      // WebSocket.OPEN is 1
-      if (client.readyState === 1) {
-        client.send(payload);
-      }
-    });
-    console.log(`Broadcasted action: ${action}`);
-    res.send(`Action ${action} executed`);
-  } else {
-    res.status(400).send('Invalid action. Use ?do=left or ?do=right');
-  }
-});
-
 // Create HTTPS server
 const server = https.createServer(options, app);
 
 // Initialize WebSocket server
-const wss = new WebSocketServer({ server });
+const wss = initWebSocket(server);
 
-// Track connected camera devices
-const devices = new Map();
-
-function heartbeat() {
-  this.isAlive = true;
-}
-
-function broadcastDeviceList() {
-  const deviceList = Array.from(devices.values()).map(device => ({
-    id: device.id,
-    name: device.name,
-    status: device.status,
-    ip: device.ip,
-    mac: device.mac,
-    type: device.type,
-    lastSeen: device.lastSeen
-  }));
-
-  const payload = JSON.stringify({ type: 'device_list', devices: deviceList });
-  
-  wss.clients.forEach((client) => {
-    // Only send to Kiosks (not the camera itself)
-    if (client.readyState === 1 && client.path !== '/camera') {
-      client.send(payload);
-    }
-  });
-}
-
-wss.on('connection', (ws, req) => {
-  const isCamera = req.url === '/camera';
-  const remoteIp = req.socket.remoteAddress.replace('::ffff:', '');
-  const macAddress = req.headers['x-mac-address'] || 'Unknown MAC';
-  
-  ws.isAlive = true;
-  ws.on('pong', heartbeat);
-  ws.path = req.url; // Store path to identify client type later
-
-  if (isCamera) {
-    console.log(`New Camera connection from ${remoteIp} (MAC: ${macAddress})`);
-    const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
-    devices.set(deviceId, {
-      id: deviceId,
-      name: macAddress !== 'Unknown MAC' ? `ESP32-CAM [${macAddress}]` : `ESP32-CAM (${remoteIp})`,
-      status: 'Online',
-      ip: remoteIp,
-      mac: macAddress,
-      type: 'Camera',
-      lastSeen: new Date().toLocaleTimeString()
-    });
-    broadcastDeviceList();
-  } else {
-    console.log('New Kiosk connection established.');
-    // Send current device list to the new Kiosk immediately
-    broadcastDeviceList();
-  }
-  
-  ws.on('message', (message, isBinary) => {
-    if (isBinary && isCamera) {
-      // Broadcast binary camera frames to all Kiosks
-      wss.clients.forEach((client) => {
-        if (client.readyState === 1 && client.path !== '/camera') {
-          client.send(message, { binary: true });
-        }
-      });
-    } else if (!isBinary) {
-      console.log(`Received text message from ${isCamera ? 'Camera' : 'Kiosk'}: ${message}`);
-    }
-  });
-
-  ws.on('close', () => {
-    if (isCamera) {
-      const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
-      const device = devices.get(deviceId);
-      if (device) {
-        device.status = 'Offline';
-        device.lastSeen = new Date().toLocaleTimeString();
-        console.log(`Camera ${remoteIp} disconnected.`);
-        broadcastDeviceList();
-      }
-    } else {
-      console.log('Kiosk connection closed.');
-    }
-  });
-});
-
-// Heartbeat interval check every 30 seconds
-const interval = setInterval(function ping() {
-  wss.clients.forEach(function each(ws) {
-    if (ws.isAlive === false) {
-      console.log(`Terminating inactive connection: ${ws.path}`);
-      return ws.terminate();
-    }
-
-    ws.isAlive = false;
-    ws.ping();
-  });
-}, 2000);
-
-wss.on('close', function close() {
-  clearInterval(interval);
-});
+// Initialize Routes
+app.use('/', createRouter(wss));
 
 server.listen(port, () => {
   console.log(`HTTPS Server running at https://localhost:${port}/`);
   
   // Publish mDNS service for gateway.local
-  bonjour.publish({ name: 'gateway', type: 'https', port: port, host: 'gateway.local' });
-  console.log('mDNS service "gateway.local" published.');
+  publishService('gateway', 'https', port, 'gateway.local');
 });

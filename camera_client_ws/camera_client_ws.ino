@@ -56,6 +56,14 @@ void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // Disable brownout detector
   
   Serial.begin(115200);
+  if(psramFound())
+  {
+    Serial.println("psram enabled");
+  }
+  else 
+  {
+    Serial.println("psram are not enabled");
+  }
 
   // Camera configuration
   camera_config_t config;
@@ -77,13 +85,15 @@ void setup() {
   config.pin_sscb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
+  config.xclk_freq_hz = 21000000;
   config.pixel_format = PIXFORMAT_JPEG;
 
   // Use VGA resolution (640x480)
-  config.frame_size = FRAMESIZE_VGA;
+  config.frame_size = FRAMESIZE_HVGA;
+  config.grab_mode = CAMERA_GRAB_LATEST;
+  config.fb_location = CAMERA_FB_IN_PSRAM;
   config.jpeg_quality = 12; // 0-63, lower is higher quality
-  config.fb_count = 1;
+  config.fb_count = 2;
 
   // Initialize Camera
   esp_err_t err = esp_camera_init(&config);
@@ -117,8 +127,16 @@ void setup() {
 void loop() {
   webSocket.loop();
 
-  if (isConnected) {
-    camera_fb_t * fb = esp_camera_fb_get();
+  if (isConnected) {    
+    camera_fb_t * fb;
+
+    //camera flush
+    esp_camera_fb_return(fb);
+    fb = esp_camera_fb_get();
+    esp_camera_fb_return(fb);
+    fb = esp_camera_fb_get();
+    esp_camera_fb_return(fb);
+    fb = esp_camera_fb_get();
     if (!fb) {
       Serial.println("Camera capture failed");
       return;
@@ -130,7 +148,6 @@ void loop() {
     // Return the frame buffer back to the driver for reuse
     esp_camera_fb_return(fb);
 
-    // Control frame rate (roughly 10 FPS)
-    delay(100);
+    delay(10);
   }
 }
