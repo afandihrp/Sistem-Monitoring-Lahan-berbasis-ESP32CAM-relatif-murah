@@ -17,8 +17,9 @@ const currentStreamIndex = ref(0)
 const currentStream = computed(() => devices.value[currentStreamIndex.value] || { name: 'No Active Stream', ip: 'N/A' })
 
 const connectWS = () => {
-  // Replace with your actual server IP/domain if necessary
-  ws = new WebSocket('wss://localhost:3000')
+  // Use the current hostname to connect to the backend
+  const backendUrl = `wss://${window.location.hostname}:3000`
+  ws = new WebSocket(backendUrl)
 
   ws.onopen = () => {
     console.log('Connected to WebSocket server')
