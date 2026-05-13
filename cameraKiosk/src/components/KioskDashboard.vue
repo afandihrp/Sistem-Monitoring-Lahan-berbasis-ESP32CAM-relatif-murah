@@ -80,22 +80,22 @@ const events = ref([
 </script>
 
 <template>
-  <div class="vh-100 d-flex flex-column p-3 gap-3" data-bs-theme="dark">
+  <div class="vh-100 d-flex flex-column p-2 gap-2" data-bs-theme="dark">
     <!-- Top Navigation -->
-    <nav class="navbar navbar-expand-lg bg-slate-800 rounded-4 shadow-soft px-4 py-2 border border-slate-700">
+    <nav class="navbar navbar-expand-lg bg-slate-800 rounded-3 shadow-soft px-3 py-0 border border-slate-700" style="min-height: 40px;">
       <div class="container-fluid p-0">
-        <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="#">
-          <i class="bi bi-shield-lock-fill text-primary fs-4"></i>
+        <a class="navbar-brand fw-bold d-flex align-items-center gap-2 m-0" href="#" style="font-size: 1.1rem;">
+          <i class="bi bi-shield-lock-fill text-primary fs-5"></i>
           Gateway_OS
         </a>
-        <div class="d-flex align-items-center gap-4">
-          <div class="text-end border-end pe-4 border-slate-700">
-            <div class="fw-bold fs-5 font-monospace lh-1">{{ currentTime }}</div>
-            <div class="text-secondary small" style="font-size: 0.7rem;">
+        <div class="d-flex align-items-center gap-3">
+          <div class="d-flex align-items-center gap-2 border-end pe-3 border-slate-700">
+            <div class="fw-bold font-monospace lh-1" style="font-size: 1rem;">{{ currentTime }}</div>
+            <div class="text-secondary" style="font-size: 0.75rem;">
               {{ new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) }}
             </div>
           </div>
-          <div class="d-flex gap-3 text-secondary small">
+          <div class="d-flex gap-2 text-secondary" style="font-size: 0.85rem;">
             <span class="d-flex align-items-center gap-1">
               <span :class="wsStatus === 'Online' ? 'text-success' : 'text-danger'" class="fw-bold">
                 <i :class="wsStatus === 'Online' ? 'bi-broadcast text-success' : 'bi-broadcast-pin text-danger'"></i>
