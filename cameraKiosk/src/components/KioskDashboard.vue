@@ -10,6 +10,8 @@ const wsStatus = ref('Offline')
 let ws = null
 
 const devices = ref([])
+const liveImageSrc = ref('')
+let lastObjectUrl = null
 
 const currentStreamIndex = ref(0)
 const currentStream = computed(() => devices.value[currentStreamIndex.value] || { name: 'No Active Stream', ip: 'N/A' })
@@ -36,7 +38,16 @@ const connectWS = () => {
   }
 
   ws.onmessage = (event) => {
-    console.log('Message from server:', event.data)
+    if (event.data instanceof Blob) {
+      // Handle binary video frame
+      if (lastObjectUrl) {
+        URL.revokeObjectURL(lastObjectUrl)
+      }
+      lastObjectUrl = URL.createObjectURL(event.data)
+      liveImageSrc.value = lastObjectUrl
+      return
+    }
+
     try {
       const data = JSON.parse(event.data)
       if (data.type === 'stream_action') {
@@ -115,9 +126,11 @@ const events = ref([
           </div>
           
           <div class="card-body p-0 d-flex align-items-center justify-content-center bg-black">
-            <img :src="`https://via.placeholder.com/1280x720/000000/3b82f6?text=${currentStream.name}+Stream`" 
-                 class="img-fluid w-100 h-100 object-fit-contain opacity-75" 
-                 alt="Main Stream" />
+            <div class="stream-container shadow-lg border border-slate-700 rounded-3 overflow-hidden">
+              <img :src="liveImageSrc || `https://via.placeholder.com/480x380/000000/3b82f6?text=WAITING+FOR+STREAM`" 
+                   class="img-fluid" 
+                   alt="Main Stream" />
+            </div>
             
             <!-- Floating Overlay HUD -->
             <div class="position-absolute bottom-0 start-0 m-4 p-3 rounded-3 bg-slate-800 bg-opacity-75 border border-slate-700 shadow-lg" style="backdrop-filter: blur(8px);">
@@ -191,6 +204,21 @@ const events = ref([
 <style scoped>
 .hover-bg:hover {
   background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+.stream-container {
+  width: 480px;
+  height: 380px;
+  background-color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stream-container img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
 }
 
 .extra-small {

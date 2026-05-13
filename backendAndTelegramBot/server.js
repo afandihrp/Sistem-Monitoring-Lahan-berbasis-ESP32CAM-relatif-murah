@@ -100,8 +100,17 @@ wss.on('connection', (ws, req) => {
     broadcastDeviceList();
   }
   
-  ws.on('message', (message) => {
-    console.log(`Received message from ${isCamera ? 'Camera' : 'Kiosk'}: ${message}`);
+  ws.on('message', (message, isBinary) => {
+    if (isBinary && isCamera) {
+      // Broadcast binary camera frames to all Kiosks
+      wss.clients.forEach((client) => {
+        if (client.readyState === 1 && client.path !== '/camera') {
+          client.send(message, { binary: true });
+        }
+      });
+    } else if (!isBinary) {
+      console.log(`Received text message from ${isCamera ? 'Camera' : 'Kiosk'}: ${message}`);
+    }
   });
 
   ws.on('close', () => {
@@ -131,7 +140,7 @@ const interval = setInterval(function ping() {
     ws.isAlive = false;
     ws.ping();
   });
-}, 5000);
+}, 2000);
 
 wss.on('close', function close() {
   clearInterval(interval);
