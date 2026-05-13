@@ -148,6 +148,6 @@ void loop() {
     // Return the frame buffer back to the driver for reuse
     esp_camera_fb_return(fb);
 
-    delay(10);
+    delay(100);
   }
 }
