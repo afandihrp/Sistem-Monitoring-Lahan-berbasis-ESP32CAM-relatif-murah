@@ -162,10 +162,10 @@ const events = ref([
                 <div class="d-flex justify-content-between align-items-center">
                   <div class="overflow-hidden">
                     <div class="fw-bold text-truncate" style="font-size: 0.9rem;">{{ device.mac || 'Unknown MAC' }}</div>
-                    <code class="text-info d-block text-truncate" style="font-size: 0.75rem;">{{ device.ip }}</code>
+                    <code class="text-info d-block text-truncate" style="font-size: 0.8em;">{{ device.ip }}</code>
                   </div>
                   <span :class="device.status === 'Online' ? 'bg-success' : 'bg-danger'" 
-                        class="badge rounded-pill ms-1" style="font-size: 0.7rem; padding: 0.25em 0.5em;">
+                        class="badge rounded-pill ms-1" style="font-size: 0.9rem; padding: 0.25em 0.5em;">
                     {{ device.status }}
                   </span>
                 </div>
