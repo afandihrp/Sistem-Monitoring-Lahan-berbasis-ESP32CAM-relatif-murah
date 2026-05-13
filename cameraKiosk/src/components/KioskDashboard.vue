@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 
 const currentTime = ref(new Date().toLocaleTimeString())
 setInterval(() => {
@@ -8,6 +8,15 @@ setInterval(() => {
 
 const wsStatus = ref('Offline')
 let ws = null
+
+const devices = ref([
+  { id: 1, name: 'Main Gate Cam', status: 'Online', ip: '192.168.1.101', type: 'Camera', lastSeen: 'Just now' },
+  { id: 2, name: 'Backyard Cam', status: 'Online', ip: '192.168.1.102', type: 'Camera', lastSeen: '2 mins ago' },
+  { id: 3, name: 'Driveway Sensor', status: 'Offline', ip: '192.168.1.105', type: 'Sensor', lastSeen: '1 hour ago' },
+])
+
+const currentStreamIndex = ref(0)
+const currentStream = computed(() => devices.value[currentStreamIndex.value])
 
 const connectWS = () => {
   // Replace with your actual server IP/domain if necessary
@@ -32,18 +41,25 @@ const connectWS = () => {
 
   ws.onmessage = (event) => {
     console.log('Message from server:', event.data)
+    try {
+      const data = JSON.parse(event.data)
+      if (data.type === 'stream_action') {
+        if (data.direction === 'right') {
+          currentStreamIndex.value = (currentStreamIndex.value + 1) % devices.value.length
+        } else if (data.direction === 'left') {
+          currentStreamIndex.value = (currentStreamIndex.value - 1 + devices.value.length) % devices.value.length
+        }
+        console.log(`Stream switched to index: ${currentStreamIndex.value}`)
+      }
+    } catch (e) {
+      console.error('Failed to parse WebSocket message:', e)
+    }
   }
 }
 
 onMounted(() => {
   connectWS()
 })
-
-const devices = ref([
-  { id: 1, name: 'Main Gate Cam', status: 'Online', ip: '192.168.1.101', type: 'Camera', lastSeen: 'Just now' },
-  { id: 2, name: 'Backyard Cam', status: 'Online', ip: '192.168.1.102', type: 'Camera', lastSeen: '2 mins ago' },
-  { id: 3, name: 'Driveway Sensor', status: 'Offline', ip: '192.168.1.105', type: 'Sensor', lastSeen: '1 hour ago' },
-])
 
 const events = ref([
   { id: 1, timestamp: '12:45:02', trigger: 'Motion', location: 'Main Gate', imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Gate+Motion' },
@@ -96,11 +112,11 @@ const events = ref([
               <span class="spinner-grow spinner-grow-sm" role="status"></span>
               LIVE FEED
             </span>
-            <span class="text-secondary extra-small font-monospace">CAM_01 // MAIN_GATE</span>
+            <span class="text-secondary extra-small font-monospace text-uppercase">{{ currentStream.name }} // {{ currentStream.ip }}</span>
           </div>
           
           <div class="card-body p-0 d-flex align-items-center justify-content-center bg-black">
-            <img :src="events[0].imageUrl" 
+            <img :src="`https://via.placeholder.com/1280x720/000000/3b82f6?text=${currentStream.name}+Stream`" 
                  class="img-fluid w-100 h-100 object-fit-contain opacity-75" 
                  alt="Main Stream" />
             
