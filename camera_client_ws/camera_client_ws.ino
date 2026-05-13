@@ -29,6 +29,16 @@ const char* password = "momoygemoy";
 
 WebSocketsClient webSocket;
 bool isConnected = false;
+unsigned long lastSignalSent = 0;
+
+int getSignalBars(long rssi) {
+  if (rssi >= -55) return 5;
+  if (rssi >= -65) return 4;
+  if (rssi >= -75) return 3;
+  if (rssi >= -85) return 2;
+  if (rssi >= -95) return 1;
+  return 0;
+}
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   switch(type) {
@@ -128,14 +138,23 @@ void loop() {
   webSocket.loop();
 
   if (isConnected) {    
-    camera_fb_t * fb;
+    // Send signal strength every 5 seconds
+    if (millis() - lastSignalSent > 5000) {
+      lastSignalSent = millis();
+      int bars = getSignalBars(WiFi.RSSI());
+      String msg = "{\"type\":\"signal\",\"bars\":" + String(bars) + "}";
+      webSocket.sendTXT(msg);
+      Serial.printf("Signal: %ld dBm (%d bars)\n", WiFi.RSSI(), bars);
+    }
 
-    //camera flush
-    esp_camera_fb_return(fb);
+    camera_fb_t * fb = NULL;
+
+    //camera flush - skip a few frames to get the latest
     fb = esp_camera_fb_get();
-    esp_camera_fb_return(fb);
+    if (fb) esp_camera_fb_return(fb);
     fb = esp_camera_fb_get();
-    esp_camera_fb_return(fb);
+    if (fb) esp_camera_fb_return(fb);
+    
     fb = esp_camera_fb_get();
     if (!fb) {
       Serial.println("Camera capture failed");

@@ -130,15 +130,15 @@ const events = ref([
             <div class="d-flex align-items-center gap-3">
               <span class="text-white fs-5 fw-bold font-monospace text-uppercase">ESP32-CAM [{{ currentStream.ip }}]</span>
               
-              <!-- Dummy 5-Bar Signal Icon -->
-              <div class="d-flex align-items-end gap-1" style="height: 18px;" :title="currentStream.status === 'Online' ? 'Signal Strength: Excellent' : 'No Signal'">
+              <!-- Functional 5-Bar Signal Icon -->
+              <div class="d-flex align-items-end gap-1" style="height: 18px;" :title="currentStream.status === 'Online' ? `Signal Strength: ${currentStream.signalBars || 0}/5` : 'No Signal'">
                 <div v-for="i in 5" :key="i" 
                      :style="{ 
                        width: '5px', 
                        height: (i * 20) + '%', 
-                       backgroundColor: currentStream.status === 'Online' ? '#22c55e' : '#64748b',
-                       opacity: currentStream.status === 'Online' ? 0.6 + (i * 0.1) : 0.4,
-                       boxShadow: currentStream.status === 'Online' ? '0 0 8px rgba(34, 197, 94, 0.4)' : 'none',
+                       backgroundColor: (currentStream.status === 'Online' && (currentStream.signalBars || 0) >= i) ? '#22c55e' : '#64748b',
+                       opacity: (currentStream.status === 'Online' && (currentStream.signalBars || 0) >= i) ? 0.6 + (i * 0.1) : 0.4,
+                       boxShadow: (currentStream.status === 'Online' && (currentStream.signalBars || 0) >= i) ? '0 0 8px rgba(34, 197, 94, 0.4)' : 'none',
                        borderRadius: '1.5px'
                      }">
                 </div>

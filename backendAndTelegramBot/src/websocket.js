@@ -15,6 +15,7 @@ function broadcastDeviceList(wss) {
     ip: device.ip,
     mac: device.mac,
     type: device.type,
+    signalBars: device.signalBars,
     lastSeen: device.lastSeen
   }));
 
@@ -52,6 +53,7 @@ function initWebSocket(server) {
         ip: remoteIp,
         mac: macAddress,
         type: 'Camera',
+        signalBars: 0,
         lastSeen: new Date().toLocaleTimeString()
       });
       broadcastDeviceList(wss);
@@ -70,7 +72,20 @@ function initWebSocket(server) {
           }
         });
       } else if (!isBinary) {
-        console.log(`Received text message from ${isCamera ? 'Camera' : 'Kiosk'}: ${message}`);
+        try {
+          const data = JSON.parse(message.toString());
+          if (data.type === 'signal' && isCamera) {
+            const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
+            const device = devices.get(deviceId);
+            if (device) {
+              device.signalBars = data.bars;
+              device.lastSeen = new Date().toLocaleTimeString();
+              broadcastDeviceList(wss);
+            }
+          }
+        } catch (e) {
+          console.log(`Received text message from ${isCamera ? 'Camera' : 'Kiosk'}: ${message}`);
+        }
       }
     });
 
