@@ -3,6 +3,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { Bonjour } = require('bonjour-service');
+const { WebSocketServer } = require('ws');
 
 const app = express();
 const port = 3000;
@@ -20,7 +21,24 @@ app.get('/', (req, res) => {
 });
 
 // Create HTTPS server
-https.createServer(options, app).listen(port, () => {
+const server = https.createServer(options, app);
+
+// Initialize WebSocket server
+const wss = new WebSocketServer({ server });
+
+wss.on('connection', (ws) => {
+  console.log('New WebSocket connection established.');
+  
+  ws.on('message', (message) => {
+    console.log(`Received message: ${message}`);
+  });
+
+  ws.on('close', () => {
+    console.log('WebSocket connection closed.');
+  });
+});
+
+server.listen(port, () => {
   console.log(`HTTPS Server running at https://localhost:${port}/`);
   
   // Publish mDNS service for gateway.local

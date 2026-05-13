@@ -1,10 +1,43 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 
 const currentTime = ref(new Date().toLocaleTimeString())
 setInterval(() => {
   currentTime.value = new Date().toLocaleTimeString()
 }, 1000)
+
+const wsStatus = ref('Offline')
+let ws = null
+
+const connectWS = () => {
+  // Replace with your actual server IP/domain if necessary
+  ws = new WebSocket('wss://localhost:3000')
+
+  ws.onopen = () => {
+    console.log('Connected to WebSocket server')
+    wsStatus.value = 'Online'
+  }
+
+  ws.onclose = () => {
+    console.log('WebSocket connection closed')
+    wsStatus.value = 'Offline'
+    // Reconnect after 3 seconds
+    setTimeout(connectWS, 3000)
+  }
+
+  ws.onerror = (error) => {
+    console.error('WebSocket error:', error)
+    wsStatus.value = 'Offline'
+  }
+
+  ws.onmessage = (event) => {
+    console.log('Message from server:', event.data)
+  }
+}
+
+onMounted(() => {
+  connectWS()
+})
 
 const devices = ref([
   { id: 1, name: 'Main Gate Cam', status: 'Online', ip: '192.168.1.101', type: 'Camera', lastSeen: 'Just now' },
@@ -36,6 +69,12 @@ const events = ref([
             </div>
           </div>
           <div class="d-flex gap-3 text-secondary small">
+            <span class="d-flex align-items-center gap-1">
+              <span :class="wsStatus === 'Online' ? 'text-success' : 'text-danger'" class="fw-bold">
+                <i :class="wsStatus === 'Online' ? 'bi-broadcast text-success' : 'bi-broadcast-pin text-danger'"></i>
+                WS: {{ wsStatus }}
+              </span>
+            </span>
             <span class="d-flex align-items-center gap-1">
               <i class="bi bi-cpu text-info"></i> 14%
             </span>
