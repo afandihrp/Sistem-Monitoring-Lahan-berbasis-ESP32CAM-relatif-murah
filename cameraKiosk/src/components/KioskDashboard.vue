@@ -126,7 +126,7 @@ const events = ref([
             <span class="text-white fs-5 fw-bold font-monospace text-uppercase">ESP32-CAM [{{ currentStream.ip }}]</span>
           </div>
           
-          <div class="card-body p-0 d-flex align-items-center justify-content-center bg-black">
+          <div class="card-body p-0 d-flex align-items-center justify-content-center bg-black overflow-hidden" style="min-height: 0; min-width: 0;">
             <div class="stream-container shadow-lg border border-slate-700 rounded-3 overflow-hidden">
               <img :src="liveImageSrc || `https://via.placeholder.com/1280x720/000000/3b82f6?text=WAITING+FOR+STREAM`" 
                    class="w-100 h-100" 
