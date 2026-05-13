@@ -112,7 +112,7 @@ const events = ref([
               <span class="spinner-grow spinner-grow-sm" role="status"></span>
               LIVE FEED
             </span>
-            <span class="text-secondary extra-small font-monospace text-uppercase">{{ currentStream.name }} // {{ currentStream.ip }}</span>
+            <span class="text-white fs-5 fw-bold font-monospace text-uppercase">{{ currentStream.name }} // {{ currentStream.ip }}</span>
           </div>
           
           <div class="card-body p-0 d-flex align-items-center justify-content-center bg-black">
