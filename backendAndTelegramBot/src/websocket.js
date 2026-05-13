@@ -101,7 +101,7 @@ function initWebSocket(server) {
       ws.isAlive = false;
       ws.ping();
     });
-  },2000);
+  },6000);
 
   wss.on('close', function close() {
     clearInterval(interval);

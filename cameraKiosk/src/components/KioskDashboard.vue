@@ -127,8 +127,8 @@ const events = ref([
           
           <div class="card-body p-0 d-flex align-items-center justify-content-center bg-black">
             <div class="stream-container shadow-lg border border-slate-700 rounded-3 overflow-hidden">
-              <img :src="liveImageSrc || `https://via.placeholder.com/480x380/000000/3b82f6?text=WAITING+FOR+STREAM`" 
-                   class="img-fluid" 
+              <img :src="liveImageSrc || `https://via.placeholder.com/1280x720/000000/3b82f6?text=WAITING+FOR+STREAM`" 
+                   class="w-100 h-100" 
                    alt="Main Stream" />
             </div>
             
@@ -207,8 +207,8 @@ const events = ref([
 }
 
 .stream-container {
-  width: 480px;
-  height: 380px;
+  width: 100%;
+  height: 100%;
   background-color: #000;
   display: flex;
   align-items: center;
@@ -216,9 +216,9 @@ const events = ref([
 }
 
 .stream-container img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: cover;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .extra-small {
