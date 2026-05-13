@@ -9,14 +9,10 @@ setInterval(() => {
 const wsStatus = ref('Offline')
 let ws = null
 
-const devices = ref([
-  { id: 1, name: 'Main Gate Cam', status: 'Online', ip: '192.168.1.101', type: 'Camera', lastSeen: 'Just now' },
-  { id: 2, name: 'Backyard Cam', status: 'Online', ip: '192.168.1.102', type: 'Camera', lastSeen: '2 mins ago' },
-  { id: 3, name: 'Driveway Sensor', status: 'Offline', ip: '192.168.1.105', type: 'Sensor', lastSeen: '1 hour ago' },
-])
+const devices = ref([])
 
 const currentStreamIndex = ref(0)
-const currentStream = computed(() => devices.value[currentStreamIndex.value])
+const currentStream = computed(() => devices.value[currentStreamIndex.value] || { name: 'No Active Stream', ip: 'N/A' })
 
 const connectWS = () => {
   // Replace with your actual server IP/domain if necessary
@@ -50,6 +46,9 @@ const connectWS = () => {
           currentStreamIndex.value = (currentStreamIndex.value - 1 + devices.value.length) % devices.value.length
         }
         console.log(`Stream switched to index: ${currentStreamIndex.value}`)
+      } else if (data.type === 'device_list') {
+        devices.value = data.devices
+        console.log('Device list updated:', devices.value)
       }
     } catch (e) {
       console.error('Failed to parse WebSocket message:', e)

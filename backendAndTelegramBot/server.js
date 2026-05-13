@@ -44,16 +44,94 @@ const server = https.createServer(options, app);
 // Initialize WebSocket server
 const wss = new WebSocketServer({ server });
 
-wss.on('connection', (ws) => {
-  console.log('New WebSocket connection established.');
+// Track connected camera devices
+const devices = new Map();
+
+function heartbeat() {
+  this.isAlive = true;
+}
+
+function broadcastDeviceList() {
+  const deviceList = Array.from(devices.values()).map(device => ({
+    id: device.id,
+    name: device.name,
+    status: device.status,
+    ip: device.ip,
+    type: device.type,
+    lastSeen: device.lastSeen
+  }));
+
+  const payload = JSON.stringify({ type: 'device_list', devices: deviceList });
+  
+  wss.clients.forEach((client) => {
+    // Only send to Kiosks (not the camera itself)
+    if (client.readyState === 1 && client.path !== '/camera') {
+      client.send(payload);
+    }
+  });
+}
+
+wss.on('connection', (ws, req) => {
+  const isCamera = req.url === '/camera';
+  const remoteIp = req.socket.remoteAddress.replace('::ffff:', '');
+  
+  ws.isAlive = true;
+  ws.on('pong', heartbeat);
+  ws.path = req.url; // Store path to identify client type later
+
+  if (isCamera) {
+    console.log(`New Camera connection from ${remoteIp}`);
+    const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
+    devices.set(deviceId, {
+      id: deviceId,
+      name: `ESP32-CAM (${remoteIp})`,
+      status: 'Online',
+      ip: remoteIp,
+      type: 'Camera',
+      lastSeen: new Date().toLocaleTimeString()
+    });
+    broadcastDeviceList();
+  } else {
+    console.log('New Kiosk connection established.');
+    // Send current device list to the new Kiosk immediately
+    broadcastDeviceList();
+  }
   
   ws.on('message', (message) => {
-    console.log(`Received message: ${message}`);
+    console.log(`Received message from ${isCamera ? 'Camera' : 'Kiosk'}: ${message}`);
   });
 
   ws.on('close', () => {
-    console.log('WebSocket connection closed.');
+    if (isCamera) {
+      const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
+      const device = devices.get(deviceId);
+      if (device) {
+        device.status = 'Offline';
+        device.lastSeen = new Date().toLocaleTimeString();
+        console.log(`Camera ${remoteIp} disconnected.`);
+        broadcastDeviceList();
+      }
+    } else {
+      console.log('Kiosk connection closed.');
+    }
   });
+});
+
+// Heartbeat interval check every 30 seconds
+const interval = setInterval(function ping() {
+  wss.clients.forEach(function each(ws) {
+    if (ws.isAlive === false) {
+      console.log(`Terminating inactive connection: ${ws.path}`);
+      return ws.terminate();
+    }
+
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 5000);
+
+wss.on('close', function close() {
+  clearInterval(interval);
 });
 
 server.listen(port, () => {
