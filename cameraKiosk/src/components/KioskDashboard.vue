@@ -14,7 +14,7 @@ const liveImageSrc = ref('')
 let lastObjectUrl = null
 
 const currentStreamIndex = ref(0)
-const currentStream = computed(() => devices.value[currentStreamIndex.value] || { name: 'No Active Stream', ip: 'N/A' })
+const currentStream = computed(() => devices.value[currentStreamIndex.value] || { name: 'No Active Stream', ip: 'N/A', status: 'Offline' })
 
 const connectWS = () => {
   // Use the current hostname to connect to the backend
@@ -119,18 +119,29 @@ const events = ref([
       <section class="col-lg-10 d-flex flex-column h-100 overflow-hidden">
         <div class="card h-100 rounded-4 shadow-soft bg-black border-slate-700 overflow-hidden position-relative">
           <div class="card-header bg-slate-800 border-bottom border-slate-700 px-3 py-2 d-flex justify-content-between align-items-center z-1">
-            <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger border-opacity-25 d-flex align-items-center gap-2">
+            <span v-if="currentStream.status === 'Online'" class="badge rounded-pill bg-danger-subtle text-danger border border-danger border-opacity-25 d-flex align-items-center gap-2">
               <span class="spinner-grow spinner-grow-sm" role="status"></span>
               LIVE FEED
+            </span>
+            <span v-else class="badge rounded-pill bg-secondary-subtle text-secondary border border-secondary border-opacity-25 d-flex align-items-center gap-2">
+              <i class="bi bi-camera-video-off-fill"></i>
+              OFFLINE
             </span>
             <span class="text-white fs-5 fw-bold font-monospace text-uppercase">ESP32-CAM [{{ currentStream.ip }}]</span>
           </div>
           
           <div class="card-body p-0 d-flex align-items-center justify-content-center bg-black overflow-hidden" style="min-height: 0; min-width: 0;">
-            <div class="stream-container shadow-lg border border-slate-700 rounded-3 overflow-hidden">
-              <img :src="liveImageSrc || `https://via.placeholder.com/1280x720/000000/3b82f6?text=WAITING+FOR+STREAM`" 
+            <div class="stream-container shadow-lg border border-slate-700 rounded-3 overflow-hidden position-relative">
+              <img :src="currentStream.status === 'Online' ? (liveImageSrc || `https://via.placeholder.com/1280x720/000000/3b82f6?text=WAITING+FOR+STREAM`) : `https://via.placeholder.com/1280x720/000000/000000?text=.`" 
                    class="w-100 h-100" 
                    alt="Main Stream" />
+              
+              <!-- Large Offline Icon Overlay -->
+              <div v-if="currentStream.status !== 'Online'" 
+                   class="position-absolute top-50 start-50 translate-middle d-flex flex-column align-items-center text-secondary opacity-50">
+                <i class="bi bi-camera-video-off" style="font-size: 6rem;"></i>
+                <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">Camera Offline</div>
+              </div>
             </div>
             
             <!-- Floating Overlay HUD -->
