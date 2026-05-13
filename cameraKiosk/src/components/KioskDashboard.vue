@@ -12,12 +12,11 @@ const devices = ref([
   { id: 3, name: 'Driveway Sensor', status: 'Offline', ip: '192.168.1.105', type: 'Sensor', lastSeen: '1 hour ago' },
 ])
 
-const latestCapture = ref({
-  timestamp: new Date().toLocaleTimeString(),
-  imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Live+Capture+Feed',
-  trigger: 'Motion Detected',
-  location: 'Main Gate'
-})
+const events = ref([
+  { id: 1, timestamp: '12:45:02', trigger: 'Motion', location: 'Main Gate', imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Gate+Motion' },
+  { id: 2, timestamp: '12:40:15', trigger: 'Door', location: 'Backyard', imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Door+Open' },
+  { id: 3, timestamp: '12:35:50', trigger: 'Motion', location: 'Driveway', imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Driveway+Motion' },
+])
 </script>
 
 <template>
@@ -51,18 +50,18 @@ const latestCapture = ref({
     <!-- Main Content -->
     <main class="row g-3 flex-grow-1 overflow-hidden">
       <!-- Left: Primary Stream View -->
-      <section class="col-lg-9 d-flex flex-column h-100 overflow-hidden">
+      <section class="col-lg-10 d-flex flex-column h-100 overflow-hidden">
         <div class="card h-100 rounded-4 shadow-soft bg-black border-slate-700 overflow-hidden position-relative">
-          <div class="card-header bg-slate-800 border-bottom border-slate-700 px-4 py-2 d-flex justify-content-between align-items-center z-1">
+          <div class="card-header bg-slate-800 border-bottom border-slate-700 px-3 py-2 d-flex justify-content-between align-items-center z-1">
             <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger border-opacity-25 d-flex align-items-center gap-2">
               <span class="spinner-grow spinner-grow-sm" role="status"></span>
               LIVE FEED
             </span>
-            <span class="text-secondary small font-monospace">CAM_01 // MAIN_GATE</span>
+            <span class="text-secondary extra-small font-monospace">CAM_01 // MAIN_GATE</span>
           </div>
           
           <div class="card-body p-0 d-flex align-items-center justify-content-center bg-black">
-            <img :src="latestCapture.imageUrl" 
+            <img :src="events[0].imageUrl" 
                  class="img-fluid w-100 h-100 object-fit-contain opacity-75" 
                  alt="Main Stream" />
             
@@ -79,11 +78,11 @@ const latestCapture = ref({
       </section>
 
       <!-- Right: Sidebar -->
-      <aside class="col-lg-3 d-flex flex-column h-100 gap-3 overflow-hidden">
-        <!-- Devices Card -->
-        <div class="card flex-grow-1 rounded-4 shadow-soft bg-slate-800 border-slate-700 overflow-hidden">
-          <div class="card-header border-bottom border-slate-700 px-4 py-3">
-            <h6 class="m-0 fw-bold d-flex align-items-center gap-2">
+      <aside class="col-lg-2 d-flex flex-column h-100 gap-3 overflow-hidden">
+        <!-- Devices Card (Shorter) -->
+        <div class="card rounded-4 shadow-soft bg-slate-800 border-slate-700 overflow-hidden flex-shrink-1" style="max-height: 30%;">
+          <div class="card-header border-bottom border-slate-700 px-3 py-2">
+            <h6 class="m-0 fw-bold d-flex align-items-center gap-2 small">
               <i class="bi bi-hdd-network-fill text-primary"></i>
               Devices
             </h6>
@@ -91,45 +90,42 @@ const latestCapture = ref({
           <div class="card-body p-0 overflow-auto custom-scrollbar">
             <div class="list-group list-group-flush">
               <div v-for="device in devices" :key="device.id" 
-                   class="list-group-item bg-transparent border-slate-700 px-4 py-3 transition-all hover-bg">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div>
-                    <div class="fw-bold small">{{ device.name }}</div>
-                    <code class="text-info" style="font-size: 0.7rem;">{{ device.ip }}</code>
+                   class="list-group-item bg-transparent border-slate-700 px-3 py-2 transition-all hover-bg">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div class="overflow-hidden">
+                    <div class="fw-bold text-truncate" style="font-size: 0.9rem;">{{ device.name }}</div>
+                    <code class="text-info d-block text-truncate" style="font-size: 0.75rem;">{{ device.ip }}</code>
                   </div>
                   <span :class="device.status === 'Online' ? 'bg-success' : 'bg-danger'" 
-                        class="badge rounded-pill" style="font-size: 0.6rem;">
+                        class="badge rounded-pill ms-1" style="font-size: 0.7rem; padding: 0.25em 0.5em;">
                     {{ device.status }}
                   </span>
-                </div>
-                <div class="mt-2 text-secondary small" style="font-size: 0.65rem;">
-                  <i class="bi bi-clock-history me-1"></i> Last seen: {{ device.lastSeen }}
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Latest Event Card -->
-        <div class="card rounded-4 shadow-soft bg-slate-800 border-slate-700 overflow-hidden">
-          <div class="card-header border-bottom border-slate-700 px-4 py-3">
-            <h6 class="m-0 fw-bold d-flex align-items-center gap-2">
+        <!-- Latest Event Card (Bigger) -->
+        <div class="card flex-grow-1 rounded-4 shadow-soft bg-slate-800 border-slate-700 overflow-hidden">
+          <div class="card-header border-bottom border-slate-700 px-3 py-2">
+            <h6 class="m-0 fw-bold d-flex align-items-center gap-2 small">
               <i class="bi bi-bell-fill text-warning"></i>
-              Latest Event
+              Events
             </h6>
           </div>
-          <div class="card-body p-3">
-            <div class="rounded-3 overflow-hidden border border-slate-700 bg-black">
-              <img :src="latestCapture.imageUrl" class="img-fluid opacity-50" alt="Event" />
-            </div>
-            <div class="mt-3">
-              <div class="d-flex justify-content-between align-items-center mb-1">
-                <span class="badge bg-primary-subtle text-primary border border-primary border-opacity-25 extra-small">
-                  {{ latestCapture.trigger }}
-                </span>
-                <span class="text-secondary font-monospace extra-small">{{ latestCapture.timestamp }}</span>
+          <div class="card-body p-0 overflow-auto custom-scrollbar">
+            <div v-for="event in events" :key="event.id" class="p-3 border-bottom border-slate-700 last-child-border-0">
+              <div class="rounded-3 overflow-hidden border border-slate-700 bg-black mb-2">
+                <img :src="event.imageUrl" class="img-fluid opacity-50" alt="Event" />
               </div>
-              <p class="small text-secondary m-0">Detected at <strong>{{ latestCapture.location }}</strong></p>
+              <div class="d-flex justify-content-between align-items-center mb-1 gap-1">
+                <span class="badge bg-primary-subtle text-primary border border-primary border-opacity-25" style="font-size: 0.65rem;">
+                  {{ event.trigger }}
+                </span>
+                <span class="text-secondary font-monospace" style="font-size: 0.65rem;">{{ event.timestamp }}</span>
+              </div>
+              <p class="small text-secondary m-0" style="font-size: 0.75rem;">At <strong>{{ event.location }}</strong></p>
             </div>
           </div>
         </div>
@@ -167,6 +163,10 @@ const latestCapture = ref({
 }
 .list-group-item:first-child {
   border-top: none;
+}
+
+.last-child-border-0:last-child {
+  border-bottom: none !important;
 }
 
 /* Responsive fixes for kiosk */
