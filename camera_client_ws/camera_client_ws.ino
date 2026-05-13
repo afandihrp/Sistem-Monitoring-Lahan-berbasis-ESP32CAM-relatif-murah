@@ -72,6 +72,15 @@ void setup() {
   Serial.println(serverIP);
 
   // Configure WebSocket connection
+  // Get MAC address and send it as a custom header
+  String mac = WiFi.macAddress();
+  Serial.print("MAC Address: ");
+  Serial.println(mac);
+  
+  // Set custom header for MAC identification
+  String headers = "X-MAC-Address: " + mac;
+  webSocket.setExtraHeaders(headers.c_str());
+
   // Bypass SSL certificate validation for self-signed certs
   webSocket.beginSSL(serverIP.toString().c_str(), 3000, "/camera", "", "");
 

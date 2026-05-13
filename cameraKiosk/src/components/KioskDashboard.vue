@@ -111,7 +111,7 @@ const events = ref([
               <span class="spinner-grow spinner-grow-sm" role="status"></span>
               LIVE FEED
             </span>
-            <span class="text-white fs-5 fw-bold font-monospace text-uppercase">{{ currentStream.name }} // {{ currentStream.ip }}</span>
+            <span class="text-white fs-5 fw-bold font-monospace text-uppercase">ESP32-CAM [{{ currentStream.ip }}]</span>
           </div>
           
           <div class="card-body p-0 d-flex align-items-center justify-content-center bg-black">
@@ -147,7 +147,7 @@ const events = ref([
                    class="list-group-item bg-transparent border-slate-700 px-3 py-2 transition-all hover-bg">
                 <div class="d-flex justify-content-between align-items-center">
                   <div class="overflow-hidden">
-                    <div class="fw-bold text-truncate" style="font-size: 0.9rem;">{{ device.name }}</div>
+                    <div class="fw-bold text-truncate" style="font-size: 0.9rem;">{{ device.mac || 'Unknown MAC' }}</div>
                     <code class="text-info d-block text-truncate" style="font-size: 0.75rem;">{{ device.ip }}</code>
                   </div>
                   <span :class="device.status === 'Online' ? 'bg-success' : 'bg-danger'" 

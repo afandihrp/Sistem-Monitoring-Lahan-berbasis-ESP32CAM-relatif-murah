@@ -57,6 +57,7 @@ function broadcastDeviceList() {
     name: device.name,
     status: device.status,
     ip: device.ip,
+    mac: device.mac,
     type: device.type,
     lastSeen: device.lastSeen
   }));
@@ -74,19 +75,21 @@ function broadcastDeviceList() {
 wss.on('connection', (ws, req) => {
   const isCamera = req.url === '/camera';
   const remoteIp = req.socket.remoteAddress.replace('::ffff:', '');
+  const macAddress = req.headers['x-mac-address'] || 'Unknown MAC';
   
   ws.isAlive = true;
   ws.on('pong', heartbeat);
   ws.path = req.url; // Store path to identify client type later
 
   if (isCamera) {
-    console.log(`New Camera connection from ${remoteIp}`);
+    console.log(`New Camera connection from ${remoteIp} (MAC: ${macAddress})`);
     const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
     devices.set(deviceId, {
       id: deviceId,
-      name: `ESP32-CAM (${remoteIp})`,
+      name: macAddress !== 'Unknown MAC' ? `ESP32-CAM [${macAddress}]` : `ESP32-CAM (${remoteIp})`,
       status: 'Online',
       ip: remoteIp,
+      mac: macAddress,
       type: 'Camera',
       lastSeen: new Date().toLocaleTimeString()
     });
