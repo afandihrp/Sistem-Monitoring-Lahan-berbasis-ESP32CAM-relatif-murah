@@ -119,12 +119,12 @@ const events = ref([
       <section class="col-lg-10 d-flex flex-column h-100 overflow-hidden">
         <div class="card h-100 rounded-4 shadow-soft bg-black border-slate-700 overflow-hidden position-relative">
           <div class="card-header bg-slate-800 border-bottom border-slate-700 px-3 py-2 d-flex justify-content-between align-items-center z-1">
-            <span v-if="currentStream.status === 'Online'" class="badge rounded-pill bg-danger-subtle text-danger border border-danger border-opacity-25 d-flex align-items-center gap-2">
-              <span class="spinner-grow spinner-grow-sm" role="status"></span>
+            <span v-if="currentStream.status === 'Online'" class="badge rounded-pill bg-danger-subtle text-danger border border-danger border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-5">
+              <span class="spinner-grow spinner-grow-sm" style="width: 0.9rem; height: 0.9rem;" role="status"></span>
               LIVE FEED
             </span>
-            <span v-else class="badge rounded-pill bg-secondary-subtle text-secondary border border-secondary border-opacity-25 d-flex align-items-center gap-2">
-              <i class="bi bi-camera-video-off-fill"></i>
+            <span v-else class="badge rounded-pill bg-secondary-subtle text-secondary border border-secondary border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-5">
+              <i class="bi bi-camera-video-off-fill fs-5"></i>
               OFFLINE
             </span>
             <div class="d-flex align-items-center gap-3">
