@@ -135,16 +135,28 @@ void setup() {
   }
   Serial.println("\nWiFi connected");
 
-  // TEMPORARY: Hardcoded IP address
-  IPAddress serverIP;
-  serverIP.fromString("10.173.11.206");
+  // Resolve gateway.local via mDNS
+  if (!MDNS.begin("esp32-cam")) {
+    Serial.println("Error setting up MDNS responder!");
+  }
+  
+  Serial.println("Resolving gateway.local...");
+  IPAddress serverIP = MDNS.queryHost("gateway");
+  
+  while (serverIP.toString() == "0.0.0.0") {
+    Serial.println("mDNS query failed, retrying...");
+    delay(1000);
+    serverIP = MDNS.queryHost("gateway");
+  }
+  
+  Serial.printf("Resolved gateway.local to: %s\n", serverIP.toString().c_str());
 
   // Get MAC address and send it as a custom header
   String mac = WiFi.macAddress();
   String headers = "X-MAC-Address: " + mac;
   webSocket.setExtraHeaders(headers.c_str());
 
-  // Connect to WebSocket
+  // Connect to WebSocket using the resolved IP
   webSocket.beginSSL(serverIP.toString().c_str(), 3000, "/camera", "", "");
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000);

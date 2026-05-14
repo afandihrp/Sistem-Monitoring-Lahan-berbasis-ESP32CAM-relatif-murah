@@ -27,8 +27,8 @@ const wss = initWebSocket(server);
 // Initialize Routes
 app.use('/', createRouter(wss));
 
-server.listen(port, () => {
-  console.log(`HTTPS Server running at https://localhost:${port}/`);
+server.listen(port, '0.0.0.0', () => {
+  console.log(`HTTPS Server running at https://0.0.0.0:${port}/`);
   
   // Initialize Telegram Bot
   initTelegramBot();

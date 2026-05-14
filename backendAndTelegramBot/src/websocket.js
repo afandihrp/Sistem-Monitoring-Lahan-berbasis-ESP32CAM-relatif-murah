@@ -104,6 +104,10 @@ function initWebSocket(server) {
                 client.send(payload);
               }
             });
+
+            // Send Telegram Alert
+            console.log(`Triggering Telegram alert for ${location}`);
+            sendMotionAlert(location, data.sensor);
           } else if (data.type === 'set_active_stream' && !isCamera) {
             // Kiosk subscribing to a specific camera stream
             ws.activeDeviceId = data.deviceId;
