@@ -27,6 +27,18 @@
 const char* ssid = "BatuKhan";
 const char* password = "momoygemoy";
 
+const uint8_t left_pir_pin = 13;
+const uint8_t middle_pir_pin = 15;
+const uint8_t right_pir_pin = 14;
+
+volatile bool left_pir = false;
+volatile bool middle_pir = false;
+volatile bool right_pir = false;
+
+bool prev_state_left_pir = false;
+bool prev_state_middle_pir = false;
+bool prev_state_right_pir = false;
+
 WebSocketsClient webSocket;
 bool isConnected = false;
 unsigned long lastSignalSent = 0;
@@ -75,6 +87,10 @@ void setup() {
     Serial.println("psram are not enabled");
   }
 
+  pinMode(left_pir_pin, INPUT_PULLDOWN);
+  pinMode(middle_pir_pin, INPUT_PULLDOWN);
+  pinMode(right_pir_pin, INPUT_PULLDOWN);
+
   // Camera configuration
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -121,7 +137,7 @@ void setup() {
 
   // TEMPORARY: Hardcoded IP address
   IPAddress serverIP;
-  serverIP.fromString("192.168.11.168");
+  serverIP.fromString("10.173.11.206");
 
   // Get MAC address and send it as a custom header
   String mac = WiFi.macAddress();
@@ -134,12 +150,31 @@ void setup() {
   webSocket.setReconnectInterval(5000);
 }
 
+void check_pins()
+{
+  bool current_state = digitalRead(left_pir_pin);
+  if(current_state != true && prev_state_left_pir != true) return;
+  left_pir = true;
+  prev_state_left_pir = current_state;
+
+  current_state = digitalRead(middle_pir_pin);
+  if(current_state != true && prev_state_middle_pir != true) return;
+  middle_pir = true;
+  prev_state_middle_pir = current_state;
+
+  current_state = digitalRead(right_pir_pin);
+  if(current_state != true && prev_state_right_pir != true) return;
+  right_pir = true;
+  prev_state_right_pir = current_state;
+
+}
+
 void loop() {
   webSocket.loop();
 
   if (isConnected) {    
     // Send signal strength every 5 seconds
-    if (millis() - lastSignalSent > 5000) {
+    if (millis() - lastSignalSent > 8000) {
       lastSignalSent = millis();
       int bars = getSignalBars(WiFi.RSSI());
       String msg = "{\"type\":\"signal\",\"bars\":" + String(bars) + "}";
@@ -151,15 +186,15 @@ void loop() {
 
     //camera flush - skip a few frames to get the latest
     fb = esp_camera_fb_get();
-    if (fb) esp_camera_fb_return(fb);
+    esp_camera_fb_return(fb);
     fb = esp_camera_fb_get();
-    if (fb) esp_camera_fb_return(fb);
+    esp_camera_fb_return(fb);
     
     fb = esp_camera_fb_get();
-    if (!fb) {
-      Serial.println("Camera capture failed");
-      return;
-    }
+    // if (!fb) {
+    //   Serial.println("Camera capture failed");
+    //   return;
+    // }
 
     // Send the JPEG frame as binary data
     webSocket.sendBIN(fb->buf, fb->len);
@@ -167,6 +202,6 @@ void loop() {
     // Return the frame buffer back to the driver for reuse
     esp_camera_fb_return(fb);
 
-    delay(100);
+    delay(10);
   }
 }
