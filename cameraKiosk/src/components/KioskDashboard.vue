@@ -17,7 +17,6 @@ const currentStreamIndex = ref(0)
 const currentStream = computed(() => devices.value[currentStreamIndex.value] || { name: 'No Active Stream', ip: 'N/A', status: 'Offline' })
 
 const connectWS = () => {
-  // Use the current hostname to connect to the backend
   const backendUrl = `wss://${window.location.hostname}:3000`
   ws = new WebSocket(backendUrl)
 
@@ -29,7 +28,6 @@ const connectWS = () => {
   ws.onclose = () => {
     console.log('WebSocket connection closed')
     wsStatus.value = 'Offline'
-    // Reconnect after 3 seconds
     setTimeout(connectWS, 3000)
   }
 
@@ -40,7 +38,6 @@ const connectWS = () => {
 
   ws.onmessage = (event) => {
     if (event.data instanceof Blob) {
-      // Handle binary video frame
       if (lastObjectUrl) {
         URL.revokeObjectURL(lastObjectUrl)
       }
@@ -80,9 +77,11 @@ const events = ref([
 </script>
 
 <template>
-  <div class="vh-100 d-flex flex-column p-2 gap-2" data-bs-theme="dark">
-    <!-- Top Navigation -->
-    <nav class="navbar navbar-expand-lg bg-slate-800 rounded-3 shadow-soft px-3 py-0 border border-slate-700" style="min-height: 40px;">
+  <!-- WRAPPER UTAMA: Tidak ada padding luar -->
+  <div class="main-wrapper d-flex flex-column" data-bs-theme="dark">
+    
+    <!-- Top Navigation (Tanpa margin, tanpa lengkungan) -->
+    <nav class="navbar navbar-expand-lg bg-slate-800 px-3 py-0 border-bottom border-slate-700 z-3" style="min-height: 45px;">
       <div class="container-fluid p-0">
         <a class="navbar-brand fw-bold d-flex align-items-center gap-2 m-0" href="#" style="font-size: 1.1rem;">
           <i class="bi bi-shield-lock-fill text-primary fs-5"></i>
@@ -102,10 +101,10 @@ const events = ref([
                 WS: {{ wsStatus }}
               </span>
             </span>
-            <span class="d-flex align-items-center gap-1">
+            <span class="d-flex align-items-center gap-1 d-none d-md-flex">
               <i class="bi bi-cpu text-info"></i> 14%
             </span>
-            <span class="d-flex align-items-center gap-1">
+            <span class="d-flex align-items-center gap-1 d-none d-md-flex">
               <i class="bi bi-memory text-warning"></i> 2.4GB
             </span>
           </div>
@@ -113,86 +112,85 @@ const events = ref([
       </div>
     </nav>
 
-    <!-- Main Content -->
-    <main class="row g-3 flex-grow-1 overflow-hidden">
-      <!-- Left: Primary Stream View -->
-      <section class="col-lg-10 d-flex flex-column h-100 overflow-hidden">
-        <div class="card h-100 rounded-4 shadow-soft bg-black border-slate-700 overflow-hidden position-relative">
-          <div class="card-header bg-slate-800 border-bottom border-slate-700 px-3 py-2 d-flex justify-content-between align-items-center z-1">
-            <span v-if="currentStream.status === 'Online'" class="badge rounded-pill bg-danger-subtle text-danger border border-danger border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-5">
-              <span class="spinner-grow spinner-grow-sm" style="width: 0.9rem; height: 0.9rem;" role="status"></span>
-              LIVE FEED
-            </span>
-            <span v-else class="badge rounded-pill bg-secondary-subtle text-secondary border border-secondary border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-5">
-              <i class="bi bi-camera-video-off-fill fs-5"></i>
-              OFFLINE
-            </span>
-            <div class="d-flex align-items-center gap-3">
-              <span class="text-white fs-5 fw-bold font-monospace text-uppercase">ESP32-CAM [{{ currentStream.ip }}]</span>
-              
-              <!-- Functional 5-Bar Signal Icon -->
-              <div class="d-flex align-items-end gap-1" style="height: 18px;" :title="currentStream.status === 'Online' ? `Signal Strength: ${currentStream.signalBars || 0}/5` : 'No Signal'">
-                <div v-for="i in 5" :key="i" 
-                     :style="{ 
-                       width: '5px', 
-                       height: (i * 20) + '%', 
-                       backgroundColor: (currentStream.status === 'Online' && (currentStream.signalBars || 0) >= i) ? '#22c55e' : '#64748b',
-                       opacity: (currentStream.status === 'Online' && (currentStream.signalBars || 0) >= i) ? 0.6 + (i * 0.1) : 0.4,
-                       boxShadow: (currentStream.status === 'Online' && (currentStream.signalBars || 0) >= i) ? '0 0 8px rgba(34, 197, 94, 0.4)' : 'none',
-                       borderRadius: '1.5px'
-                     }">
-                </div>
+    <!-- Main Content: g-0 membuang gutter/jarak antar kolom -->
+    <main class="row g-0 flex-grow-1" id="main-layout">
+      
+      <!-- KIRI: Primary Stream View -->
+      <section class="col-lg-10 stream-section bg-black position-relative">
+        <!-- Header Stream (Absolute agar video bisa full edge-to-edge) -->
+        <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-between align-items-center z-2 stream-header-grad">
+          <span v-if="currentStream.status === 'Online'" class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
+            <span class="spinner-grow spinner-grow-sm" style="width: 0.8rem; height: 0.8rem;" role="status"></span>
+            LIVE FEED
+          </span>
+          <span v-else class="badge rounded-pill bg-secondary text-white border border-secondary border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
+            <i class="bi bi-camera-video-off-fill fs-6"></i>
+            OFFLINE
+          </span>
+          
+          <div class="d-flex align-items-center gap-3">
+            <span class="text-white fs-6 fw-bold font-monospace text-uppercase" style="text-shadow: 1px 1px 2px black;">ESP32-CAM [{{ currentStream.ip }}]</span>
+            <!-- Signal Icon -->
+            <div class="d-flex align-items-end gap-1" style="height: 18px;" :title="currentStream.status === 'Online' ? `Signal Strength: ${currentStream.signalBars || 0}/5` : 'No Signal'">
+              <div v-for="i in 5" :key="i" 
+                   :style="{ 
+                     width: '5px', 
+                     height: (i * 20) + '%', 
+                     backgroundColor: (currentStream.status === 'Online' && (currentStream.signalBars || 0) >= i) ? '#22c55e' : '#64748b',
+                     opacity: (currentStream.status === 'Online' && (currentStream.signalBars || 0) >= i) ? 0.9 : 0.4,
+                     boxShadow: (currentStream.status === 'Online' && (currentStream.signalBars || 0) >= i) ? '0 0 8px rgba(34, 197, 94, 0.8)' : 'none',
+                     borderRadius: '1.5px'
+                   }">
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- Video Container -->
+        <div class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
+          <img :src="currentStream.status === 'Online' ? (liveImageSrc || `https://via.placeholder.com/1920x1080/000000/3b82f6?text=WAITING+FOR+STREAM`) : `https://via.placeholder.com/1920x1080/000000/000000?text=.`" 
+               class="w-100 h-100 object-fit-contain" 
+               alt="Main Stream" />
           
-          <div class="card-body p-0 d-flex align-items-center justify-content-center bg-black overflow-hidden" style="min-height: 0; min-width: 0;">
-            <div class="stream-container shadow-lg border border-slate-700 rounded-3 overflow-hidden position-relative">
-              <img :src="currentStream.status === 'Online' ? (liveImageSrc || `https://via.placeholder.com/1280x720/000000/3b82f6?text=WAITING+FOR+STREAM`) : `https://via.placeholder.com/1280x720/000000/000000?text=.`" 
-                   class="w-100 h-100" 
-                   alt="Main Stream" />
-              
-              <!-- Large Offline Icon Overlay -->
-              <div v-if="currentStream.status !== 'Online'" 
-                   class="position-absolute top-50 start-50 translate-middle d-flex flex-column align-items-center text-secondary opacity-50">
-                <i class="bi bi-camera-video-off" style="font-size: 6rem;"></i>
-                <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">Camera Offline</div>
-              </div>
-            </div>
-            
-            <!-- Floating Overlay HUD -->
-            <div class="position-absolute bottom-0 start-0 m-4 p-3 rounded-3 bg-slate-800 bg-opacity-75 border border-slate-700 shadow-lg" style="backdrop-filter: blur(8px);">
-              <div class="d-flex flex-column gap-1">
-                <div class="small fw-bold text-primary text-uppercase">Telemetry</div>
-                <div class="font-monospace extra-small">RES: 1080P // FPS: 24</div>
-                <div class="font-monospace extra-small text-success">LINK: STABLE (94%)</div>
-              </div>
+          <!-- Offline Overlay -->
+          <div v-if="currentStream.status !== 'Online'" 
+               class="position-absolute top-50 start-50 translate-middle d-flex flex-column align-items-center text-secondary opacity-50">
+            <i class="bi bi-camera-video-off" style="font-size: 6rem;"></i>
+            <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">Camera Offline</div>
+          </div>
+
+          <!-- Floating Overlay HUD -->
+          <div class="position-absolute bottom-0 start-0 m-3 p-2 rounded-3 bg-slate-800 bg-opacity-75 border border-slate-700 z-2" style="backdrop-filter: blur(8px);">
+            <div class="d-flex flex-column gap-1">
+              <div class="small fw-bold text-primary text-uppercase" style="font-size: 0.7rem;">Telemetry</div>
+              <div class="font-monospace extra-small">RES: 1080P // FPS: 24</div>
+              <div class="font-monospace extra-small text-success">LINK: STABLE (94%)</div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Right: Sidebar -->
-      <aside class="col-lg-2 d-flex flex-column h-100 gap-3 overflow-hidden">
-        <!-- Devices Card (Shorter) -->
-        <div class="card rounded-4 shadow-soft bg-slate-800 border-slate-700 overflow-hidden flex-shrink-1" style="max-height: 30%;">
-          <div class="card-header border-bottom border-slate-700 px-3 py-2">
+      <!-- KANAN: Sidebar -->
+      <aside class="col-lg-2 sidebar-section d-flex flex-column bg-slate-900 border-start border-slate-700">
+        
+        <!-- Devices Card (Tanpa border luar) -->
+        <div class="d-flex flex-column border-bottom border-slate-700 flex-shrink-0 device-panel">
+          <div class="bg-slate-800 px-3 py-2 border-bottom border-slate-700">
             <h6 class="m-0 fw-bold d-flex align-items-center gap-2 small">
-              <i class="bi bi-hdd-network-fill text-primary"></i>
-              Devices
+              <i class="bi bi-hdd-network-fill text-primary"></i> Devices
             </h6>
           </div>
-          <div class="card-body p-0 overflow-auto custom-scrollbar">
+          <div class="overflow-auto custom-scrollbar flex-grow-1">
             <div class="list-group list-group-flush">
               <div v-for="device in devices" :key="device.id" 
                    class="list-group-item bg-transparent border-slate-700 px-3 py-2 transition-all hover-bg">
                 <div class="d-flex justify-content-between align-items-center">
                   <div class="overflow-hidden">
-                    <div class="fw-bold text-truncate" style="font-size: 0.9rem;">{{ device.mac || 'Unknown MAC' }}</div>
-                    <code class="text-info d-block text-truncate" style="font-size: 0.8em;">{{ device.ip }}</code>
+                    <div class="fw-bold text-truncate" style="font-size: 0.85rem;">{{ device.mac || 'Unknown MAC' }}</div>
+                    <code class="text-info d-block text-truncate" style="font-size: 0.75rem;">{{ device.ip }}</code>
                   </div>
                   <span :class="device.status === 'Online' ? 'bg-success' : 'bg-danger'" 
-                        class="badge rounded-pill ms-1" style="font-size: 0.9rem; padding: 0.25em 0.5em;">
+                        class="badge rounded-pill ms-1" style="font-size: 0.75rem;">
                     {{ device.status }}
                   </span>
                 </div>
@@ -201,18 +199,17 @@ const events = ref([
           </div>
         </div>
 
-        <!-- Latest Event Card (Bigger) -->
-        <div class="card flex-grow-1 rounded-4 shadow-soft bg-slate-800 border-slate-700 overflow-hidden">
-          <div class="card-header border-bottom border-slate-700 px-3 py-2">
+        <!-- Events Card -->
+        <div class="d-flex flex-column flex-grow-1 overflow-hidden event-panel">
+          <div class="bg-slate-800 px-3 py-2 border-bottom border-slate-700">
             <h6 class="m-0 fw-bold d-flex align-items-center gap-2 small">
-              <i class="bi bi-bell-fill text-warning"></i>
-              Events
+              <i class="bi bi-bell-fill text-warning"></i> Events
             </h6>
           </div>
-          <div class="card-body p-0 overflow-auto custom-scrollbar">
+          <div class="overflow-auto custom-scrollbar flex-grow-1">
             <div v-for="event in events" :key="event.id" class="p-3 border-bottom border-slate-700 last-child-border-0">
-              <div class="rounded-3 overflow-hidden border border-slate-700 bg-black mb-2">
-                <img :src="event.imageUrl" class="img-fluid opacity-50" alt="Event" />
+              <div class="rounded-2 overflow-hidden border border-slate-700 bg-black mb-2">
+                <img :src="event.imageUrl" class="img-fluid opacity-75 w-100" style="object-fit: cover; height: 80px;" alt="Event" />
               </div>
               <div class="d-flex justify-content-between align-items-center mb-1 gap-1">
                 <span class="badge bg-primary-subtle text-primary border border-primary border-opacity-25" style="font-size: 0.65rem;">
@@ -225,64 +222,104 @@ const events = ref([
           </div>
         </div>
       </aside>
+
     </main>
   </div>
 </template>
 
 <style scoped>
-.hover-bg:hover {
-  background-color: rgba(255, 255, 255, 0.03) !important;
+/* --- BASE UTILITIES --- */
+.hover-bg:hover { background-color: rgba(255, 255, 255, 0.03) !important; }
+.extra-small { font-size: 0.7rem; }
+.font-monospace { font-family: 'JetBrains Mono', ui-monospace, monospace !important; }
+.bi-shield-lock-fill { filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.5)); }
+.list-group-item { border-left: none; border-right: none; }
+.list-group-item:first-child { border-top: none; }
+.last-child-border-0:last-child { border-bottom: none !important; }
+.object-fit-contain { object-fit: contain; }
+.stream-header-grad { background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%); }
+
+.main-wrapper {
+  width: 100vw;
+  background-color: #0f172a; /* bg-slate-900 */
 }
 
-.stream-container {
-  width: 100%;
-  height: 100%;
-  background-color: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* --- DESKTOP (TV / PC MONITOR) --- */
+/* FIXATED: Edge to Edge, No Margin, No Scroll Layout */
+@media (min-width: 992px) {
+  .main-wrapper {
+    height: 100vh;
+    overflow: hidden;
+  }
+  
+  #main-layout {
+    height: calc(100vh - 45px); /* Setinggi layar dipotong Navbar */
+    overflow: hidden;
+  }
+
+  .stream-section {
+    height: 100%;
+  }
+
+  .sidebar-section {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .device-panel {
+    max-height: 40%; /* Bagi tinggi dengan events */
+  }
+
+  .event-panel {
+    height: 60%;
+  }
+  
+  /* Scrollbar custom hanya untuk list di Sidebar PC */
+  .custom-scrollbar { overflow-y: auto; }
 }
 
-.stream-container img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+/* --- MOBILE (SMARTPHONE) --- */
+/* SCROLLABLE: Kamera Fixed di atas, Devices & Events berjajar di bawah */
+@media (max-width: 991px) {
+  .main-wrapper {
+    height: auto !important;
+    min-height: 100vh;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+  }
+
+  #main-layout {
+    display: flex;
+    flex-direction: column;
+    height: auto !important;
+  }
+
+  .stream-section {
+    height: 40vh; /* Kamera ambil 40% dari layar awal HP */
+    min-height: 250px;
+    position: sticky;
+    top: 0; /* Nempel saat di-scroll */
+    z-index: 1020;
+    border-bottom: 2px solid #1e293b;
+  }
+
+  .sidebar-section {
+    height: auto !important;
+    border-start: none !important;
+  }
+
+  .device-panel, .event-panel {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Agar di HP konten memanjang terus ke bawah mengikuti scroll body */
+  .custom-scrollbar { overflow-y: visible !important; }
 }
 
-.extra-small {
-  font-size: 0.7rem;
-}
-
-.font-monospace {
-  font-family: 'JetBrains Mono', ui-monospace, monospace !important;
-}
-
-.object-fit-contain {
-  object-fit: contain;
-}
-
-/* Navbar icon glow */
-.bi-shield-lock-fill {
-  filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.5));
-}
-
-/* Custom list group styles */
-.list-group-item {
-  border-left: none;
-  border-right: none;
-}
-.list-group-item:first-child {
-  border-top: none;
-}
-
-.last-child-border-0:last-child {
-  border-bottom: none !important;
-}
-
-/* Responsive fixes for kiosk */
-@media (max-height: 600px) {
-  .p-3 { padding: 0.5rem !important; }
-  .gap-3 { gap: 0.5rem !important; }
-  .py-3 { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
-}
+/* CUSTOM SCROLLBAR UI */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
 </style>
