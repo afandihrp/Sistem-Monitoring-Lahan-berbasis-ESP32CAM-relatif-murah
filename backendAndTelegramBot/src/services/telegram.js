@@ -3,6 +3,9 @@ const { Telegraf } = require('telegraf');
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
 bot.start((ctx) => ctx.reply('hello world'));
+bot.command('devices', (ctx) => ctx.reply('hello /devices'));
+bot.command('capture', (ctx) => ctx.reply('hello /capture'));
+bot.command('getimage', (ctx) => ctx.reply('hello /getimage'));
 
 function initTelegramBot() {
   bot.launch().then(() => {
