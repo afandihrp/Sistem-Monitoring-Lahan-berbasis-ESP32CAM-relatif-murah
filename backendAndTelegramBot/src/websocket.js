@@ -65,9 +65,10 @@ function initWebSocket(server) {
     
     ws.on('message', (message, isBinary) => {
       if (isBinary && isCamera) {
-        // Broadcast binary camera frames to all Kiosks
+        // Broadcast binary camera frames ONLY to Kiosks that subscribed to THIS camera
+        const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
         wss.clients.forEach((client) => {
-          if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+          if (client.readyState === 1 && !client.path.startsWith('/camera') && client.activeDeviceId === deviceId) {
             client.send(message, { binary: true });
           }
         });
@@ -82,6 +83,10 @@ function initWebSocket(server) {
               device.lastSeen = new Date().toLocaleTimeString();
               broadcastDeviceList(wss);
             }
+          } else if (data.type === 'set_active_stream' && !isCamera) {
+            // Kiosk subscribing to a specific camera stream
+            ws.activeDeviceId = data.deviceId;
+            console.log(`Kiosk subscribed to stream: ${data.deviceId}`);
           }
         } catch (e) {
           console.log(`Received text message from ${isCamera ? 'Camera' : 'Kiosk'}: ${message}`);

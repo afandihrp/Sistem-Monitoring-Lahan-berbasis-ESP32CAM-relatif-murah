@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 
 const currentTime = ref(new Date().toLocaleTimeString())
 setInterval(() => {
@@ -23,6 +23,10 @@ const connectWS = () => {
   ws.onopen = () => {
     console.log('Connected to WebSocket server')
     wsStatus.value = 'Online'
+    // Send initial stream subscription if available
+    if (currentStream.value && currentStream.value.id) {
+      ws.send(JSON.stringify({ type: 'set_active_stream', deviceId: currentStream.value.id }))
+    }
   }
 
   ws.onclose = () => {
@@ -64,6 +68,13 @@ const connectWS = () => {
     }
   }
 }
+
+watch(currentStream, (newStream) => {
+  if (ws && ws.readyState === 1 && newStream && newStream.id) {
+    ws.send(JSON.stringify({ type: 'set_active_stream', deviceId: newStream.id }))
+    console.log(`Requested stream change to: ${newStream.id}`)
+  }
+})
 
 onMounted(() => {
   connectWS()
