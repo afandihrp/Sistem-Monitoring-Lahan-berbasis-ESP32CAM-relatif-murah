@@ -1,3 +1,4 @@
+require('dotenv/config');
 const express = require('express');
 const https = require('https');
 const fs = require('fs');
@@ -6,6 +7,7 @@ const path = require('path');
 const initWebSocket = require('./src/websocket');
 const createRouter = require('./src/routes');
 const { publishService } = require('./src/services/mdns');
+const { initTelegramBot } = require('./src/services/telegram');
 
 const app = express();
 const port = 3000;
@@ -28,6 +30,9 @@ app.use('/', createRouter(wss));
 server.listen(port, () => {
   console.log(`HTTPS Server running at https://localhost:${port}/`);
   
+  // Initialize Telegram Bot
+  initTelegramBot();
+
   // Publish mDNS service for gateway.local
   publishService('gateway', 'https', port, 'gateway.local');
 });
