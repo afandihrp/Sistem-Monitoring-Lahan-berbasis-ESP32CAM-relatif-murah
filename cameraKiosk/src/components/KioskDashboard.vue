@@ -158,15 +158,6 @@ const events = ref([
             <i class="bi bi-camera-video-off" style="font-size: 6rem;"></i>
             <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">Camera Offline</div>
           </div>
-
-          <!-- Floating Overlay HUD -->
-          <div class="position-absolute bottom-0 start-0 m-3 p-2 rounded-3 bg-slate-800 bg-opacity-75 border border-slate-700 z-2" style="backdrop-filter: blur(8px);">
-            <div class="d-flex flex-column gap-1">
-              <div class="small fw-bold text-primary text-uppercase" style="font-size: 0.7rem;">Telemetry</div>
-              <div class="font-monospace extra-small">RES: 1080P // FPS: 24</div>
-              <div class="font-monospace extra-small text-success">LINK: STABLE (94%)</div>
-            </div>
-          </div>
         </div>
       </section>
 
