@@ -62,6 +62,15 @@ const connectWS = () => {
       } else if (data.type === 'device_list') {
         devices.value = data.devices
         console.log('Device list updated:', devices.value)
+      } else if (data.type === 'motion_event') {
+        events.value.unshift({
+          id: Date.now(),
+          timestamp: data.timestamp,
+          trigger: `Motion (${data.sensor.charAt(0).toUpperCase() + data.sensor.slice(1)})`,
+          location: data.location,
+          imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Motion+Detected'
+        })
+        console.log('Motion event received:', data)
       }
     } catch (e) {
       console.error('Failed to parse WebSocket message:', e)

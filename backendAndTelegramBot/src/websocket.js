@@ -83,6 +83,27 @@ function initWebSocket(server) {
               device.lastSeen = new Date().toLocaleTimeString();
               broadcastDeviceList(wss);
             }
+          } else if (data.type === 'motion' && isCamera) {
+            const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
+            const device = devices.get(deviceId);
+            const location = device ? device.name : remoteIp;
+            
+            console.log(`Motion detected by ${location}: ${data.sensor}`);
+
+            // Broadcast motion event to all Kiosks
+            const payload = JSON.stringify({ 
+              type: 'motion_event', 
+              sensor: data.sensor, 
+              location: location,
+              deviceId: deviceId,
+              timestamp: new Date().toLocaleTimeString()
+            });
+            
+            wss.clients.forEach((client) => {
+              if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                client.send(payload);
+              }
+            });
           } else if (data.type === 'set_active_stream' && !isCamera) {
             // Kiosk subscribing to a specific camera stream
             ws.activeDeviceId = data.deviceId;

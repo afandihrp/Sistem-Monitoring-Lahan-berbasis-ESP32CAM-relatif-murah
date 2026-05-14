@@ -150,27 +150,39 @@ void setup() {
   webSocket.setReconnectInterval(5000);
 }
 
+void check_sensor(uint8_t pin, bool &prev_state, String label) {
+  bool current_state = digitalRead(pin);
+  if (current_state == HIGH && prev_state == LOW) {
+    String msg = "{\"type\":\"motion\",\"sensor\":\"" + label + "\"}";
+    webSocket.sendTXT(msg);
+    Serial.println("Motion detected: " + label);
+    prev_state = HIGH;
+  } else if (current_state == LOW && prev_state == HIGH) {
+    prev_state = LOW;
+  }
+}
+
 void check_pins()
 {
-  bool current_state = digitalRead(left_pir_pin);
-  if(current_state != true && prev_state_left_pir != true) return;
-  left_pir = true;
-  prev_state_left_pir = current_state;
-
-  current_state = digitalRead(middle_pir_pin);
-  if(current_state != true && prev_state_middle_pir != true) return;
-  middle_pir = true;
-  prev_state_middle_pir = current_state;
-
-  current_state = digitalRead(right_pir_pin);
-  if(current_state != true && prev_state_right_pir != true) return;
-  right_pir = true;
-  prev_state_right_pir = current_state;
-
+  check_sensor(left_pir_pin, prev_state_left_pir, "left");
+  check_sensor(middle_pir_pin, prev_state_middle_pir, "middle");
+  check_sensor(right_pir_pin, prev_state_right_pir, "right");
 }
+
+unsigned long lastPinDebug = 0;
 
 void loop() {
   webSocket.loop();
+  check_pins();
+
+  // Debug: Print pin states every 2 seconds
+  if (millis() - lastPinDebug > 2000) {
+    lastPinDebug = millis();
+    Serial.printf("PIR Raw: L=%d, M=%d, R=%d\n", 
+                  digitalRead(left_pir_pin), 
+                  digitalRead(middle_pir_pin), 
+                  digitalRead(right_pir_pin));
+  }
 
   if (isConnected) {    
     // Send signal strength every 5 seconds
