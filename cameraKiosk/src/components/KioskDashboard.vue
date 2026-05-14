@@ -89,11 +89,7 @@ onMounted(() => {
   connectWS()
 })
 
-const events = ref([
-  { id: 1, timestamp: '12:45:02', trigger: 'Motion', location: 'Main Gate', imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Gate+Motion' },
-  { id: 2, timestamp: '12:40:15', trigger: 'Door', location: 'Backyard', imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Door+Open' },
-  { id: 3, timestamp: '12:35:50', trigger: 'Motion', location: 'Driveway', imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Driveway+Motion' },
-])
+const events = ref([])
 </script>
 
 <template>
@@ -206,23 +202,27 @@ const events = ref([
 
         <!-- Events Card -->
         <div class="d-flex flex-column flex-grow-1 overflow-hidden event-panel">
-          <div class="bg-slate-800 px-3 py-2 border-bottom border-slate-700">
+          <div class="bg-slate-800 px-3 py-2 border-bottom border-slate-700 d-flex justify-content-between align-items-center">
             <h6 class="m-0 fw-bold d-flex align-items-center gap-2 small">
               <i class="bi bi-bell-fill text-warning"></i> Events
             </h6>
+            <span class="badge bg-slate-700 text-secondary border border-slate-600 extra-small">{{ events.length }}</span>
           </div>
           <div class="overflow-auto custom-scrollbar flex-grow-1">
-            <div v-for="event in events" :key="event.id" class="p-3 border-bottom border-slate-700 last-child-border-0">
-              <div class="rounded-2 overflow-hidden border border-slate-700 bg-black mb-2">
-                <img :src="event.imageUrl" class="img-fluid opacity-75 w-100" style="object-fit: cover; height: 80px;" alt="Event" />
-              </div>
-              <div class="d-flex justify-content-between align-items-center mb-1 gap-1">
-                <span class="badge bg-primary-subtle text-primary border border-primary border-opacity-25" style="font-size: 0.65rem;">
-                  {{ event.trigger }}
-                </span>
+            <div v-for="event in events" :key="event.id" 
+                 class="px-3 py-2 border-bottom border-slate-700 last-child-border-0 transition-all hover-bg">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="d-flex align-items-center gap-2">
+                  <div :class="event.trigger.includes('Motion') ? 'bg-primary' : 'bg-warning'" 
+                       class="rounded-circle" style="width: 6px; height: 6px;"></div>
+                  <span class="fw-bold text-slate-200" style="font-size: 0.8rem;">{{ event.trigger }}</span>
+                </div>
                 <span class="text-secondary font-monospace" style="font-size: 0.65rem;">{{ event.timestamp }}</span>
               </div>
-              <p class="small text-secondary m-0" style="font-size: 0.75rem;">At <strong>{{ event.location }}</strong></p>
+              <div class="d-flex align-items-center gap-1 text-secondary ps-3" style="font-size: 0.7rem;">
+                <i class="bi bi-geo-alt-fill extra-small opacity-50"></i>
+                <span class="text-truncate">{{ event.location }}</span>
+              </div>
             </div>
           </div>
         </div>
