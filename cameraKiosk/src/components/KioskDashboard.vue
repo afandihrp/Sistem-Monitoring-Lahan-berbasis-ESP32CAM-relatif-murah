@@ -112,12 +112,6 @@ const events = ref([
                 WS: {{ wsStatus }}
               </span>
             </span>
-            <span class="d-flex align-items-center gap-1 d-none d-md-flex">
-              <i class="bi bi-cpu text-info"></i> 14%
-            </span>
-            <span class="d-flex align-items-center gap-1 d-none d-md-flex">
-              <i class="bi bi-memory text-warning"></i> 2.4GB
-            </span>
           </div>
         </div>
       </div>
@@ -285,7 +279,7 @@ const events = ref([
 @media (max-width: 991px) {
   .main-wrapper {
     height: auto !important;
-    min-height: 100vh;
+    min-height: 300vh;
     overflow-y: auto !important;
     overflow-x: hidden;
   }
@@ -299,8 +293,8 @@ const events = ref([
   .stream-section {
     height: 40vh; /* Kamera ambil 40% dari layar awal HP */
     min-height: 250px;
-    position: sticky;
-    top: 0; /* Nempel saat di-scroll */
+    position: sticky; /* Agar tetap di atas saat scroll */
+    top: 0px; /* Nempel saat di-scroll */
     z-index: 1020;
     border-bottom: 2px solid #1e293b;
   }
