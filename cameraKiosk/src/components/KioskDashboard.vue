@@ -68,9 +68,16 @@ const connectWS = () => {
           timestamp: data.timestamp,
           trigger: `Motion (${data.sensor.charAt(0).toUpperCase() + data.sensor.slice(1)})`,
           location: data.location,
-          imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Motion+Detected'
+          sensor: data.sensor, // Keep this to match later
+          imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Capturing+Image...'
         })
         console.log('Motion event received:', data)
+      } else if (data.type === 'motion_image_update') {
+        // Find the latest motion event for this sensor and update its image
+        const eventIndex = events.value.findIndex(e => e.sensor === data.sensor);
+        if (eventIndex !== -1) {
+          events.value[eventIndex].imageUrl = data.imageUrl;
+        }
       } else if (data.type === 'historical_logs') {
         events.value = data.logs.map((log, index) => {
           let formattedTime = log.timestamp;
@@ -82,7 +89,8 @@ const connectWS = () => {
             timestamp: formattedTime,
             trigger: log.sensor ? `Motion (${log.sensor.charAt(0).toUpperCase() + log.sensor.slice(1)})` : 'Motion',
             location: log.location || 'Unknown',
-            imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Motion+Detected'
+            sensor: log.sensor,
+            imageUrl: log.imageUrl || 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Motion+Detected'
           };
         }).reverse();
         console.log('Historical logs loaded:', events.value.length)
@@ -237,6 +245,9 @@ const events = ref([])
               <div class="d-flex align-items-center gap-1 text-secondary ps-3" style="font-size: 0.7rem;">
                 <i class="bi bi-geo-alt-fill extra-small opacity-50"></i>
                 <span class="text-truncate">{{ event.location }}</span>
+              </div>
+              <div v-if="event.imageUrl" class="mt-2 ps-3 pe-1">
+                <img :src="event.imageUrl" class="img-fluid rounded border border-slate-700 w-100" style="max-height: 120px; object-fit: cover;" alt="Motion Snapshot" loading="lazy" />
               </div>
             </div>
           </div>

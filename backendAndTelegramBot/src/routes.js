@@ -1,4 +1,7 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const { updateLatestLogImage } = require('./services/logger');
 
 function createRouter(wss) {
   const router = express.Router();
@@ -24,6 +27,45 @@ function createRouter(wss) {
     } else {
       res.status(400).send('Invalid action. Use ?do=left or ?do=right');
     }
+  });
+
+  // Upload route for high-res snapshot from ESP32-CAM
+  router.post('/upload', express.raw({ limit: '10mb', type: 'image/jpeg' }), (req, res) => {
+    const sensor = req.query.sensor;
+    const ip = req.query.ip;
+    
+    if (!req.body || !sensor || !ip) {
+      return res.status(400).send('Missing body, sensor or ip');
+    }
+    
+    const timestamp = Date.now();
+    const filename = `motion_${ip.replace(/\./g, '_')}_${sensor}_${timestamp}.jpg`;
+    const filepath = path.join(__dirname, '../../data', filename);
+    
+    fs.writeFile(filepath, req.body, (err) => {
+      if (err) {
+        console.error('Error saving image:', err);
+        return res.status(500).send('Error saving image');
+      }
+      // Assuming frontend port is default, but we'll store relative path
+      const imageUrl = `https://gateway.local:3000/data/${filename}`;
+      updateLatestLogImage(sensor, ip, imageUrl);
+      
+      // Also broadcast image update to kiosk if desired (optional)
+      const payload = JSON.stringify({ 
+        type: 'motion_image_update', 
+        sensor: sensor, 
+        deviceId: `cam_${ip.replace(/\./g, '_')}`,
+        imageUrl: imageUrl
+      });
+      wss.clients.forEach((client) => {
+        if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+          client.send(payload);
+        }
+      });
+      
+      res.send('Uploaded');
+    });
   });
 
   return router;

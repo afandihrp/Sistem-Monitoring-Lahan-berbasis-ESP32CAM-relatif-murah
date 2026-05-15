@@ -24,6 +24,9 @@ const server = https.createServer(options, app);
 // Initialize WebSocket server
 const wss = initWebSocket(server);
 
+// Serve data directory
+app.use('/data', express.static(path.join(__dirname, '../data')));
+
 // Initialize Routes
 app.use('/', createRouter(wss));
 

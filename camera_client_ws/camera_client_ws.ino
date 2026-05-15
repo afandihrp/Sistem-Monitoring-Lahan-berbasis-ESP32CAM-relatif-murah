@@ -1,6 +1,8 @@
 #include <WiFi.h>
 #include <WebSocketsClient.h>
 #include <ESPmDNS.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include "esp_camera.h"
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
@@ -42,6 +44,7 @@ bool prev_state_right_pir = false;
 WebSocketsClient webSocket;
 bool isConnected = false;
 unsigned long lastSignalSent = 0;
+IPAddress serverIP;
 
 int getSignalBars(long rssi) {
   if (rssi >= -55) return 5;
@@ -141,7 +144,7 @@ void setup() {
   }
   
   Serial.println("Resolving gateway.local...");
-  IPAddress serverIP = MDNS.queryHost("gateway");
+  serverIP = MDNS.queryHost("gateway");
   
   while (serverIP.toString() == "0.0.0.0") {
     Serial.println("mDNS query failed, retrying...");
@@ -168,6 +171,54 @@ void check_sensor(uint8_t pin, bool &prev_state, String label) {
     String msg = "{\"type\":\"motion\",\"sensor\":\"" + label + "\"}";
     webSocket.sendTXT(msg);
     Serial.println("Motion detected: " + label);
+    
+    // Capture high-res snapshot
+    sensor_t * s = esp_camera_sensor_get();
+    int old_quality = s->status.quality;
+    framesize_t old_framesize = (framesize_t)s->status.framesize;
+    
+    s->set_framesize(s, FRAMESIZE_FHD); // 1920x1080
+    s->set_quality(s, 2); // quality 2
+    
+    // Wait for camera to apply settings
+    delay(100);
+    
+    // Flush the camera buffer 3 times
+    for (int i = 0; i < 3; i++) {
+      camera_fb_t * flush_fb = esp_camera_fb_get();
+      if (flush_fb) {
+        esp_camera_fb_return(flush_fb);
+      }
+    }
+    
+    camera_fb_t * fb = esp_camera_fb_get();
+    if (fb) {
+      Serial.println("High-res snapshot captured, uploading...");
+      WiFiClientSecure client;
+      client.setInsecure();
+      HTTPClient http;
+      
+      String uploadUrl = "https://" + serverIP.toString() + ":3000/upload?sensor=" + label + "&ip=" + WiFi.localIP().toString();
+      http.begin(client, uploadUrl);
+      http.addHeader("Content-Type", "image/jpeg");
+      
+      int httpResponseCode = http.POST(fb->buf, fb->len);
+      if(httpResponseCode > 0){
+        Serial.printf("Upload success: %d\n", httpResponseCode);
+      } else {
+        Serial.printf("Upload failed: %s\n", http.errorToString(httpResponseCode).c_str());
+      }
+      
+      http.end();
+      esp_camera_fb_return(fb);
+    } else {
+      Serial.println("Failed to capture snapshot");
+    }
+    
+    // Restore settings
+    s->set_framesize(s, old_framesize);
+    s->set_quality(s, old_quality);
+
     prev_state = HIGH;
   } else if (current_state == LOW && prev_state == HIGH) {
     prev_state = LOW;
