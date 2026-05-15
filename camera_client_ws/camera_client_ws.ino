@@ -134,7 +134,7 @@ void setup() {
   sensor_t * s = esp_camera_sensor_get();
   if (s->id.PID == OV3660_PID) {
     s->set_vflip(s, 1); // flip it back
-    s->set_brightness(s, 1); // up the brightness just a bit
+    s->set_brightness(s, 2); // up the brightness just a bit
     s->set_saturation(s, -2); // lower the saturation
     Serial.println("Camera Model: OV3660 configured.");
   } else if (s->id.PID == OV2640_PID) {
@@ -186,12 +186,12 @@ void check_sensor(uint8_t pin, bool &prev_state, String label) {
     Serial.println("Motion detected: " + label);
     
     // Capture high-res snapshot
-    sensor_t * s = esp_camera_sensor_get();
-    int old_quality = s->status.quality;
-    framesize_t old_framesize = (framesize_t)s->status.framesize;
+    // sensor_t * s = esp_camera_sensor_get();
+    // int old_quality = s->status.quality;
+    // framesize_t old_framesize = (framesize_t)s->status.framesize;
     
-    s->set_framesize(s, FRAMESIZE_FHD); // 1920x1080
-    s->set_quality(s, 2); // quality 2
+    // s->set_framesize(s, FRAMESIZE_FHD); // 1920x1080
+    // s->set_quality(s, 12); // quality 2
     
     // Wait for camera to apply settings
     delay(100);
@@ -229,8 +229,8 @@ void check_sensor(uint8_t pin, bool &prev_state, String label) {
     }
     
     // Restore settings
-    s->set_framesize(s, old_framesize);
-    s->set_quality(s, old_quality);
+    // s->set_framesize(s, old_framesize);
+    // s->set_quality(s, old_quality);
 
     prev_state = HIGH;
   } else if (current_state == LOW && prev_state == HIGH) {
