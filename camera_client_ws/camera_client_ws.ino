@@ -130,6 +130,19 @@ void setup() {
     Serial.printf("Camera init failed with error 0x%x", err);
     return;
   }
+  
+  sensor_t * s = esp_camera_sensor_get();
+  if (s->id.PID == OV3660_PID) {
+    s->set_vflip(s, 1); // flip it back
+    s->set_brightness(s, 1); // up the brightness just a bit
+    s->set_saturation(s, -2); // lower the saturation
+    Serial.println("Camera Model: OV3660 configured.");
+  } else if (s->id.PID == OV2640_PID) {
+    // Default settings are usually fine for OV2640
+    Serial.println("Camera Model: OV2640 configured.");
+  } else {
+    Serial.println("Camera Model: Unknown.");
+  }
 
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
