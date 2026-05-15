@@ -2,7 +2,7 @@ const { Telegraf } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
 
-const configPath = path.join(__dirname, '../../config.json');
+const configPath = path.join(__dirname, '../../../config.json');
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
 let registeredChatId = null;

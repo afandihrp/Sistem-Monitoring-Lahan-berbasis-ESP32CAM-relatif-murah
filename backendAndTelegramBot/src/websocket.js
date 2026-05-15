@@ -1,4 +1,6 @@
 const { WebSocketServer } = require('ws');
+const { logEvent, getLogs } = require('./services/logger');
+const { sendMotionAlert } = require('./services/telegram');
 
 // Track connected camera devices
 const devices = new Map();
@@ -61,6 +63,12 @@ function initWebSocket(server) {
       console.log('Kiosk connected.');
       // Send current device list to the new Kiosk immediately
       broadcastDeviceList(wss);
+      
+      // Send historical logs to the kiosk
+      const historicalLogs = getLogs();
+      if (historicalLogs && historicalLogs.length > 0) {
+        ws.send(JSON.stringify({ type: 'historical_logs', logs: historicalLogs }));
+      }
     }
     
     ws.on('message', (message, isBinary) => {
@@ -89,6 +97,15 @@ function initWebSocket(server) {
             const location = device ? device.name : remoteIp;
             
             console.log(`Motion detected by ${location}: ${data.sensor}`);
+
+            // Log event to data/log.json
+            logEvent({
+              type: 'motion_event',
+              sensor: data.sensor,
+              location: location,
+              deviceId: deviceId,
+              timestamp: new Date().toISOString()
+            });
 
             // Broadcast motion event to all Kiosks
             const payload = JSON.stringify({ 

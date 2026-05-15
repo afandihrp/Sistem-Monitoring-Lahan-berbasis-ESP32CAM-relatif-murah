@@ -71,6 +71,21 @@ const connectWS = () => {
           imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Motion+Detected'
         })
         console.log('Motion event received:', data)
+      } else if (data.type === 'historical_logs') {
+        events.value = data.logs.map((log, index) => {
+          let formattedTime = log.timestamp;
+          if (log.timestamp && log.timestamp.includes('T')) {
+            formattedTime = new Date(log.timestamp).toLocaleTimeString();
+          }
+          return {
+            id: `hist_${Date.now()}_${index}`,
+            timestamp: formattedTime,
+            trigger: log.sensor ? `Motion (${log.sensor.charAt(0).toUpperCase() + log.sensor.slice(1)})` : 'Motion',
+            location: log.location || 'Unknown',
+            imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Motion+Detected'
+          };
+        }).reverse();
+        console.log('Historical logs loaded:', events.value.length)
       }
     } catch (e) {
       console.error('Failed to parse WebSocket message:', e)
