@@ -3,3 +3,14 @@ GET https://gateway.local:3000
 
 ###
 GET https://gateway.local:3000/action?do=right 
+
+###
+POST http://192.168.11.168:5000/checkPerson
+Content-Type: multipart/form-data; boundary=image-upload-boundary
+
+--image-upload-boundary
+Content-Disposition: form-data; name="image"; filename="my_photo.jpg"
+Content-Type: image/jpeg
+
+< ./motion_192_168_11_115_left_1778818886322.jpg
+--image-upload-boundary--

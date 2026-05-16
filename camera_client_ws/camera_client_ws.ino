@@ -114,10 +114,11 @@ void setup() {
   config.pin_sscb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 21000000;
+  config.xclk_freq_hz = 20000000; // MUST BE 20MHz! 21MHz causes FB-OVF at 1080p
   config.pixel_format = PIXFORMAT_JPEG;
 
-  // Use VGA resolution (640x480)
+  // Initialize with FHD to force the driver to pre-allocate MASSIVE buffers in PSRAM
+  // This is the secret from the official sketch! It prevents memory fragmentation later.
   config.frame_size = FRAMESIZE_FHD;
   config.grab_mode = CAMERA_GRAB_LATEST;
   config.fb_location = CAMERA_FB_IN_PSRAM;
@@ -143,6 +144,10 @@ void setup() {
   } else {
     Serial.println("Camera Model: Unknown.");
   }
+
+  // Now that the massive FHD buffers are safely pre-allocated in memory,
+  // we can immediately drop the sensor resolution down to HVGA for smooth WebSocket streaming!
+  s->set_framesize(s, FRAMESIZE_HVGA);
 
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
@@ -186,12 +191,12 @@ void check_sensor(uint8_t pin, bool &prev_state, String label) {
     Serial.println("Motion detected: " + label);
     
     // Capture high-res snapshot
-    // sensor_t * s = esp_camera_sensor_get();
-    // int old_quality = s->status.quality;
-    // framesize_t old_framesize = (framesize_t)s->status.framesize;
+    sensor_t * s = esp_camera_sensor_get();
+    int old_quality = s->status.quality;
+    framesize_t old_framesize = (framesize_t)s->status.framesize;
     
-    // s->set_framesize(s, FRAMESIZE_FHD); // 1920x1080
-    // s->set_quality(s, 12); // quality 2
+    s->set_framesize(s, FRAMESIZE_FHD); // 1920x1080
+    s->set_quality(s, 12); // lower number is higher quality
     
     // Wait for camera to apply settings
     delay(100);
@@ -202,6 +207,7 @@ void check_sensor(uint8_t pin, bool &prev_state, String label) {
       if (flush_fb) {
         esp_camera_fb_return(flush_fb);
       }
+      webSocket.loop(); // MUST service websocket so server doesn't disconnect us
     }
     
     camera_fb_t * fb = esp_camera_fb_get();
@@ -212,6 +218,7 @@ void check_sensor(uint8_t pin, bool &prev_state, String label) {
       HTTPClient http;
       
       String uploadUrl = "https://" + serverIP.toString() + ":3000/upload?sensor=" + label + "&ip=" + WiFi.localIP().toString();
+      http.setTimeout(15000); // 1080p images take more than 5s to upload!
       http.begin(client, uploadUrl);
       http.addHeader("Content-Type", "image/jpeg");
       
@@ -229,8 +236,8 @@ void check_sensor(uint8_t pin, bool &prev_state, String label) {
     }
     
     // Restore settings
-    // s->set_framesize(s, old_framesize);
-    // s->set_quality(s, old_quality);
+    s->set_framesize(s, old_framesize);
+    s->set_quality(s, old_quality);
 
     prev_state = HIGH;
   } else if (current_state == LOW && prev_state == HIGH) {
