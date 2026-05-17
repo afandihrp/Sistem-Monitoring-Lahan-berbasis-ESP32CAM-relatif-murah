@@ -4,7 +4,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const initWebSocket = require('./src/websocket');
+const { initWebSocket } = require('./src/websocket');
 const createRouter = require('./src/routes');
 const { publishService } = require('./src/services/mdns');
 const { initTelegramBot } = require('./src/services/telegram');
