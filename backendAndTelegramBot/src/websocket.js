@@ -1,5 +1,4 @@
 const { WebSocketServer } = require('ws');
-const { exec } = require('child_process');
 const { logEvent, getLogs } = require('./services/logger');
 const { sendMotionAlert } = require('./services/telegram');
 
@@ -8,15 +7,6 @@ const devices = new Map();
 
 function heartbeat() {
   this.isAlive = true;
-}
-
-function pingDevice(ip) {
-  return new Promise((resolve) => {
-    // Linux/macOS: -c 1 (1 packet), -W 2 (2 sec timeout)
-    exec(`ping -c 1 -W 2 ${ip}`, (error) => {
-      resolve(!error);
-    });
-  });
 }
 
 function broadcastDeviceList(wss) {
@@ -54,7 +44,8 @@ function initWebSocket(server) {
     ws.isAlive = true;
     ws.on('pong', heartbeat);
     ws.path = req.url; // Store path to identify client type later
-    ws.remoteIp = remoteIp; // Store IP for ICMP pings
+    ws.remoteIp = remoteIp; // Store IP for status updates
+    ws.lastDataReceived = Date.now(); // Initialize for stream-activity heartbeat
 
     if (isCamera) {
       console.log(`Camera connected: ${remoteIp} (MAC: ${macAddress})`);
@@ -85,6 +76,7 @@ function initWebSocket(server) {
     
     ws.on('message', (message, isBinary) => {
       if (isBinary && isCamera) {
+        ws.lastDataReceived = Date.now(); // Proof of life via data stream
         // Broadcast binary camera frames ONLY to Kiosks that subscribed to THIS camera
         const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
         wss.clients.forEach((client) => {
@@ -164,14 +156,13 @@ function initWebSocket(server) {
     });
   });
 
-  // Heartbeat interval check setiap 30 detik
+  // Heartbeat interval check setiap 5 detik
   const interval = setInterval(function ping() {
-    wss.clients.forEach(async function each(ws) {
+    wss.clients.forEach(function each(ws) {
       if (ws.path && ws.path.startsWith('/camera')) {
-        // Use ICMP ping for ESP32-CAM
-        const isAlive = await pingDevice(ws.remoteIp);
-        if (!isAlive) {
-          console.log(`[Heartbeat] Camera ${ws.remoteIp} unreachable via ICMP. Terminating.`);
+        // Stream-activity heartbeat for ESP32-CAM (5-second threshold)
+        if (Date.now() - ws.lastDataReceived > 5000) {
+          console.log(`[Heartbeat] Camera stream timeout: ${ws.path}. Terminating.`);
           const deviceId = `cam_${ws.remoteIp.replace(/\./g, '_')}`;
           const device = devices.get(deviceId);
           if (device) {
@@ -181,20 +172,24 @@ function initWebSocket(server) {
           }
           return ws.terminate();
         }
-        // If reachable via ICMP, we assume it's still good. 
-        // We could also send a WS ping here if we want to be extra safe,
-        // but user specifically requested ICMP to avoid WS false positives.
       } else {
         // Standard WS heartbeat for Kiosks
-        if (ws.isAlive === false) {
-          console.log(`Terminating inactive connection: ${ws.path}`);
-          return ws.terminate();
+        // We only ping every 30s (6 cycles of 5s) to save bandwidth
+        if (!ws.pingCounter) ws.pingCounter = 0;
+        ws.pingCounter++;
+        
+        if (ws.pingCounter >= 6) {
+          ws.pingCounter = 0;
+          if (ws.isAlive === false) {
+            console.log(`Terminating inactive connection: ${ws.path}`);
+            return ws.terminate();
+          }
+          ws.isAlive = false;
+          ws.ping();
         }
-        ws.isAlive = false;
-        ws.ping();
       }
     });
-  }, 30000);
+  }, 5000);
 
 
   wss.on('close', function close() {
