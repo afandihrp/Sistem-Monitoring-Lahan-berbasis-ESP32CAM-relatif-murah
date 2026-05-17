@@ -128,6 +128,36 @@ const triggerCameraAction = async (direction) => {
 const triggerServoAction = (direction) => {
   console.log(`Servo ${direction} triggered (Dummy)`)
 }
+
+// Mobile Pagination Logic
+const currentEventPage = ref(1)
+const eventsPerPage = 10
+
+const totalPages = computed(() => Math.ceil(events.value.length / eventsPerPage) || 1)
+
+const paginatedEvents = computed(() => {
+  const start = (currentEventPage.value - 1) * eventsPerPage
+  const end = start + eventsPerPage
+  return events.value.slice(start, end)
+})
+
+const nextPage = () => {
+  if (currentEventPage.value < totalPages.value) {
+    currentEventPage.value++
+  }
+}
+
+const prevPage = () => {
+  if (currentEventPage.value > 1) {
+    currentEventPage.value--
+  }
+}
+
+// Window width tracking for mobile logic
+const windowWidth = ref(window.innerWidth)
+window.addEventListener('resize', () => {
+  windowWidth.value = window.innerWidth
+})
 </script>
 
 <template>
@@ -210,7 +240,7 @@ const triggerServoAction = (direction) => {
       </section>
 
       <!-- MOBILE CONTROLS: Only visible below 1000px -->
-      <div class="mobile-controls-panel bg-slate-800 border-bottom border-slate-700 p-3 d-lg-none">
+      <div v-show="windowWidth <= 1000" class="mobile-controls-panel bg-slate-800 border-bottom border-slate-700 p-3 d-lg-none">
         <div class="row g-2">
           <!-- Camera Controls -->
           <div class="col-6">
@@ -281,7 +311,7 @@ const triggerServoAction = (direction) => {
             <span class="badge bg-slate-700 text-secondary border border-slate-600 extra-small">{{ events.length }}</span>
           </div>
           <div class="overflow-auto custom-scrollbar flex-grow-1">
-            <div v-for="event in events" :key="event.id" 
+            <div v-for="event in (windowWidth <= 1000 ? paginatedEvents : events)" :key="event.id" 
                  class="px-3 py-2 border-bottom border-slate-700 last-child-border-0 transition-all hover-bg">
               <div class="d-flex justify-content-between align-items-center mb-1">
                 <div class="d-flex align-items-center gap-2">
@@ -299,6 +329,17 @@ const triggerServoAction = (direction) => {
                 <img :src="event.imageUrl" class="img-fluid rounded border border-slate-700 w-100" style="max-height: 120px; object-fit: cover;" alt="Motion Snapshot" loading="lazy" />
               </div>
             </div>
+          </div>
+          
+          <!-- Pagination Controls (Mobile only) -->
+          <div v-if="windowWidth <= 1000" class="bg-slate-800 p-2 border-top border-slate-700 d-flex justify-content-between align-items-center">
+            <button @click="prevPage" :disabled="currentEventPage === 1" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-chevron-left"></i> Prev
+            </button>
+            <span class="text-secondary small">Page {{ currentEventPage }} of {{ totalPages }}</span>
+            <button @click="nextPage" :disabled="currentEventPage === totalPages" class="btn btn-sm btn-outline-secondary">
+              Next <i class="bi bi-chevron-right"></i>
+            </button>
           </div>
         </div>
       </aside>
