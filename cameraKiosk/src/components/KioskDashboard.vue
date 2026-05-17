@@ -113,7 +113,7 @@ const events = ref([])
 
 const triggerCameraAction = async (direction) => {
   try {
-    const response = await fetch(`https://gateway.local:3000/action?do=${direction}`)
+    const response = await fetch(`https://${window.location.hostname}:3000/action?do=${direction}`)
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
   } catch (error) {
     console.error(`Failed to trigger camera action ${direction}:`, error)
