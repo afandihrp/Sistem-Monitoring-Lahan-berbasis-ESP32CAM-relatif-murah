@@ -54,6 +54,16 @@ const formatEventTime = (timestamp) => {
   const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   return `${dateStr}, ${timeStr}`;
 }
+
+const getImageUrl = (url) => {
+  if (!url) return '';
+  // If it's the old absolute URL format with gateway.local, fix the hostname
+  if (url.startsWith('http')) {
+    return url.replace('gateway.local', window.location.hostname);
+  }
+  // If it's a relative path, prepend the backend origin (assuming port 3000)
+  return `https://${window.location.hostname}:3000${url}`;
+}
 </script>
 
 <template>
@@ -89,7 +99,7 @@ const formatEventTime = (timestamp) => {
             <span class="text-truncate">{{ event.location }}</span>
           </div>
           <div v-if="event.imageUrl" class="mt-2 ps-3 pe-1">
-            <img :src="event.imageUrl" class="img-fluid rounded border border-slate-700 w-100" style="max-height: 120px; object-fit: cover;" alt="Motion Snapshot" loading="lazy" />
+            <img :src="getImageUrl(event.imageUrl)" class="img-fluid rounded border border-slate-700 w-100" style="max-height: 120px; object-fit: cover;" alt="Motion Snapshot" loading="lazy" />
           </div>
         </div>
       </div>

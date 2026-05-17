@@ -54,7 +54,7 @@ function createRouter(wss) {
         notifyCaptureResult(filepath);
       } else {
         // PIR motion: update log, kirim alert Telegram, broadcast ke kiosk
-        const imageUrl = `https://gateway.local:3000/data/${filename}`;
+        const imageUrl = `/data/${filename}`;
         updateLatestLogImage(sensor, ip, imageUrl);
         sendMotionAlert(`IP: ${ip}`, sensor, filepath);
 
