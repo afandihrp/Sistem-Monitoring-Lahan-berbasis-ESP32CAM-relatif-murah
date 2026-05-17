@@ -1,4 +1,5 @@
 const { WebSocketServer } = require('ws');
+const { exec } = require('child_process');
 const { logEvent, getLogs } = require('./services/logger');
 const { sendMotionAlert } = require('./services/telegram');
 
@@ -7,6 +8,15 @@ const devices = new Map();
 
 function heartbeat() {
   this.isAlive = true;
+}
+
+function pingDevice(ip) {
+  return new Promise((resolve) => {
+    // Linux/macOS: -c 1 (1 packet), -W 2 (2 sec timeout)
+    exec(`ping -c 1 -W 2 ${ip}`, (error) => {
+      resolve(!error);
+    });
+  });
 }
 
 function broadcastDeviceList(wss) {
@@ -44,6 +54,7 @@ function initWebSocket(server) {
     ws.isAlive = true;
     ws.on('pong', heartbeat);
     ws.path = req.url; // Store path to identify client type later
+    ws.remoteIp = remoteIp; // Store IP for ICMP pings
 
     if (isCamera) {
       console.log(`Camera connected: ${remoteIp} (MAC: ${macAddress})`);
@@ -154,18 +165,34 @@ function initWebSocket(server) {
   });
 
   // Heartbeat interval check setiap 30 detik
-  // Harus lebih panjang dari max upload time ESP32 (~15 detik untuk foto 1080p)
-  // agar koneksi tidak di-terminate saat kamera sedang upload foto
   const interval = setInterval(function ping() {
-
-    wss.clients.forEach(function each(ws) {
-      if (ws.isAlive === false) {
-        console.log(`Terminating inactive connection: ${ws.path}`);
-        return ws.terminate();
+    wss.clients.forEach(async function each(ws) {
+      if (ws.path && ws.path.startsWith('/camera')) {
+        // Use ICMP ping for ESP32-CAM
+        const isAlive = await pingDevice(ws.remoteIp);
+        if (!isAlive) {
+          console.log(`[Heartbeat] Camera ${ws.remoteIp} unreachable via ICMP. Terminating.`);
+          const deviceId = `cam_${ws.remoteIp.replace(/\./g, '_')}`;
+          const device = devices.get(deviceId);
+          if (device) {
+            device.status = 'Offline';
+            device.lastSeen = new Date().toLocaleTimeString();
+            broadcastDeviceList(wss);
+          }
+          return ws.terminate();
+        }
+        // If reachable via ICMP, we assume it's still good. 
+        // We could also send a WS ping here if we want to be extra safe,
+        // but user specifically requested ICMP to avoid WS false positives.
+      } else {
+        // Standard WS heartbeat for Kiosks
+        if (ws.isAlive === false) {
+          console.log(`Terminating inactive connection: ${ws.path}`);
+          return ws.terminate();
+        }
+        ws.isAlive = false;
+        ws.ping();
       }
-
-      ws.isAlive = false;
-      ws.ping();
     });
   }, 30000);
 
