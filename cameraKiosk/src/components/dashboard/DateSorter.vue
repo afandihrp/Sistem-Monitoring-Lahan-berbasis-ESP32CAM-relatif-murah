@@ -14,6 +14,8 @@ const emit = defineEmits(['dateSelected'])
 const dates = ref([])
 const activeIndex = ref(15)
 const scrollContainer = ref(null)
+let isProgrammaticScroll = false
+let isTouching = false
 
 const generateDates = () => {
   const dateList = []
@@ -26,6 +28,40 @@ const generateDates = () => {
   dates.value = dateList
 }
 
+const handleScroll = () => {
+  if (isProgrammaticScroll || !scrollContainer.value) return
+  
+  // Each item is 50px wide. Padding is 50% - 25px, so index 0 is at scrollLeft 0.
+  const scrollLeft = scrollContainer.value.scrollLeft
+  const newIndex = Math.round(scrollLeft / 50)
+  
+  // Update visual state immediately for responsiveness
+  if (newIndex >= 0 && newIndex < dates.value.length && newIndex !== activeIndex.value) {
+    activeIndex.value = newIndex
+  }
+}
+
+const handleTouchStart = () => {
+  isTouching = true
+}
+const handleTouchEnd = () => {
+  if (!isTouching) return
+  isTouching = false
+
+  // Manual snapping on release
+  if (scrollContainer.value) {
+    const scrollLeft = scrollContainer.value.scrollLeft
+    const finalIndex = Math.round(scrollLeft / 50)
+
+    // Ensure we are within bounds
+    const clampedIndex = Math.max(0, Math.min(dates.value.length - 1, finalIndex))
+
+    activeIndex.value = clampedIndex
+    emit('dateSelected', dates.value[clampedIndex])
+    scrollToActive()
+  }
+}
+
 const selectDate = (index) => {
   if (index < 0 || index >= dates.value.length) return
   activeIndex.value = index
@@ -35,16 +71,19 @@ const selectDate = (index) => {
 
 const scrollToActive = () => {
   if (!scrollContainer.value) return
-  const activeEl = scrollContainer.value.children[activeIndex.value]
-  if (activeEl) {
-    const containerWidth = scrollContainer.value.offsetWidth
-    const elOffset = activeEl.offsetLeft
-    const elWidth = activeEl.offsetWidth
-    scrollContainer.value.scrollTo({
-      left: elOffset - (containerWidth / 2) + (elWidth / 2),
-      behavior: 'smooth'
-    })
-  }
+  isProgrammaticScroll = true
+
+  const targetLeft = activeIndex.value * 50
+
+  scrollContainer.value.scrollTo({
+    left: targetLeft,
+    behavior: 'smooth'
+  })
+
+  // Reset flag after smooth scroll finishes
+  setTimeout(() => {
+    isProgrammaticScroll = false
+  }, 500)
 }
 
 const shiftDate = (dir) => {
@@ -81,8 +120,14 @@ watch(() => props.selectedDate, (newDate) => {
         <!-- Scroll Container -->
         <div 
           ref="scrollContainer"
+          @scroll="handleScroll"
+          @touchstart="handleTouchStart"
+          @touchend="handleTouchEnd"
+          @mousedown="handleTouchStart"
+          @mouseup="handleTouchEnd"
+          @mouseleave="handleTouchEnd"
           class="date-scroll-container d-flex h-100 overflow-auto hide-scrollbar"
-          style="scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; padding: 0 calc(50% - 25px);"
+          style="-webkit-overflow-scrolling: touch; padding: 0 calc(50% - 25px);"
         >
           <div 
             v-for="(date, index) in dates" 
@@ -133,7 +178,6 @@ watch(() => props.selectedDate, (newDate) => {
   min-width: 50px;
   height: 100%;
   cursor: pointer;
-  scroll-snap-align: center;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1;
   opacity: 0.5;
