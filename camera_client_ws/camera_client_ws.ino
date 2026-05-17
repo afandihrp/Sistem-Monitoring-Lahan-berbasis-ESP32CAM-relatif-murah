@@ -60,23 +60,34 @@ void applySensorSettings() {
     s->set_saturation(s, -2);
   } else if (s->id.PID == OV2640_PID) {
     // Reset AWB, AEC, AGC agar warna dan eksposur stabil setelah reinit
-    s->set_whitebal(s, 1);      // Enable auto white balance
-    s->set_awb_gain(s, 1);     // Enable AWB gain
-    s->set_wb_mode(s, 0);      // 0=Auto WB
+    s->set_whitebal(s, 1);       // Enable auto white balance
+    s->set_awb_gain(s, 1);      // Enable AWB gain
+    s->set_wb_mode(s, 0);       // 0=Auto WB
     s->set_exposure_ctrl(s, 1); // Enable auto exposure
-    s->set_aec2(s, 1);         // Enable AEC DSP
-    s->set_gain_ctrl(s, 1);    // Enable auto gain
-    s->set_bpc(s, 1);          // Black pixel correction
-    s->set_wpc(s, 1);          // White pixel correction
-    s->set_lenc(s, 1);         // Lens correction
+    s->set_aec2(s, 1);          // Enable AEC DSP
+    s->set_gain_ctrl(s, 1);     // Enable auto gain
+    s->set_bpc(s, 1);           // Black pixel correction
+    s->set_wpc(s, 1);           // White pixel correction
+    s->set_lenc(s, 1);          // Lens correction
   }
 }
 
-// Inisialisasi kamera dengan resolusi tertentu (deinit dulu jika sudah jalan)
+
+// Inisialisasi kamera dengan resolusi tertentu
+// XCLK disesuaikan: 10MHz untuk HVGA (streaming, anti-banding)
+//                   20MHz untuk FHD (capture, butuh bandwidth tinggi)
 bool reinitCamera(framesize_t size, uint8_t quality, uint8_t fb_count_val) {
-  app_cam_config.frame_size  = size;
+  app_cam_config.frame_size   = size;
   app_cam_config.jpeg_quality = quality;
-  app_cam_config.fb_count    = fb_count_val;
+  app_cam_config.fb_count     = fb_count_val;
+  // Turunkan XCLK ke 10MHz untuk streaming HVGA
+  // 10MHz membuat shutter speed lebih lambat sehingga lebih sedikit
+  // banding akibat pencahayaan PLN 50Hz
+  if (size == FRAMESIZE_HVGA || size == FRAMESIZE_VGA || size == FRAMESIZE_SVGA) {
+    app_cam_config.xclk_freq_hz = 10000000; // 10MHz untuk streaming
+  } else {
+    app_cam_config.xclk_freq_hz = 20000000; // 20MHz untuk capture FHD
+  }
   esp_err_t err = esp_camera_init(&app_cam_config);
   if (err != ESP_OK) {
     Serial.printf("[CAM] Init failed: 0x%x\n", err);
@@ -172,17 +183,16 @@ void setup() {
   app_cam_config.pin_sscb_scl  = SIOC_GPIO_NUM;
   app_cam_config.pin_pwdn      = PWDN_GPIO_NUM;
   app_cam_config.pin_reset     = RESET_GPIO_NUM;
-  app_cam_config.xclk_freq_hz  = 20000000;
+  app_cam_config.xclk_freq_hz  = 10000000; // 10MHz untuk streaming (anti-banding 50Hz PLN)
   app_cam_config.pixel_format  = PIXFORMAT_JPEG;
   app_cam_config.grab_mode     = CAMERA_GRAB_LATEST;
   app_cam_config.fb_location   = CAMERA_FB_IN_PSRAM;
-  // Init di HVGA langsung — tidak perlu set_framesize runtime yg bisa crash DMA
   app_cam_config.frame_size    = FRAMESIZE_HVGA;
-  app_cam_config.jpeg_quality  = 10;
+  app_cam_config.jpeg_quality  = 8;  // 8 = lebih tajam, lebih sedikit artifact
   app_cam_config.fb_count      = 2;
 
   // Init kamera
-  if (!reinitCamera(FRAMESIZE_HVGA, 10, 2)) {
+  if (!reinitCamera(FRAMESIZE_HVGA, 8, 2)) {
     Serial.println("Camera init failed! Halting.");
     return;
   }
@@ -374,7 +384,7 @@ void loop() {
     webSocket.sendBIN(fb->buf, fb->len);
     esp_camera_fb_return(fb);
 
-    delay(10);
+    delay(33); // ~30fps cap — mencegah WiFi buffer fragmentation
   }
 }
 
