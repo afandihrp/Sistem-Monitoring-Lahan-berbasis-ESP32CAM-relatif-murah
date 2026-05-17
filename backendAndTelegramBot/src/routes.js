@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { updateLatestLogImage } = require('./services/logger');
+const { sendMotionAlert, notifyCaptureResult } = require('./services/telegram');
 
 function createRouter(wss) {
   const router = express.Router();
@@ -47,23 +48,30 @@ function createRouter(wss) {
         console.error('Error saving image:', err);
         return res.status(500).send('Error saving image');
       }
-      // Assuming frontend port is default, but we'll store relative path
-      const imageUrl = `https://gateway.local:3000/data/${filename}`;
-      updateLatestLogImage(sensor, ip, imageUrl);
-      
-      // Also broadcast image update to kiosk if desired (optional)
-      const payload = JSON.stringify({ 
-        type: 'motion_image_update', 
-        sensor: sensor, 
-        deviceId: `cam_${ip.replace(/\./g, '_')}`,
-        imageUrl: imageUrl
-      });
-      wss.clients.forEach((client) => {
-        if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-          client.send(payload);
-        }
-      });
-      
+
+      if (sensor === 'capture') {
+        // On-demand capture: kembalikan foto ke Telegram yang menunggu
+        notifyCaptureResult(filepath);
+      } else {
+        // PIR motion: update log, kirim alert Telegram, broadcast ke kiosk
+        const imageUrl = `https://gateway.local:3000/data/${filename}`;
+        updateLatestLogImage(sensor, ip, imageUrl);
+        sendMotionAlert(`IP: ${ip}`, sensor, filepath);
+
+
+        const payload = JSON.stringify({
+          type: 'motion_image_update',
+          sensor: sensor,
+          deviceId: `cam_${ip.replace(/\./g, '_')}`,
+          imageUrl: imageUrl
+        });
+        wss.clients.forEach((client) => {
+          if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+            client.send(payload);
+          }
+        });
+      }
+
       res.send('Uploaded');
     });
   });
