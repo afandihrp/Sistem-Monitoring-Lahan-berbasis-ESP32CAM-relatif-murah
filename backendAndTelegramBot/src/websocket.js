@@ -114,7 +114,7 @@ function initWebSocket(server) {
               sensor: data.sensor, 
               location: location,
               deviceId: deviceId,
-              timestamp: new Date().toLocaleTimeString()
+              timestamp: new Date().toISOString()
             });
             
             wss.clients.forEach((client) => {

@@ -1,7 +1,13 @@
 <script setup>
+import DateSorter from './DateSorter.vue'
+
 defineProps({
   events: {
     type: Array,
+    required: true
+  },
+  selectedDate: {
+    type: Date,
     required: true
   },
   paginatedEvents: {
@@ -22,17 +28,50 @@ defineProps({
   }
 })
 
-const emit = defineEmits(['nextPage', 'prevPage'])
+const emit = defineEmits(['nextPage', 'prevPage', 'dateSelected'])
+
+const formatEventTime = (timestamp) => {
+  if (!timestamp) return 'N/A';
+  
+  // If it's already a simple time string (old format), just return it
+  if (!timestamp.includes('T') && timestamp.includes(':')) return timestamp;
+  
+  const date = new Date(timestamp);
+  if (isNaN(date)) return timestamp;
+
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+
+  const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  
+  if (isToday) return `Today, ${timeStr}`;
+  if (isYesterday) return `Yesterday, ${timeStr}`;
+  
+  const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return `${dateStr}, ${timeStr}`;
+}
 </script>
 
 <template>
   <div class="d-flex flex-column flex-grow-1 overflow-hidden event-panel">
     <div class="bg-slate-800 px-3 py-2 border-bottom border-slate-700 d-flex justify-content-between align-items-center">
       <h6 class="m-0 fw-bold d-flex align-items-center gap-2 small">
-        <i class="bi bi-bell-fill text-warning"></i> Events
+        <i class="bi bi-calendar3 text-warning"></i> Events
       </h6>
-      <span class="badge bg-slate-700 text-secondary border border-slate-600 extra-small">{{ events.length }}</span>
+      <span class="badge bg-slate-700 text-secondary border border-slate-600 extra-small">{{ events.length }} on {{ selectedDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) }}</span>
     </div>
+
+    <!-- Date Sorter Component (Mobile Only) -->
+    <DateSorter 
+      v-if="windowWidth <= 1000"
+      :selectedDate="selectedDate" 
+      @dateSelected="(date) => emit('dateSelected', date)" 
+    />
+
     <div class="overflow-auto custom-scrollbar flex-grow-1">
       <div v-for="event in (windowWidth <= 1000 ? paginatedEvents : events)" :key="event.id" 
            class="px-3 py-2 border-bottom border-slate-700 last-child-border-0 transition-all hover-bg">
@@ -42,7 +81,7 @@ const emit = defineEmits(['nextPage', 'prevPage'])
                  class="rounded-circle" style="width: 6px; height: 6px;"></div>
             <span class="fw-bold text-slate-200" style="font-size: 0.8rem;">{{ event.trigger }}</span>
           </div>
-          <span class="text-secondary font-monospace" style="font-size: 0.65rem;">{{ event.timestamp }}</span>
+          <span class="text-secondary font-monospace text-nowrap" style="font-size: 0.6rem;">{{ formatEventTime(event.timestamp) }}</span>
         </div>
         <div class="d-flex align-items-center gap-1 text-secondary ps-3" style="font-size: 0.7rem;">
           <i class="bi bi-geo-alt-fill extra-small opacity-50"></i>

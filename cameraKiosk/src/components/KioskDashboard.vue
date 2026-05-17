@@ -79,13 +79,9 @@ const connectWS = () => {
         }
       } else if (data.type === 'historical_logs') {
         events.value = data.logs.map((log, index) => {
-          let formattedTime = log.timestamp;
-          if (log.timestamp && log.timestamp.includes('T')) {
-            formattedTime = new Date(log.timestamp).toLocaleTimeString();
-          }
           return {
             id: `hist_${Date.now()}_${index}`,
-            timestamp: formattedTime,
+            timestamp: log.timestamp, // Keep ISO string
             trigger: log.sensor ? `Motion (${log.sensor.charAt(0).toUpperCase() + log.sensor.slice(1)})` : 'Motion',
             location: log.location || 'Unknown',
             sensor: log.sensor,
@@ -110,6 +106,20 @@ onMounted(() => {
 })
 
 const events = ref([])
+const selectedDate = ref(new Date())
+
+const filteredEvents = computed(() => {
+  return events.value.filter(event => {
+    if (!event.timestamp) return false;
+    const eventDate = new Date(event.timestamp);
+    return eventDate.toDateString() === selectedDate.value.toDateString();
+  });
+});
+
+const handleDateSelected = (date) => {
+  selectedDate.value = date
+  currentEventPage.value = 1 // Reset pagination when date changes
+}
 
 const triggerCameraAction = async (direction) => {
   try {
@@ -127,12 +137,12 @@ const triggerServoAction = (direction) => {
 // Mobile Pagination Logic
 const currentEventPage = ref(1)
 const eventsPerPage = 10
-const totalPages = computed(() => Math.ceil(events.value.length / eventsPerPage) || 1)
+const totalPages = computed(() => Math.ceil(filteredEvents.value.length / eventsPerPage) || 1)
 
 const paginatedEvents = computed(() => {
   const start = (currentEventPage.value - 1) * eventsPerPage
   const end = start + eventsPerPage
-  return events.value.slice(start, end)
+  return filteredEvents.value.slice(start, end)
 })
 
 const nextPage = () => { if (currentEventPage.value < totalPages.value) currentEventPage.value++ }
@@ -159,15 +169,16 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
       <aside class="col-lg-2 sidebar-section d-flex flex-column bg-slate-900 border-start border-slate-700">
         <DeviceList :devices="devices" />
         <EventLogs 
-          :events="events" 
-          :paginatedEvents="paginatedEvents"
-          :currentEventPage="currentEventPage"
-          :totalPages="totalPages"
+          :events="filteredEvents" 
+          :selectedDate="selectedDate"
+          :paginatedEvents="paginatedEvents" 
+          :currentEventPage="currentEventPage" 
+          :totalPages="totalPages" 
           :windowWidth="windowWidth"
           @nextPage="nextPage"
           @prevPage="prevPage"
-        />
-      </aside>
+          @dateSelected="handleDateSelected"
+        />      </aside>
     </main>
   </div>
 </template>
