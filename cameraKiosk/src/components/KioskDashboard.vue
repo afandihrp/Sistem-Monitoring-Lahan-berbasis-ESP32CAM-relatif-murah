@@ -113,6 +113,21 @@ onMounted(() => {
 })
 
 const events = ref([])
+
+const triggerCameraAction = async (direction) => {
+  console.log(`Triggering camera action: ${direction}`)
+  try {
+    const response = await fetch(`https://gateway.local:3000/action?do=${direction}`)
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+    console.log(`Camera action ${direction} successful`)
+  } catch (error) {
+    console.error(`Failed to trigger camera action ${direction}:`, error)
+  }
+}
+
+const triggerServoAction = (direction) => {
+  console.log(`Servo ${direction} triggered (Dummy)`)
+}
 </script>
 
 <template>
@@ -193,6 +208,40 @@ const events = ref([])
           </div>
         </div>
       </section>
+
+      <!-- MOBILE CONTROLS: Only visible below 1000px -->
+      <div class="mobile-controls-panel bg-slate-800 border-bottom border-slate-700 p-3 d-lg-none">
+        <div class="row g-2">
+          <!-- Camera Controls -->
+          <div class="col-6">
+            <div class="d-flex flex-column gap-2">
+              <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Camera Switch</label>
+              <div class="d-flex gap-2">
+                <button @click="triggerCameraAction('left')" class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
+                  <i class="bi bi-chevron-left"></i> Left
+                </button>
+                <button @click="triggerCameraAction('right')" class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
+                  Right <i class="bi bi-chevron-right"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- Servo Controls -->
+          <div class="col-6">
+            <div class="d-flex flex-column gap-2">
+              <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Servo (PTZ)</label>
+              <div class="d-flex gap-2">
+                <button @click="triggerServoAction('left')" class="btn btn-outline-secondary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
+                  <i class="bi bi-arrow-left-circle"></i> Left
+                </button>
+                <button @click="triggerServoAction('right')" class="btn btn-outline-secondary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
+                  Right <i class="bi bi-arrow-right-circle"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- KANAN: Sidebar -->
       <aside class="col-lg-2 sidebar-section d-flex flex-column bg-slate-900 border-start border-slate-700">
@@ -278,6 +327,10 @@ const events = ref([])
 /* --- DESKTOP (TV / PC MONITOR) --- */
 /* FIXATED: Edge to Edge, No Margin, No Scroll Layout */
 @media (min-width: 1001px) {
+  .mobile-controls-panel {
+    display: none !important;
+  }
+  
   .main-wrapper {
     height: 100vh;
     overflow: hidden;
@@ -312,6 +365,10 @@ const events = ref([])
 /* --- MOBILE (SMARTPHONE) --- */
 /* SCROLLABLE: Kamera Fixed di atas, Devices & Events berjajar di bawah */
 @media (max-width: 1000px) {
+  .mobile-controls-panel {
+    display: block !important;
+  }
+
   .main-wrapper {
     height: auto !important;
     min-height: 100vh;
