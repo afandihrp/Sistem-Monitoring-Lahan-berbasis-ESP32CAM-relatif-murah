@@ -98,8 +98,8 @@ const getImageUrl = (url) => {
             <i class="bi bi-geo-alt-fill extra-small opacity-50"></i>
             <span class="text-truncate">{{ event.location }}</span>
           </div>
-          <div v-if="event.imageUrl" class="mt-2 ps-3 pe-1">
-            <img :src="getImageUrl(event.imageUrl)" class="img-fluid rounded border border-slate-700 w-100" style="max-height: 120px; object-fit: cover;" alt="Motion Snapshot" loading="lazy" />
+          <div v-if="event.imageUrl" class="mt-2 ps-3 pe-1 text-center">
+            <img :src="getImageUrl(event.imageUrl)" class="img-fluid rounded border border-slate-700" style="height: auto; max-height: 350px; width: auto;" alt="Motion Snapshot" loading="lazy" />
           </div>
         </div>
       </div>
