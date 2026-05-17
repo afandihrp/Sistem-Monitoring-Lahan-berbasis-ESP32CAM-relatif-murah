@@ -32,10 +32,12 @@ const emit = defineEmits(['triggerCameraAction', 'triggerServoAction'])
           OFFLINE
         </span>
         
-        <div class="d-flex align-items-center gap-3">
-          <span class="text-white fs-6 fw-bold font-monospace text-uppercase" style="text-shadow: 1px 1px 2px black;">ESP32-CAM [{{ currentStream.ip }}]</span>
+        <div class="d-flex align-items-center gap-2 gap-sm-3">
+          <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black;">
+            <span class="d-none d-sm-inline">ESP32-CAM</span> [{{ currentStream.ip }}]
+          </span>
           <!-- Signal Icon -->
-          <div class="d-flex align-items-end gap-1" style="height: 18px;" :title="currentStream.status === 'Online' ? `Signal Strength: ${currentStream.signalBars || 0}/5` : 'No Signal'">
+          <div class="d-flex align-items-end gap-1 signal-bars" style="height: 18px;" :title="currentStream.status === 'Online' ? `Signal Strength: ${currentStream.signalBars || 0}/5` : 'No Signal'">
             <div v-for="i in 5" :key="i" 
                  :style="{ 
                    width: '5px', 
@@ -129,6 +131,22 @@ const emit = defineEmits(['triggerCameraAction', 'triggerServoAction'])
     top: 0px;
     z-index: 1020;
     border-bottom: 2px solid #1e293b;
+  }
+}
+
+@media (max-width: 480px) {
+  .stream-header-grad {
+    padding: 0.5rem !important;
+  }
+  .badge {
+    font-size: 0.7rem !important;
+    padding: 0.25rem 0.5rem !important;
+  }
+  .ip-label {
+    font-size: 0.7rem !important;
+  }
+  .signal-bars div {
+    width: 3px !important;
   }
 }
 </style>

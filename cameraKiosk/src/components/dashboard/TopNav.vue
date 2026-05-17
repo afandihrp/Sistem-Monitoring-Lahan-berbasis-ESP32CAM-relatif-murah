@@ -19,17 +19,17 @@ defineProps({
         Gateway_OS
       </a>
       <div class="d-flex align-items-center gap-3">
-        <div class="d-flex align-items-center gap-2 border-end pe-3 border-slate-700">
-          <div class="fw-bold font-monospace lh-1" style="font-size: 1rem;">{{ currentTime }}</div>
-          <div class="text-secondary" style="font-size: 0.75rem;">
+        <div class="d-flex align-items-center gap-2 border-end pe-2 pe-sm-3 border-slate-700">
+          <div class="fw-bold font-monospace lh-1" style="font-size: 0.85rem;">{{ currentTime }}</div>
+          <div class="text-secondary" style="font-size: 0.65rem;">
             {{ new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) }}
           </div>
         </div>
-        <div class="d-flex gap-2 text-secondary" style="font-size: 0.85rem;">
+        <div class="d-flex gap-2 text-secondary" style="font-size: 0.8rem;">
           <span class="d-flex align-items-center gap-1">
-            <span :class="wsStatus === 'Online' ? 'text-success' : 'text-danger'" class="fw-bold">
+            <span :class="wsStatus === 'Online' ? 'text-success' : 'text-danger'" class="fw-bold d-flex align-items-center gap-1">
               <i :class="wsStatus === 'Online' ? 'bi-broadcast text-success' : 'bi-broadcast-pin text-danger'"></i>
-              WS: {{ wsStatus }}
+              <span class="d-none d-sm-inline">WS:</span> {{ wsStatus }}
             </span>
           </span>
         </div>
@@ -41,4 +41,20 @@ defineProps({
 <style scoped>
 .font-monospace { font-family: 'JetBrains Mono', ui-monospace, monospace !important; }
 .bi-shield-lock-fill { filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.5)); }
+
+@media (max-width: 480px) {
+  .navbar-brand {
+    font-size: 0.85rem !important;
+  }
+  .navbar-brand i {
+    font-size: 1rem !important;
+  }
+  .container-fluid {
+    padding-left: 0.4rem !important;
+    padding-right: 0.4rem !important;
+  }
+  .gap-3 {
+    gap: 0.5rem !important;
+  }
+}
 </style>
