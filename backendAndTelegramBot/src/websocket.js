@@ -56,7 +56,8 @@ function initWebSocket(server) {
         mac: macAddress,
         type: 'Camera',
         signalBars: 0,
-        lastSeen: new Date().toLocaleTimeString()
+        lastSeen: new Date().toLocaleTimeString(),
+        ws: ws  // simpan referensi untuk on-demand capture
       });
       broadcastDeviceList(wss);
     } else {
@@ -122,9 +123,9 @@ function initWebSocket(server) {
               }
             });
 
-            // Send Telegram Alert
-            console.log(`Triggering Telegram alert for ${location}`);
-            sendMotionAlert(location, data.sensor);
+            // Telegram alert sekarang dikirim dari routes.js SETELAH foto tersimpan
+            // agar gambar yang dilampirkan selalu foto dari event ini, bukan foto lama
+
           } else if (data.type === 'set_active_stream' && !isCamera) {
             // Kiosk subscribing to a specific camera stream
             ws.activeDeviceId = data.deviceId;
@@ -152,8 +153,11 @@ function initWebSocket(server) {
     });
   });
 
-  // Heartbeat interval check every 30 seconds
+  // Heartbeat interval check setiap 30 detik
+  // Harus lebih panjang dari max upload time ESP32 (~15 detik untuk foto 1080p)
+  // agar koneksi tidak di-terminate saat kamera sedang upload foto
   const interval = setInterval(function ping() {
+
     wss.clients.forEach(function each(ws) {
       if (ws.isAlive === false) {
         console.log(`Terminating inactive connection: ${ws.path}`);
@@ -163,7 +167,8 @@ function initWebSocket(server) {
       ws.isAlive = false;
       ws.ping();
     });
-  },6000);
+  }, 30000);
+
 
   wss.on('close', function close() {
     clearInterval(interval);
@@ -172,4 +177,21 @@ function initWebSocket(server) {
   return wss;
 }
 
-module.exports = initWebSocket;
+// Kirim perintah capture ke kamera tertentu via WebSocket
+function sendCaptureRequest(deviceId) {
+  const device = devices.get(deviceId);
+  if (!device || !device.ws || device.ws.readyState !== 1) {
+    console.log(`sendCaptureRequest: device ${deviceId} not available`);
+    return false;
+  }
+  device.ws.send(JSON.stringify({ type: 'capture_request' }));
+  console.log(`Capture request sent to ${deviceId}`);
+  return true;
+}
+
+// Getter untuk mengakses daftar perangkat yang terhubung dari modul lain
+function getDevices() {
+  return devices;
+}
+
+module.exports = { initWebSocket, getDevices, sendCaptureRequest };
