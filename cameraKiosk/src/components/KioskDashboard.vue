@@ -277,7 +277,7 @@ const events = ref([])
 
 /* --- DESKTOP (TV / PC MONITOR) --- */
 /* FIXATED: Edge to Edge, No Margin, No Scroll Layout */
-@media (min-width: 992px) {
+@media (min-width: 1001px) {
   .main-wrapper {
     height: 100vh;
     overflow: hidden;
@@ -311,10 +311,10 @@ const events = ref([])
 
 /* --- MOBILE (SMARTPHONE) --- */
 /* SCROLLABLE: Kamera Fixed di atas, Devices & Events berjajar di bawah */
-@media (max-width: 991px) {
+@media (max-width: 1000px) {
   .main-wrapper {
     height: auto !important;
-    min-height: 300vh;
+    min-height: 100vh;
     overflow-y: auto !important;
     overflow-x: hidden;
   }
@@ -326,8 +326,9 @@ const events = ref([])
   }
 
   .stream-section {
-    height: 40vh; /* Kamera ambil 40% dari layar awal HP */
-    min-height: 250px;
+    width: 100% !important;
+    height: 45vh; /* Kamera ambil 45% dari layar HP */
+    min-height: 280px;
     position: sticky; /* Agar tetap di atas saat scroll */
     top: 0px; /* Nempel saat di-scroll */
     z-index: 1020;
@@ -335,14 +336,22 @@ const events = ref([])
   }
 
   .sidebar-section {
+    width: 100% !important;
     height: auto !important;
-    border-start: none !important;
+    border-left: none !important;
   }
 
   .device-panel, .event-panel {
     max-height: none !important;
     height: auto !important;
     overflow: visible !important;
+  }
+
+  /* Compact padding for mobile readability */
+  .device-panel .list-group-item,
+  .event-panel .px-3 {
+    padding-left: 1.25rem !important;
+    padding-right: 1.25rem !important;
   }
 
   /* Agar di HP konten memanjang terus ke bawah mengikuti scroll body */
