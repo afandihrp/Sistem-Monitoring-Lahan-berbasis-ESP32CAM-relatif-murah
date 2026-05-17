@@ -2,8 +2,9 @@ const { Telegraf } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
 
-const configPath = path.join(__dirname, '../../../config.json');
+const configPath = path.join(__dirname, '../../../data/config.json');
 const DATA_DIR = path.join(__dirname, '../../../data');
+
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
 // Array chat ID yang akan menerima notifikasi
