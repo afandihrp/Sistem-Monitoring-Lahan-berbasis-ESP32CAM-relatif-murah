@@ -12,7 +12,7 @@ defineProps({
 </script>
 
 <template>
-  <nav class="navbar navbar-expand-lg bg-slate-800 px-3 py-0 border-bottom border-slate-700 z-3" style="min-height: 45px;">
+  <nav class="navbar bg-slate-800 px-3 py-0 border-bottom border-slate-700 z-3" style="min-height: 45px;">
     <div class="container-fluid p-0">
       <a class="navbar-brand fw-bold d-flex align-items-center gap-2 m-0" href="#" style="font-size: 1.1rem;">
         <i class="bi bi-shield-lock-fill text-primary fs-5"></i>

@@ -66,7 +66,7 @@ const emit = defineEmits(['triggerCameraAction', 'triggerServoAction'])
     </section>
 
     <!-- MOBILE CONTROLS: Only visible below 1000px -->
-    <div v-show="windowWidth <= 1000" class="mobile-controls-panel bg-slate-800 border-bottom border-slate-700 p-3 d-lg-none">
+    <div v-show="windowWidth <= 1000" class="mobile-controls-panel bg-slate-800 border-bottom border-slate-700 p-3">
       <div class="row g-2">
         <!-- Camera Controls -->
         <div class="col-6">
@@ -115,6 +115,12 @@ const emit = defineEmits(['triggerCameraAction', 'triggerServoAction'])
 
 /* --- MOBILE --- */
 @media (max-width: 1000px) {
+  .stream-view-wrapper {
+    width: 100% !important;
+    flex: none !important;
+    max-width: 100% !important;
+  }
+  
   .stream-section {
     width: 100% !important;
     height: 45vh;

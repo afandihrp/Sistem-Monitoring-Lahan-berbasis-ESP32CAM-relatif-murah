@@ -209,6 +209,8 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
   }
   .sidebar-section {
     width: 100% !important;
+    flex: none !important;
+    max-width: 100% !important;
     height: auto !important;
     border-left: none !important;
   }
