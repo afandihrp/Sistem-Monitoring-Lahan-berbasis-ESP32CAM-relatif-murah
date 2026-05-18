@@ -231,10 +231,10 @@ const handleThumbEnd = () => {
           
           <div class="position-relative py-4 px-1">
             <!-- Labels -->
-            <div class="d-flex justify-content-between position-absolute w-100 top-0 start-0 text-slate-500" style="font-size: 0.6rem;">
-              <span :style="{ color: '#ef4444', fontWeight: 'bold' }">LEFT: {{ servoConfig.leftPirAngle }}°</span>
-              <span :style="{ color: '#22c55e', fontWeight: 'bold' }">MID: {{ servoConfig.middlePirAngle }}°</span>
-              <span :style="{ color: '#3b82f6', fontWeight: 'bold' }">RIGHT: {{ servoConfig.rightPirAngle }}°</span>
+            <div class="d-flex justify-content-between position-absolute w-100 top-0 start-0 text-slate-500" style="font-size: 1rem; margin-top: -5px;">
+              <span :style="{ color: '#ef4444', fontWeight: 'bold', textShadow: '0 0 4px rgba(239, 68, 68, 0.4)' }">LEFT: {{ servoConfig.leftPirAngle }}°</span>
+              <span :style="{ color: '#22c55e', fontWeight: 'bold', textShadow: '0 0 4px rgba(34, 197, 94, 0.4)' }">MID: {{ servoConfig.middlePirAngle }}°</span>
+              <span :style="{ color: '#3b82f6', fontWeight: 'bold', textShadow: '0 0 4px rgba(59, 130, 246, 0.4)' }">RIGHT: {{ servoConfig.rightPirAngle }}°</span>
             </div>
 
             <!-- Track -->
