@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import TopNav from './dashboard/TopNav.vue'
 import StreamView from './dashboard/StreamView.vue'
 import DeviceList from './dashboard/DeviceList.vue'
@@ -88,6 +88,10 @@ const connectWS = () => {
             imageUrl: log.imageUrl || 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Motion+Detected'
           };
         }).reverse();
+      } else if (data.type === 'servo_config_response') {
+        window.dispatchEvent(new CustomEvent('servo_config_received', { detail: data }));
+      } else if (data.type === 'save_servo_config_success') {
+        alert('Servo Configuration Saved Successfully via WebSocket!');
       }
     } catch (e) {
       console.error('Failed to parse WebSocket message:', e)
@@ -101,8 +105,20 @@ watch(currentStream, (newStream) => {
   }
 })
 
+const handleRequestServoConfig = (event) => {
+  const { mac } = event.detail;
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'get_servo_config', mac }));
+  }
+};
+
 onMounted(() => {
   connectWS()
+  window.addEventListener('request_servo_config', handleRequestServoConfig);
+})
+
+onUnmounted(() => {
+  window.removeEventListener('request_servo_config', handleRequestServoConfig);
 })
 
 const events = ref([])
@@ -140,6 +156,18 @@ const triggerServoAction = (value) => {
   }
 }
 
+const handleSaveServoConfig = (data) => {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ 
+      type: 'save_servo_config', 
+      mac: data.mac, 
+      config: data.config 
+    }));
+  } else {
+    console.error('WebSocket not connected. Cannot save config.')
+  }
+}
+
 // Mobile Pagination Logic
 const currentEventPage = ref(1)
 const eventsPerPage = 10
@@ -170,6 +198,7 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
         :windowWidth="windowWidth"
         @triggerCameraAction="triggerCameraAction"
         @triggerServoAction="triggerServoAction"
+        @saveServoConfig="handleSaveServoConfig"
       />
 
       <aside class="col-lg-2 sidebar-section d-flex flex-column bg-slate-900 border-start border-slate-700">
@@ -207,29 +236,26 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
   }
   .sidebar-section {
     height: 100%;
-    overflow: hidden;
+    overflow-y: auto;
   }
 }
 
 /* --- MOBILE --- */
 @media (max-width: 1000px) {
   .main-wrapper {
-    height: auto !important;
     min-height: 100vh;
-    overflow-y: auto !important;
+    height: auto !important;
     overflow-x: hidden;
   }
   #main-layout {
-    display: flex;
     flex-direction: column;
     height: auto !important;
   }
   .sidebar-section {
     width: 100% !important;
-    flex: none !important;
-    max-width: 100% !important;
+    border-start: none !important;
+    border-top: 1px solid #1e293b;
     height: auto !important;
-    border-left: none !important;
   }
 }
 </style>

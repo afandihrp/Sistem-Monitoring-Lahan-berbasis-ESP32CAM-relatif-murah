@@ -1,7 +1,7 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 
-defineProps({
+const props = defineProps({
   currentStream: {
     type: Object,
     required: true
@@ -16,7 +16,7 @@ defineProps({
   }
 })
 
-const emit = defineEmits(['triggerCameraAction', 'triggerServoAction'])
+const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig'])
 const servoValue = ref(90)
 const showConfig = ref(false)
 const servoConfig = ref({
@@ -26,8 +26,47 @@ const servoConfig = ref({
   rightPirAngle: 135
 })
 
+const fetchServoConfig = () => {
+  if (!props.currentStream.mac || props.currentStream.mac === 'Unknown MAC') return
+  
+  // Request config from parent (who has the WS connection)
+  window.dispatchEvent(new CustomEvent('request_servo_config', { 
+    detail: { mac: props.currentStream.mac } 
+  }));
+}
+
+const handleConfigReceived = (event) => {
+  const { mac, config } = event.detail;
+  if (mac === props.currentStream.mac && config) {
+    servoConfig.value = {
+      defaultAngle: config.defaultAngle ?? 90,
+      leftPirAngle: config.leftPirAngle ?? 45,
+      middlePirAngle: config.middlePirAngle ?? 90,
+      rightPirAngle: config.rightPirAngle ?? 135
+    };
+    console.log('Loaded saved servo config via WS for:', mac);
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('servo_config_received', handleConfigReceived);
+})
+
+onUnmounted(() => {
+  window.removeEventListener('servo_config_received', handleConfigReceived);
+})
+
+watch(showConfig, (newVal) => {
+  if (newVal) {
+    fetchServoConfig()
+  }
+})
+
 const saveConfig = () => {
-  console.log('Servo Settings Saved:', JSON.parse(JSON.stringify(servoConfig.value)))
+  emit('saveServoConfig', {
+    mac: props.currentStream.mac,
+    config: servoConfig.value
+  })
   showConfig.value = false
 }
 

@@ -1,6 +1,10 @@
 const { WebSocketServer } = require('ws');
+const fs = require('fs');
+const path = require('path');
 const { logEvent, getLogs } = require('./services/logger');
 const { sendMotionAlert } = require('./services/telegram');
+
+const CONFIG_FILE = path.join(__dirname, '../../data/servoConfig.json');
 
 // Track connected camera devices
 const devices = new Map();
@@ -139,6 +143,30 @@ function initWebSocket(server) {
             if (device && device.ws && device.ws.readyState === 1) {
               device.ws.send(JSON.stringify({ type: 'servo_control', value: data.value }));
             }
+          } else if (data.type === 'get_servo_config' && !isCamera) {
+            // Retrieve config from file and send back to Kiosk
+            if (fs.existsSync(CONFIG_FILE)) {
+              try {
+                const allConfigs = JSON.parse(fs.readFileSync(CONFIG_FILE));
+                const config = allConfigs[data.mac] || null;
+                ws.send(JSON.stringify({ type: 'servo_config_response', mac: data.mac, config }));
+              } catch (e) { console.error('Error reading config:', e); }
+            } else {
+              ws.send(JSON.stringify({ type: 'servo_config_response', mac: data.mac, config: null }));
+            }
+          } else if (data.type === 'save_servo_config' && !isCamera) {
+            // Save config to file
+            let allConfigs = {};
+            if (fs.existsSync(CONFIG_FILE)) {
+              try { 
+                const rawData = fs.readFileSync(CONFIG_FILE);
+                allConfigs = JSON.parse(rawData); 
+              } catch (e) {}
+            }
+            allConfigs[data.mac] = { ...data.config, lastUpdated: new Date().toISOString() };
+            fs.writeFileSync(CONFIG_FILE, JSON.stringify(allConfigs, null, 2));
+            console.log(`Servo config saved via WS for MAC: ${data.mac}`);
+            ws.send(JSON.stringify({ type: 'save_servo_config_success', mac: data.mac }));
           }
         } catch (e) {
           console.log(`Received text message from ${isCamera ? 'Camera' : 'Kiosk'}: ${message}`);

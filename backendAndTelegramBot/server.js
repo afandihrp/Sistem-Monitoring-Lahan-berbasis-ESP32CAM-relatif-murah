@@ -21,6 +21,18 @@ const options = {
 // Create HTTPS server
 const server = https.createServer(options, app);
 
+// CORS middleware
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, X-MAC-Address');
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Initialize WebSocket server
 const wss = initWebSocket(server);
 
