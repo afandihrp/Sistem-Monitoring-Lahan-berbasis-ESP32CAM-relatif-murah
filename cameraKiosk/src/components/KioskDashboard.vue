@@ -130,8 +130,8 @@ const triggerCameraAction = async (direction) => {
   }
 }
 
-const triggerServoAction = (direction) => {
-  console.log(`Servo ${direction} triggered (Dummy)`)
+const triggerServoAction = (value) => {
+  console.log(`Servo moved to ${value}° (PTZ Command)`)
 }
 
 // Mobile Pagination Logic

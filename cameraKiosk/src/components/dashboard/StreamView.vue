@@ -1,4 +1,6 @@
 <script setup>
+import { ref } from 'vue'
+
 defineProps({
   currentStream: {
     type: Object,
@@ -15,6 +17,7 @@ defineProps({
 })
 
 const emit = defineEmits(['triggerCameraAction', 'triggerServoAction'])
+const servoValue = ref(90)
 </script>
 
 <template>
@@ -69,32 +72,38 @@ const emit = defineEmits(['triggerCameraAction', 'triggerServoAction'])
 
     <!-- MOBILE CONTROLS: Only visible below 1000px -->
     <div v-show="windowWidth <= 1000" class="mobile-controls-panel bg-slate-800 border-bottom border-slate-700 p-3">
-      <div class="row g-2">
+      <div class="d-flex flex-column gap-4">
         <!-- Camera Controls -->
-        <div class="col-6">
-          <div class="d-flex flex-column gap-2">
-            <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Camera Switch</label>
-            <div class="d-flex gap-2">
-              <button @click="emit('triggerCameraAction', 'left')" class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
-                <i class="bi bi-chevron-left"></i> Left
-              </button>
-              <button @click="emit('triggerCameraAction', 'right')" class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
-                Right <i class="bi bi-chevron-right"></i>
-              </button>
-            </div>
+        <div class="d-flex flex-column gap-2">
+          <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Camera Switch</label>
+          <div class="d-flex gap-2">
+            <button @click="emit('triggerCameraAction', 'left')" class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
+              <i class="bi bi-chevron-left"></i> Left
+            </button>
+            <button @click="emit('triggerCameraAction', 'right')" class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
+              Right <i class="bi bi-chevron-right"></i>
+            </button>
           </div>
         </div>
-        <!-- Servo Controls -->
-        <div class="col-6">
-          <div class="d-flex flex-column gap-2">
+
+        <!-- Servo Controls (PTZ Slider) -->
+        <div class="d-flex flex-column gap-2">
+          <div class="d-flex justify-content-between align-items-center">
             <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Servo (PTZ)</label>
-            <div class="d-flex gap-2">
-              <button @click="emit('triggerServoAction', 'left')" class="btn btn-outline-secondary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
-                <i class="bi bi-arrow-left-circle"></i> Left
-              </button>
-              <button @click="emit('triggerServoAction', 'right')" class="btn btn-outline-secondary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
-                Right <i class="bi bi-arrow-right-circle"></i>
-              </button>
+            <span class="badge bg-slate-900 border border-slate-700 text-info font-monospace" style="font-size: 0.8rem; min-width: 50px;">
+              {{ servoValue }}°
+            </span>
+          </div>
+          <div class="position-relative py-2">
+            <input type="range" 
+                   class="form-range custom-slider" 
+                   min="0" max="180" step="1"
+                   v-model="servoValue"
+                   @input="emit('triggerServoAction', servoValue)">
+            <div class="d-flex justify-content-between mt-1 px-1 text-slate-500" style="font-size: 0.6rem;">
+              <span>0°</span>
+              <span>90°</span>
+              <span>180°</span>
             </div>
           </div>
         </div>
@@ -107,6 +116,60 @@ const emit = defineEmits(['triggerCameraAction', 'triggerServoAction'])
 .font-monospace { font-family: 'JetBrains Mono', ui-monospace, monospace !important; }
 .object-fit-contain { object-fit: contain; }
 .stream-header-grad { background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%); }
+
+/* High-Visibility Custom Slider */
+.custom-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  background: #334155; /* Slate-700 for better contrast against Slate-800 */
+  border-radius: 5px;
+  outline: none;
+  margin: 10px 0;
+}
+
+/* Chrome, Safari, Opera, Edge */
+.custom-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  background: #334155;
+  border-radius: 3px;
+  border: none;
+}
+
+.custom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px; /* Larger for mobile touch */
+  height: 24px;
+  background: #3b82f6;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  cursor: pointer;
+  margin-top: -9px; /* Centers thumb on track: (track_height/2) - (thumb_height/2) */
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+}
+
+/* Firefox */
+.custom-slider::-moz-range-track {
+  width: 100%;
+  height: 6px;
+  background: #334155;
+  border-radius: 3px;
+}
+
+.custom-slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  background: #3b82f6;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+}
+
+.text-slate-500 { color: #64748b; }
 
 /* --- DESKTOP --- */
 @media (min-width: 1001px) {
