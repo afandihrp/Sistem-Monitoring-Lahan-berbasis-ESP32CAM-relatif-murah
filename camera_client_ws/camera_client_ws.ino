@@ -99,7 +99,8 @@ void applySensorSettings() {
 void setServoAngle(uint8_t angle) {
   if (angle > 180) angle = 180;
   
-  int duty = map(angle, 0, 180, 205, 983);
+  // Invert servo PWM control: 0 maps to 983, 180 maps to 205
+  int duty = map(angle, 0, 180, 983, 205);
   ledcWrite(SERVO_PIN, duty); // Use PIN directly in Core 3.x
   Serial.printf("[SERVO] Angle set to %d (Duty: %d)\n", angle, duty);
 }
@@ -148,15 +149,15 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
             Serial.printf("[WSc] Servo angle received: %d\n", pendingServoAngle);
           }
         } else if (cmd.indexOf("\"servo_config_update\"") >= 0) {
-           int leftIdx = cmd.indexOf("\"left\":");
-           int middleIdx = cmd.indexOf("\"middle\":");
-           int rightIdx = cmd.indexOf("\"right\":");
-           int defaultIdx = cmd.indexOf("\"default\":");
+           int leftIdx = cmd.indexOf("\"leftPirAngle\":");
+           int middleIdx = cmd.indexOf("\"middlePirAngle\":");
+           int rightIdx = cmd.indexOf("\"rightPirAngle\":");
+           int defaultIdx = cmd.indexOf("\"defaultAngle\":");
            
-           if (leftIdx != -1) SERVO_POS_LEFT = cmd.substring(leftIdx + 7).toInt();
-           if (middleIdx != -1) SERVO_POS_MIDDLE = cmd.substring(middleIdx + 9).toInt();
-           if (rightIdx != -1) SERVO_POS_RIGHT = cmd.substring(rightIdx + 8).toInt();
-           if (defaultIdx != -1) SERVO_POS_DEFAULT = cmd.substring(defaultIdx + 10).toInt();
+           if (leftIdx != -1) SERVO_POS_LEFT = cmd.substring(leftIdx + 15).toInt();
+           if (middleIdx != -1) SERVO_POS_MIDDLE = cmd.substring(middleIdx + 17).toInt();
+           if (rightIdx != -1) SERVO_POS_RIGHT = cmd.substring(rightIdx + 16).toInt();
+           if (defaultIdx != -1) SERVO_POS_DEFAULT = cmd.substring(defaultIdx + 15).toInt();
            
            Serial.printf("[WSc] Servo config updated via WS: L=%d, M=%d, R=%d, D=%d\n", SERVO_POS_LEFT, SERVO_POS_MIDDLE, SERVO_POS_RIGHT, SERVO_POS_DEFAULT);
            // Set the servo to the new default immediately (ledcWrite is fast and non-blocking)
