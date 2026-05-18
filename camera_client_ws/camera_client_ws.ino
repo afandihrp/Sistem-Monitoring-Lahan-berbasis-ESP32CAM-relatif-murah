@@ -32,6 +32,12 @@
 #define SERVO_LEDC_RES 13 // 13-bit resolution (8192)
 #define SERVO_LEDC_FREQ 50 // 50Hz for standard servos
 
+// Servo Positions
+const int SERVO_POS_LEFT = 155;
+const int SERVO_POS_MIDDLE = 90;
+const int SERVO_POS_RIGHT = 0;
+const int SERVO_POS_DEFAULT = 90;
+
 // WiFi credentials
 const char* ssid = "BatuKhan";
 const char* password = "momoygemoy";
@@ -175,7 +181,7 @@ void setup() {
 
   // Init Servo PWM (ESP32 Core 3.x API)
   ledcAttach(SERVO_PIN, SERVO_LEDC_FREQ, SERVO_LEDC_RES);
-  setServoAngle(90); // Start at center position
+  setServoAngle(SERVO_POS_DEFAULT); // Start at center position
 
   // Isi pin config ke app_cam_config global (dipakai ulang saat deinit/reinit)
   app_cam_config.ledc_channel  = LEDC_CHANNEL_0;
@@ -318,9 +324,12 @@ void captureAndUpload(String label) {
 }
 
 
-void check_sensor(uint8_t pin, bool &prev_state, String label) {
+void check_sensor(uint8_t pin, bool &prev_state, String label, int angle) {
   bool current_state = digitalRead(pin);
   if (current_state == HIGH && prev_state == LOW) {
+    // Move servo to the direction of motion
+    setServoAngle(angle);
+
     // Kirim notifikasi motion ke server via WebSocket
     String msg = "{\"type\":\"motion\",\"sensor\":\"" + label + "\"}";
     webSocket.sendTXT(msg);
@@ -328,6 +337,9 @@ void check_sensor(uint8_t pin, bool &prev_state, String label) {
 
     // Capture dan upload foto high-res
     captureAndUpload(label);
+    
+    // Move back to default position (middle)
+    setServoAngle(SERVO_POS_DEFAULT);
 
     prev_state = HIGH;
   } else if (current_state == LOW && prev_state == HIGH) {
@@ -337,9 +349,9 @@ void check_sensor(uint8_t pin, bool &prev_state, String label) {
 
 void check_pins()
 {
-  check_sensor(left_pir_pin, prev_state_left_pir, "left");
-  check_sensor(middle_pir_pin, prev_state_middle_pir, "middle");
-  check_sensor(right_pir_pin, prev_state_right_pir, "right");
+  check_sensor(left_pir_pin, prev_state_left_pir, "left", SERVO_POS_LEFT);
+  check_sensor(middle_pir_pin, prev_state_middle_pir, "middle", SERVO_POS_MIDDLE);
+  check_sensor(right_pir_pin, prev_state_right_pir, "right", SERVO_POS_RIGHT);
 }
 
 unsigned long lastPinDebug = 0;
