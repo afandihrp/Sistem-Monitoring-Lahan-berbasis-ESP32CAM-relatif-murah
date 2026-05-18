@@ -274,6 +274,59 @@ const handleThumbEnd = () => {
               <span>135°</span>
               <span>180°</span>
             </div>
+            
+            <!-- FOV Visualizer -->
+            <div class="position-relative mt-4 d-flex justify-content-center" style="height: 140px; overflow: hidden; border-bottom: 2px solid #334155; border-radius: 4px; background: rgba(0,0,0,0.2);">
+              <div class="position-absolute top-0 start-0 p-1 text-slate-500" style="font-size: 0.55rem; font-weight: bold; z-index: 5;">69° FOV ROTATION VISUALIZER</div>
+              
+              <!-- Origin Point (Servo Center) -->
+              <div class="position-absolute bottom-0" style="width: 12px; height: 12px; background: #cbd5e1; border-radius: 50%; z-index: 20; transform: translateY(50%); box-shadow: 0 0 10px #ffffff;"></div>
+              
+              <!-- Reference Arch/Grid -->
+              <div class="position-absolute bottom-0" style="width: 280px; height: 140px; border: 2px dashed #334155; border-bottom: none; border-radius: 140px 140px 0 0; opacity: 0.5;"></div>
+              
+              <!-- Left Cone -->
+              <div class="position-absolute bottom-0"
+                   :style="{
+                     left: '50%',
+                     width: '206px',
+                     height: '150px',
+                     background: 'linear-gradient(to top, rgba(239, 68, 68, 0.8), rgba(239, 68, 68, 0.05))',
+                     clipPath: 'polygon(50% 100%, 0 0, 100% 0)',
+                     mixBlendMode: 'screen',
+                     transformOrigin: 'bottom center',
+                     transform: `translateX(-50%) rotate(${servoConfig.leftPirAngle - 90}deg)`
+                   }">
+              </div>
+
+              <!-- Middle Cone -->
+              <div class="position-absolute bottom-0"
+                   :style="{
+                     left: '50%',
+                     width: '206px',
+                     height: '150px',
+                     background: 'linear-gradient(to top, rgba(34, 197, 94, 0.8), rgba(34, 197, 94, 0.05))',
+                     clipPath: 'polygon(50% 100%, 0 0, 100% 0)',
+                     mixBlendMode: 'screen',
+                     transformOrigin: 'bottom center',
+                     transform: `translateX(-50%) rotate(${servoConfig.middlePirAngle - 90}deg)`
+                   }">
+              </div>
+
+              <!-- Right Cone -->
+              <div class="position-absolute bottom-0"
+                   :style="{
+                     left: '50%',
+                     width: '206px',
+                     height: '150px',
+                     background: 'linear-gradient(to top, rgba(59, 130, 246, 0.8), rgba(59, 130, 246, 0.05))',
+                     clipPath: 'polygon(50% 100%, 0 0, 100% 0)',
+                     mixBlendMode: 'screen',
+                     transformOrigin: 'bottom center',
+                     transform: `translateX(-50%) rotate(${servoConfig.rightPirAngle - 90}deg)`
+                   }">
+              </div>
+            </div>
           </div>
         </div>
 
