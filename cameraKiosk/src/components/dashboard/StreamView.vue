@@ -92,13 +92,14 @@ const handleThumbMove = (e) => {
   const percentage = Math.max(0, Math.min(100, (offsetX / rect.width) * 100))
   const value = Math.round((percentage / 100) * 180)
 
-  // Non-overlapping constraints
+  // Non-overlapping constraints (min 20 degrees apart)
+  const MIN_DIST = 20;
   if (activeThumb.value === 'left') {
-    servoConfig.value.leftPirAngle = Math.min(value, servoConfig.value.middlePirAngle)
+    servoConfig.value.leftPirAngle = Math.min(value, servoConfig.value.middlePirAngle - MIN_DIST)
   } else if (activeThumb.value === 'middle') {
-    servoConfig.value.middlePirAngle = Math.max(servoConfig.value.leftPirAngle, Math.min(value, servoConfig.value.rightPirAngle))
+    servoConfig.value.middlePirAngle = Math.max(servoConfig.value.leftPirAngle + MIN_DIST, Math.min(value, servoConfig.value.rightPirAngle - MIN_DIST))
   } else if (activeThumb.value === 'right') {
-    servoConfig.value.rightPirAngle = Math.max(value, servoConfig.value.middlePirAngle)
+    servoConfig.value.rightPirAngle = Math.max(value, servoConfig.value.middlePirAngle + MIN_DIST)
   }
 }
 
