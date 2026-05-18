@@ -33,10 +33,10 @@
 #define SERVO_LEDC_FREQ 50 // 50Hz for standard servos
 
 // Servo Positions
-const int SERVO_POS_LEFT = 155;
-const int SERVO_POS_MIDDLE = 90;
-const int SERVO_POS_RIGHT = 0;
-const int SERVO_POS_DEFAULT = 90;
+uint8_t SERVO_POS_LEFT = 155;
+uint8_t SERVO_POS_MIDDLE = 90;
+uint8_t SERVO_POS_RIGHT = 0;
+uint8_t SERVO_POS_DEFAULT = 90;
 
 // WiFi credentials
 const char* ssid = "BatuKhan";
@@ -96,8 +96,7 @@ void applySensorSettings() {
 // Standard Servo: 500us (0 deg) to 2400us (180 deg) at 20ms period (50Hz)
 // 500us / 20000us * 8192 = 205
 // 2400us / 20000us * 8192 = 983
-void setServoAngle(int angle) {
-  if (angle < 0) angle = 0;
+void setServoAngle(uint8_t angle) {
   if (angle > 180) angle = 180;
   
   int duty = map(angle, 0, 180, 205, 983);
@@ -148,6 +147,20 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
             pendingServoAngle = valStr.toInt();
             Serial.printf("[WSc] Servo angle received: %d\n", pendingServoAngle);
           }
+        } else if (cmd.indexOf("\"servo_config_update\"") >= 0) {
+           int leftIdx = cmd.indexOf("\"left\":");
+           int middleIdx = cmd.indexOf("\"middle\":");
+           int rightIdx = cmd.indexOf("\"right\":");
+           int defaultIdx = cmd.indexOf("\"default\":");
+           
+           if (leftIdx != -1) SERVO_POS_LEFT = cmd.substring(leftIdx + 7).toInt();
+           if (middleIdx != -1) SERVO_POS_MIDDLE = cmd.substring(middleIdx + 9).toInt();
+           if (rightIdx != -1) SERVO_POS_RIGHT = cmd.substring(rightIdx + 8).toInt();
+           if (defaultIdx != -1) SERVO_POS_DEFAULT = cmd.substring(defaultIdx + 10).toInt();
+           
+           Serial.printf("[WSc] Servo config updated via WS: L=%d, M=%d, R=%d, D=%d\n", SERVO_POS_LEFT, SERVO_POS_MIDDLE, SERVO_POS_RIGHT, SERVO_POS_DEFAULT);
+           // Set the servo to the new default immediately (ledcWrite is fast and non-blocking)
+           setServoAngle(SERVO_POS_DEFAULT);
         }
       }
       break;
@@ -324,7 +337,7 @@ void captureAndUpload(String label) {
 }
 
 
-void check_sensor(uint8_t pin, bool &prev_state, String label, int angle) {
+void check_sensor(uint8_t pin, bool &prev_state, String label, uint8_t angle) {
   bool current_state = digitalRead(pin);
   if (current_state == HIGH && prev_state == LOW) {
     // Move servo to the direction of motion

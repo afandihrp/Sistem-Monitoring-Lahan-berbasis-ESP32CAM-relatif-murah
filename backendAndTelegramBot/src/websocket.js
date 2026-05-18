@@ -66,6 +66,17 @@ function initWebSocket(server) {
         ws: ws  // simpan referensi untuk on-demand capture
       });
       broadcastDeviceList(wss);
+
+      if (fs.existsSync(CONFIG_FILE)) {
+        try {
+          const allConfigs = JSON.parse(fs.readFileSync(CONFIG_FILE));
+          const config = allConfigs[macAddress];
+          if (config) {
+            ws.send(JSON.stringify({ type: 'servo_config_update', config }));
+            console.log(`Sent servo config to camera ${macAddress}`);
+          }
+        } catch(e) { console.error('Error sending config to camera:', e); }
+      }
     } else {
       console.log('Kiosk connected.');
       // Send current device list to the new Kiosk immediately
@@ -167,6 +178,14 @@ function initWebSocket(server) {
             fs.writeFileSync(CONFIG_FILE, JSON.stringify(allConfigs, null, 2));
             console.log(`Servo config saved via WS for MAC: ${data.mac}`);
             ws.send(JSON.stringify({ type: 'save_servo_config_success', mac: data.mac }));
+            
+            // Push updated config directly to the specific camera device via WebSocket
+            const deviceArray = Array.from(devices.values());
+            const cameraDevice = deviceArray.find(d => d.mac === data.mac);
+            if (cameraDevice && cameraDevice.ws && cameraDevice.ws.readyState === 1) {
+               cameraDevice.ws.send(JSON.stringify({ type: 'servo_config_update', config: data.config }));
+               console.log(`Pushed updated servo config to camera ${data.mac}`);
+            }
           }
         } catch (e) {
           console.log(`Received text message from ${isCamera ? 'Camera' : 'Kiosk'}: ${message}`);
