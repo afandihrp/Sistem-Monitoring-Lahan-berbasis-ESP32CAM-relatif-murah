@@ -54,6 +54,10 @@ camera_config_t app_cam_config;
 void applySensorSettings() {
   sensor_t * s = esp_camera_sensor_get();
   if (!s) return;
+  
+  // Set default resolution to HVGA (Downscale from FHD pre-allocation)
+  s->set_framesize(s, FRAMESIZE_HVGA);
+
   if (s->id.PID == OV3660_PID) {
     s->set_vflip(s, 1);
     s->set_brightness(s, 2);
@@ -70,31 +74,6 @@ void applySensorSettings() {
     s->set_wpc(s, 1);           // White pixel correction
     s->set_lenc(s, 1);          // Lens correction
   }
-}
-
-
-// Inisialisasi kamera dengan resolusi tertentu
-// XCLK disesuaikan: 10MHz untuk HVGA (streaming, anti-banding)
-//                   20MHz untuk FHD (capture, butuh bandwidth tinggi)
-bool reinitCamera(framesize_t size, uint8_t quality, uint8_t fb_count_val) {
-  app_cam_config.frame_size   = size;
-  app_cam_config.jpeg_quality = quality;
-  app_cam_config.fb_count     = fb_count_val;
-  // Turunkan XCLK ke 10MHz untuk streaming HVGA
-  // 10MHz membuat shutter speed lebih lambat sehingga lebih sedikit
-  // banding akibat pencahayaan PLN 50Hz
-  if (size == FRAMESIZE_HVGA || size == FRAMESIZE_VGA || size == FRAMESIZE_SVGA) {
-    app_cam_config.xclk_freq_hz = 10000000; // 10MHz untuk streaming
-  } else {
-    app_cam_config.xclk_freq_hz = 20000000; // 20MHz untuk capture FHD
-  }
-  esp_err_t err = esp_camera_init(&app_cam_config);
-  if (err != ESP_OK) {
-    Serial.printf("[CAM] Init failed: 0x%x\n", err);
-    return false;
-  }
-  applySensorSettings();
-  return true;
 }
 
 WebSocketsClient webSocket;
@@ -183,20 +162,24 @@ void setup() {
   app_cam_config.pin_sscb_scl  = SIOC_GPIO_NUM;
   app_cam_config.pin_pwdn      = PWDN_GPIO_NUM;
   app_cam_config.pin_reset     = RESET_GPIO_NUM;
-  app_cam_config.xclk_freq_hz  = 10000000; // 10MHz untuk streaming (anti-banding 50Hz PLN)
+  app_cam_config.xclk_freq_hz  = 8000000; // 20MHz default for FHD bandwidth
   app_cam_config.pixel_format  = PIXFORMAT_JPEG;
   app_cam_config.grab_mode     = CAMERA_GRAB_LATEST;
   app_cam_config.fb_location   = CAMERA_FB_IN_PSRAM;
-  app_cam_config.frame_size    = FRAMESIZE_HVGA;
-  app_cam_config.jpeg_quality  = 8;  // 8 = lebih tajam, lebih sedikit artifact
-  app_cam_config.fb_count      = 2;
+  app_cam_config.frame_size    = FRAMESIZE_FHD; // PRE-ALLOCATE FHD MEMORY AT BOOT
+  app_cam_config.jpeg_quality  = 2; 
+  app_cam_config.fb_count      = 2; 
 
   // Init kamera
-  if (!reinitCamera(FRAMESIZE_HVGA, 8, 2)) {
-    Serial.println("Camera init failed! Halting.");
+  esp_err_t err = esp_camera_init(&app_cam_config);
+  if (err != ESP_OK) {
+    Serial.printf("[CAM] Init failed: 0x%x\n", err);
     return;
   }
-  Serial.println("Camera ready at HVGA (streaming mode).");
+  
+  // Apply sensor settings (this will downscale to HVGA for streaming)
+  applySensorSettings();
+  Serial.println("Camera ready: Pre-allocated FHD, Streaming at HVGA.");
 
 
   WiFi.begin(ssid, password);
@@ -237,52 +220,46 @@ void setup() {
 void captureAndUpload(String label) {
   Serial.println("=== captureAndUpload START: " + label + " ===");
 
-  // === STEP 1: Deinit kamera dari mode streaming HVGA ===
-  Serial.println("[1] Deiniting camera (streaming mode)...");
-  esp_camera_deinit();
-
-  delay(300);
-
-  // === STEP 2: Reinit dengan FHD untuk capture foto ===
-  Serial.println("[2] Reiniting camera at FHD...");
-  if (!reinitCamera(FRAMESIZE_FHD, 8, 1)) {
-    Serial.println("[ERR] Reinit FHD failed! Restoring HVGA...");
-    reinitCamera(FRAMESIZE_HVGA, 10, 2);
+  sensor_t * s = esp_camera_sensor_get();
+  if (!s) {
+    Serial.println("[ERR] Could not get sensor pointer!");
     return;
   }
+
+  // === STEP 1: Switch sensor ke FHD (Memory sudah ter-reserve di setup) ===
+  Serial.println("[1] Switching to FHD resolution...");
+  s->set_framesize(s, FRAMESIZE_FHD);
+  delay(500); // Tunggu sensor stabil
+
   // Nyalakan flash SEBELUM flush frames agar AEC kamera bisa menyesuaikan
-  // eksposur terhadap cahaya flash, sehingga hasil foto tidak overexposed/underexposed
-  Serial.println("[3] Flash ON — flushing frames for AEC adjustment...");
+  Serial.println("[2] Flash ON — flushing frames for AEC adjustment...");
   digitalWrite(FLASH_GPIO_NUM, HIGH);
 
-  // Buang 10 frame — kamera butuh beberapa frame untuk AEC konvergen ke cahaya flash
-  for (int i = 0; i < 10; i++) {
+  // Buang 5 frame — cukup untuk AEC konvergen
+  for (int i = 0; i < 5; i++) {
     camera_fb_t * discard = esp_camera_fb_get();
     if (discard) {
-      if (i == 0 || i == 9) Serial.printf("    discard frame %d: %d bytes\n", i + 1, discard->len);
       esp_camera_fb_return(discard);
     }
     delay(150);
   }
 
-  // === STEP 3: Ambil frame FHD dengan flash menyala ===
-  Serial.println("[4] Capturing frame with flash...");
+  // === STEP 2: Ambil frame FHD dengan flash menyala ===
+  Serial.println("[3] Capturing frame with flash...");
   camera_fb_t * fb = esp_camera_fb_get();
   digitalWrite(FLASH_GPIO_NUM, LOW);  // Matikan flash setelah frame diambil
-  Serial.println("[4] Flash OFF.");
+  Serial.println("[3] Flash OFF.");
 
   if (!fb) {
     Serial.println("[ERR] Failed to get FHD frame!");
-    esp_camera_deinit();
-    delay(200);
-    reinitCamera(FRAMESIZE_HVGA, 10, 2);
+    s->set_framesize(s, FRAMESIZE_HVGA); // Restore streaming mode
     return;
   }
-  Serial.printf("[5] FHD frame captured: %d bytes\n", fb->len);
+  Serial.printf("[4] FHD frame captured: %d bytes\n", fb->len);
 
 
 
-  // === STEP 4: Upload ke server ===
+  // === STEP 3: Upload ke server ===
   WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
@@ -300,11 +277,9 @@ void captureAndUpload(String label) {
   http.end();
   esp_camera_fb_return(fb);
 
-  // === STEP 5: Deinit lagi, kembali ke mode streaming HVGA ===
+  // === STEP 4: Kembali ke mode streaming HVGA ===
   Serial.println("[7] Restoring HVGA streaming mode...");
-  esp_camera_deinit();
-  delay(300);
-  reinitCamera(FRAMESIZE_HVGA, 10, 2);
+  s->set_framesize(s, FRAMESIZE_HVGA);
   Serial.println("=== captureAndUpload END ===");
 }
 
@@ -368,9 +343,6 @@ void loop() {
 
     camera_fb_t * fb = NULL;
 
-    // Flush 1 frame lama agar dapat frame terbaru (CAMERA_GRAB_LATEST)
-    fb = esp_camera_fb_get();
-    if (fb) esp_camera_fb_return(fb);
 
     // Ambil frame untuk dikirim ke kiosk
     fb = esp_camera_fb_get();
@@ -384,7 +356,7 @@ void loop() {
     webSocket.sendBIN(fb->buf, fb->len);
     esp_camera_fb_return(fb);
 
-    delay(33); // ~30fps cap — mencegah WiFi buffer fragmentation
+    // delay(200);
   }
 }
 
