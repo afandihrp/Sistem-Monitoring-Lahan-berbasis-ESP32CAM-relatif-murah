@@ -99,7 +99,7 @@ const servoValue = ref(90)
                    class="form-range custom-slider" 
                    min="0" max="180" step="1"
                    v-model="servoValue"
-                   @input="emit('triggerServoAction', servoValue)">
+                   @change="emit('triggerServoAction', servoValue)">
             <div class="d-flex justify-content-between mt-1 px-1 text-slate-500" style="font-size: 0.6rem;">
               <span>0°</span>
               <span>90°</span>

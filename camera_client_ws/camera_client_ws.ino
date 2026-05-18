@@ -25,6 +25,13 @@
 #define H_REF_GPIO_NUM    23
 #define P_CLK_GPIO_NUM    22
 
+// Servo Configuration
+#define SERVO_PIN 12
+#define SERVO_LEDC_CH 1
+#define SERVO_LEDC_TIMER 1
+#define SERVO_LEDC_RES 13 // 13-bit resolution (8192)
+#define SERVO_LEDC_FREQ 50 // 50Hz for standard servos
+
 // WiFi credentials
 const char* ssid = "BatuKhan";
 const char* password = "momoygemoy";
@@ -46,6 +53,9 @@ bool prev_state_right_pir = false;
 
 // Flag untuk on-demand capture via Telegram
 volatile bool pendingOnDemandCapture = false;
+
+// Flag untuk servo control
+volatile int pendingServoAngle = -1;
 
 // Global camera config agar bisa dipakai ulang saat reinit
 camera_config_t app_cam_config;
@@ -74,6 +84,19 @@ void applySensorSettings() {
     s->set_wpc(s, 1);           // White pixel correction
     s->set_lenc(s, 1);          // Lens correction
   }
+}
+
+// Map angle (0-180) to Duty Cycle (13-bit: 0-8191)
+// Standard Servo: 500us (0 deg) to 2400us (180 deg) at 20ms period (50Hz)
+// 500us / 20000us * 8192 = 205
+// 2400us / 20000us * 8192 = 983
+void setServoAngle(int angle) {
+  if (angle < 0) angle = 0;
+  if (angle > 180) angle = 180;
+  
+  int duty = map(angle, 0, 180, 205, 983);
+  ledcWrite(SERVO_PIN, duty); // Use PIN directly in Core 3.x
+  Serial.printf("[SERVO] Angle set to %d (Duty: %d)\n", angle, duty);
 }
 
 WebSocketsClient webSocket;
@@ -110,6 +133,15 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
         if (cmd.indexOf("\"capture_request\"") >= 0) {
           Serial.println("[WSc] On-demand capture queued.");
           pendingOnDemandCapture = true;
+        } else if (cmd.indexOf("\"servo_control\"") >= 0) {
+          int valueIdx = cmd.indexOf("\"value\":") + 8;
+          int endIdx = cmd.indexOf("}", valueIdx);
+          if (valueIdx > 8 && endIdx > valueIdx) {
+            String valStr = cmd.substring(valueIdx, endIdx);
+            valStr.trim();
+            pendingServoAngle = valStr.toInt();
+            Serial.printf("[WSc] Servo angle received: %d\n", pendingServoAngle);
+          }
         }
       }
       break;
@@ -141,7 +173,9 @@ void setup() {
   pinMode(FLASH_GPIO_NUM, OUTPUT);
   digitalWrite(FLASH_GPIO_NUM, LOW); // Flash mati saat startup
 
-
+  // Init Servo PWM (ESP32 Core 3.x API)
+  ledcAttach(SERVO_PIN, SERVO_LEDC_FREQ, SERVO_LEDC_RES);
+  setServoAngle(90); // Start at center position
 
   // Isi pin config ke app_cam_config global (dipakai ulang saat deinit/reinit)
   app_cam_config.ledc_channel  = LEDC_CHANNEL_0;
@@ -318,6 +352,13 @@ void loop() {
   if (pendingOnDemandCapture) {
     pendingOnDemandCapture = false;
     captureAndUpload("capture");
+  }
+
+  // Proses servo move
+  if (pendingServoAngle != -1) {
+    int angle = pendingServoAngle;
+    pendingServoAngle = -1; // Reset
+    setServoAngle(angle);
   }
 
   check_pins();

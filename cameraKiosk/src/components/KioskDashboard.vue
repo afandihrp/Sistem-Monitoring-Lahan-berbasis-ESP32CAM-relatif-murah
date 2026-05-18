@@ -131,7 +131,13 @@ const triggerCameraAction = async (direction) => {
 }
 
 const triggerServoAction = (value) => {
-  console.log(`Servo moved to ${value}° (PTZ Command)`)
+  if (ws && ws.readyState === 1 && currentStream.value.id) {
+    ws.send(JSON.stringify({ 
+      type: 'servo_control', 
+      deviceId: currentStream.value.id, 
+      value: parseInt(value) 
+    }));
+  }
 }
 
 // Mobile Pagination Logic

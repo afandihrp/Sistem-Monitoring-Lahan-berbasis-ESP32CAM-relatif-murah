@@ -133,6 +133,12 @@ function initWebSocket(server) {
             // Kiosk subscribing to a specific camera stream
             ws.activeDeviceId = data.deviceId;
             console.log(`Kiosk subscribed to stream: ${data.deviceId}`);
+          } else if (data.type === 'servo_control' && !isCamera) {
+            // Forward servo control from Kiosk to specific Camera
+            const device = devices.get(data.deviceId);
+            if (device && device.ws && device.ws.readyState === 1) {
+              device.ws.send(JSON.stringify({ type: 'servo_control', value: data.value }));
+            }
           }
         } catch (e) {
           console.log(`Received text message from ${isCamera ? 'Camera' : 'Kiosk'}: ${message}`);
