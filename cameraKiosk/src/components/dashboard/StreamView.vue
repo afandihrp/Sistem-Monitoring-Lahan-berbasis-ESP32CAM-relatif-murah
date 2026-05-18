@@ -1,5 +1,6 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref } from 'vue'
+import ServoConfiguratorModal from './ServoConfiguratorModal.vue'
 
 const props = defineProps({
   currentStream: {
@@ -19,96 +20,13 @@ const props = defineProps({
 const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig'])
 const servoValue = ref(90)
 const showConfig = ref(false)
-const servoConfig = ref({
-  defaultAngle: 90,
-  leftPirAngle: 45,
-  middlePirAngle: 90,
-  rightPirAngle: 135
-})
 
-const fetchServoConfig = () => {
-  if (!props.currentStream.mac || props.currentStream.mac === 'Unknown MAC') return
-  
-  // Request config from parent (who has the WS connection)
-  window.dispatchEvent(new CustomEvent('request_servo_config', { 
-    detail: { mac: props.currentStream.mac } 
-  }));
-}
-
-const handleConfigReceived = (event) => {
-  const { mac, config } = event.detail;
-  if (mac === props.currentStream.mac && config) {
-    servoConfig.value = {
-      defaultAngle: config.defaultAngle ?? 90,
-      leftPirAngle: config.leftPirAngle ?? 45,
-      middlePirAngle: config.middlePirAngle ?? 90,
-      rightPirAngle: config.rightPirAngle ?? 135
-    };
-    console.log('Loaded saved servo config via WS for:', mac);
-  }
-};
-
-onMounted(() => {
-  window.addEventListener('servo_config_received', handleConfigReceived);
-})
-
-onUnmounted(() => {
-  window.removeEventListener('servo_config_received', handleConfigReceived);
-})
-
-watch(showConfig, (newVal) => {
-  if (newVal) {
-    fetchServoConfig()
-  }
-})
-
-const saveConfig = () => {
+const handleSaveConfig = (config) => {
   emit('saveServoConfig', {
     mac: props.currentStream.mac,
-    config: servoConfig.value
+    config
   })
   showConfig.value = false
-}
-
-// Multi-Thumb Slider Logic
-const activeThumb = ref(null)
-const multiSliderTrack = ref(null)
-
-const handleThumbStart = (thumb) => {
-  activeThumb.value = thumb
-  window.addEventListener('mousemove', handleThumbMove)
-  window.addEventListener('mouseup', handleThumbEnd)
-  window.addEventListener('touchmove', handleThumbMove, { passive: false })
-  window.addEventListener('touchend', handleThumbEnd)
-}
-
-const handleThumbMove = (e) => {
-  if (!activeThumb.value || !multiSliderTrack.value) return
-  
-  e.preventDefault()
-  const rect = multiSliderTrack.value.getBoundingClientRect()
-  const clientX = e.touches ? e.touches[0].clientX : e.clientX
-  const offsetX = clientX - rect.left
-  const percentage = Math.max(0, Math.min(100, (offsetX / rect.width) * 100))
-  const value = Math.round((percentage / 100) * 180)
-
-  // Non-overlapping constraints (min 20 degrees apart)
-  const MIN_DIST = 20;
-  if (activeThumb.value === 'left') {
-    servoConfig.value.leftPirAngle = Math.min(value, servoConfig.value.middlePirAngle - MIN_DIST)
-  } else if (activeThumb.value === 'middle') {
-    servoConfig.value.middlePirAngle = Math.max(servoConfig.value.leftPirAngle + MIN_DIST, Math.min(value, servoConfig.value.rightPirAngle - MIN_DIST))
-  } else if (activeThumb.value === 'right') {
-    servoConfig.value.rightPirAngle = Math.max(value, servoConfig.value.middlePirAngle + MIN_DIST)
-  }
-}
-
-const handleThumbEnd = () => {
-  activeThumb.value = null
-  window.removeEventListener('mousemove', handleThumbMove)
-  window.removeEventListener('mouseup', handleThumbEnd)
-  window.removeEventListener('touchmove', handleThumbMove)
-  window.removeEventListener('touchend', handleThumbEnd)
 }
 </script>
 
@@ -208,135 +126,12 @@ const handleThumbEnd = () => {
     </div>
 
     <!-- Servo Configuration Modal -->
-    <div v-if="showConfig" class="modal-overlay d-flex align-items-center justify-content-center p-3">
-      <div class="modal-content-custom bg-slate-900 border border-slate-700 rounded-3 shadow-lg p-4" style="max-width: 450px; width: 100%;">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h6 class="text-white mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">
-            <i class="bi bi-gear-wide-connected me-2 text-info"></i>Servo Configuration
-          </h6>
-          <button @click="showConfig = false" class="btn-close btn-close-white shadow-none"></button>
-        </div>
-
-        <!-- Default Angle -->
-        <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <label class="text-slate-300 small fw-bold">DEFAULT ANGLE</label>
-            <span class="text-info font-monospace small">{{ servoConfig.defaultAngle }}°</span>
-          </div>
-          <input type="range" class="form-range custom-slider" min="0" max="180" v-model.number="servoConfig.defaultAngle">
-        </div>
-
-        <!-- PIR Mapping (Multi-Thumb Slider) -->
-        <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
-          <label class="text-slate-300 small fw-bold mb-4 d-block">PIR SENSOR MAPPING</label>
-          
-          <div class="position-relative py-4 px-1">
-            <!-- Labels -->
-            <div class="d-flex justify-content-between position-absolute w-100 top-0 start-0 text-slate-500" style="font-size: 1rem; margin-top: -5px;">
-              <span :style="{ color: '#ef4444', fontWeight: 'bold', textShadow: '0 0 4px rgba(239, 68, 68, 0.4)' }">LEFT: {{ servoConfig.leftPirAngle }}°</span>
-              <span :style="{ color: '#22c55e', fontWeight: 'bold', textShadow: '0 0 4px rgba(34, 197, 94, 0.4)' }">MID: {{ servoConfig.middlePirAngle }}°</span>
-              <span :style="{ color: '#3b82f6', fontWeight: 'bold', textShadow: '0 0 4px rgba(59, 130, 246, 0.4)' }">RIGHT: {{ servoConfig.rightPirAngle }}°</span>
-            </div>
-
-            <!-- Track -->
-            <div ref="multiSliderTrack" class="multi-range-track position-relative bg-slate-700" style="height: 12px; border-radius: 6px;">
-              <!-- Colored Segments -->
-              <div class="position-absolute h-100" :style="{ left: 0, width: (servoConfig.leftPirAngle/180*100) + '%', background: '#ef4444', opacity: 0.3, borderRadius: '6px 0 0 6px' }"></div>
-              <div class="position-absolute h-100" :style="{ left: (servoConfig.leftPirAngle/180*100) + '%', width: ((servoConfig.middlePirAngle - servoConfig.leftPirAngle)/180*100) + '%', background: '#22c55e', opacity: 0.3 }"></div>
-              <div class="position-absolute h-100" :style="{ left: (servoConfig.middlePirAngle/180*100) + '%', width: ((servoConfig.rightPirAngle - servoConfig.middlePirAngle)/180*100) + '%', background: '#3b82f6', opacity: 0.3 }"></div>
-
-              <!-- Thumbs -->
-              <!-- Left Thumb -->
-              <div class="thumb left" 
-                   @mousedown="handleThumbStart('left')" 
-                   @touchstart="handleThumbStart('left')"
-                   :style="{ left: (servoConfig.leftPirAngle/180*100) + '%' }">
-              </div>
-              <!-- Middle Thumb -->
-              <div class="thumb middle" 
-                   @mousedown="handleThumbStart('middle')" 
-                   @touchstart="handleThumbStart('middle')"
-                   :style="{ left: (servoConfig.middlePirAngle/180*100) + '%' }">
-              </div>
-              <!-- Right Thumb -->
-              <div class="thumb right" 
-                   @mousedown="handleThumbStart('right')" 
-                   @touchstart="handleThumbStart('right')"
-                   :style="{ left: (servoConfig.rightPirAngle/180*100) + '%' }">
-              </div>
-            </div>
-
-            <!-- Degree Ticks -->
-            <div class="d-flex justify-content-between mt-3 px-1 text-slate-600" style="font-size: 0.55rem;">
-              <span>0°</span>
-              <span>45°</span>
-              <span>90°</span>
-              <span>135°</span>
-              <span>180°</span>
-            </div>
-            
-            <!-- FOV Visualizer -->
-            <div class="position-relative mt-4 d-flex justify-content-center" style="height: 140px; overflow: hidden; border-bottom: 2px solid #334155; border-radius: 4px; background: rgba(0,0,0,0.2);">
-              <div class="position-absolute top-0 start-0 p-1 text-slate-500" style="font-size: 0.55rem; font-weight: bold; z-index: 5;">69° FOV ROTATION VISUALIZER</div>
-              
-              <!-- Origin Point (Servo Center) -->
-              <div class="position-absolute bottom-0" style="width: 12px; height: 12px; background: #cbd5e1; border-radius: 50%; z-index: 20; transform: translateY(50%); box-shadow: 0 0 10px #ffffff;"></div>
-              
-              <!-- Reference Arch/Grid -->
-              <div class="position-absolute bottom-0" style="width: 280px; height: 140px; border: 2px dashed #334155; border-bottom: none; border-radius: 140px 140px 0 0; opacity: 0.5;"></div>
-              
-              <!-- Left Cone -->
-              <div class="position-absolute bottom-0"
-                   :style="{
-                     left: '50%',
-                     width: '206px',
-                     height: '150px',
-                     background: 'linear-gradient(to top, rgba(239, 68, 68, 0.8), rgba(239, 68, 68, 0.05))',
-                     clipPath: 'polygon(50% 100%, 0 0, 100% 0)',
-                     mixBlendMode: 'screen',
-                     transformOrigin: 'bottom center',
-                     transform: `translateX(-50%) rotate(${servoConfig.leftPirAngle - 90}deg)`
-                   }">
-              </div>
-
-              <!-- Middle Cone -->
-              <div class="position-absolute bottom-0"
-                   :style="{
-                     left: '50%',
-                     width: '206px',
-                     height: '150px',
-                     background: 'linear-gradient(to top, rgba(34, 197, 94, 0.8), rgba(34, 197, 94, 0.05))',
-                     clipPath: 'polygon(50% 100%, 0 0, 100% 0)',
-                     mixBlendMode: 'screen',
-                     transformOrigin: 'bottom center',
-                     transform: `translateX(-50%) rotate(${servoConfig.middlePirAngle - 90}deg)`
-                   }">
-              </div>
-
-              <!-- Right Cone -->
-              <div class="position-absolute bottom-0"
-                   :style="{
-                     left: '50%',
-                     width: '206px',
-                     height: '150px',
-                     background: 'linear-gradient(to top, rgba(59, 130, 246, 0.8), rgba(59, 130, 246, 0.05))',
-                     clipPath: 'polygon(50% 100%, 0 0, 100% 0)',
-                     mixBlendMode: 'screen',
-                     transformOrigin: 'bottom center',
-                     transform: `translateX(-50%) rotate(${servoConfig.rightPirAngle - 90}deg)`
-                   }">
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="d-flex gap-2">
-          <button @click="saveConfig" class="btn btn-primary flex-grow-1 py-2 fw-bold text-uppercase" style="font-size: 0.75rem;">
-            Save Settings
-          </button>
-        </div>
-      </div>
-    </div>
+    <ServoConfiguratorModal 
+      v-if="showConfig" 
+      :mac="currentStream.mac" 
+      @close="showConfig = false" 
+      @save="handleSaveConfig" 
+    />
   </div>
 </template>
 
@@ -345,19 +140,18 @@ const handleThumbEnd = () => {
 .object-fit-contain { object-fit: contain; }
 .stream-header-grad { background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%); }
 
-/* High-Visibility Custom Slider */
+/* High-Visibility Custom Slider (for PTZ manual control) */
 .custom-slider {
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
   height: 10px;
-  background: #334155; /* Slate-700 for better contrast against Slate-800 */
+  background: #334155;
   border-radius: 5px;
   outline: none;
   margin: 10px 0;
 }
 
-/* Chrome, Safari, Opera, Edge */
 .custom-slider::-webkit-slider-runnable-track {
   width: 100%;
   height: 10px;
@@ -369,17 +163,16 @@ const handleThumbEnd = () => {
 .custom-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 28px; /* Larger for mobile touch */
+  width: 28px;
   height: 28px;
   background: #3b82f6;
   border: 3px solid #ffffff;
   border-radius: 50%;
   cursor: pointer;
-  margin-top: -9px; /* Centers thumb on track: (track_height/2) - (thumb_height/2) = (10/2) - (28/2) = 5 - 14 = -9 */
+  margin-top: -9px;
   box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
 }
 
-/* Firefox */
 .custom-slider::-moz-range-track {
   width: 100%;
   height: 10px;
@@ -399,57 +192,8 @@ const handleThumbEnd = () => {
 
 .text-slate-500 { color: #64748b; }
 
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(4px);
-  z-index: 2000;
-}
-
-.modal-content-custom {
-  animation: modalScale 0.2s ease-out;
-}
-
-@keyframes modalScale {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
 .bg-slate-800 { background-color: #1e292b; }
 .bg-slate-900 { background-color: #0f172a; }
-.text-slate-300 { color: #cbd5e1; }
-.text-slate-600 { color: #475569; }
-
-.multi-range-track {
-  touch-action: none;
-}
-
-.thumb {
-  position: absolute;
-  top: 50%;
-  width: 28px;
-  height: 28px;
-  background: #ffffff;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  cursor: pointer;
-  z-index: 10;
-  box-shadow: 0 0 8px rgba(0,0,0,0.5);
-  transition: transform 0.1s ease;
-}
-
-.thumb:active {
-  transform: translate(-50%, -50%) scale(1.1);
-}
-
-.thumb.left { border: 4px solid #ef4444; }
-.thumb.middle { border: 4px solid #22c55e; }
-.thumb.right { border: 4px solid #3b82f6; }
-
 .custom-slider-pir::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
