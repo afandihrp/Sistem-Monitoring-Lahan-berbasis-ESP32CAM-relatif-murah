@@ -282,7 +282,14 @@ void captureAndUpload(String label) {
 
   // === STEP 1: Switch sensor ke FHD (Memory sudah ter-reserve di setup) ===
   Serial.println("[1] Switching to FHD resolution...");
-  s->set_framesize(s, FRAMESIZE_FHD);
+
+ 
+  if (s->id.PID == OV3660_PID) {
+    s->set_framesize(s, FRAMESIZE_UXGA);
+  } else if (s->id.PID == OV2640_PID) {
+    s->set_framesize(s, FRAMESIZE_FHD);
+  }
+
   delay(500); // Tunggu sensor stabil
 
   // Nyalakan flash SEBELUM flush frames agar AEC kamera bisa menyesuaikan
