@@ -34,6 +34,31 @@ function saveConfig() {
   }
 }
 
+// --- Middleware: Authentication ---
+bot.use(async (ctx, next) => {
+  const chatId = ctx.chat?.id;
+  if (!chatId) return next();
+
+  // Jika sudah terdaftar, izinkan semua perintah
+  if (registeredChatIds.includes(chatId)) {
+    return next();
+  }
+
+  // Jika belum terdaftar, cek apakah pesan adalah password
+  const text = ctx.message?.text;
+  const authPassword = process.env.TELEGRAM_AUTH_PASSWORD;
+
+  if (authPassword && text === authPassword) {
+    registeredChatIds.push(chatId);
+    saveConfig();
+    await ctx.reply(`✅ Autentikasi Berhasil! \nID Anda (${chatId}) telah didaftarkan. Anda sekarang akan menerima notifikasi motion alerts.`);
+    return;
+  }
+
+  // Jika bukan password dan belum terdaftar, minta password
+  return ctx.reply('🔐 *Akses Terbatas*\n\nBot ini bersifat privat. Silakan masukkan password registrasi untuk melanjutkan.', { parse_mode: 'Markdown' });
+});
+
 // --- Helper: Cari file gambar terbaru di folder /data ---
 function getLatestImagePath() {
   try {
@@ -63,7 +88,6 @@ Your surveillance gateway is online and ready.
 
 Available Commands:
 /start - Show this welcome message
-/register_this_id - Subscribe to motion alerts
 /listids - List all registered user IDs
 /deleteid <id> - Remove a registered user ID
 /devices - List all connected camera devices
@@ -71,17 +95,6 @@ Available Commands:
 /getimage - Retrieve the latest captured image
   `;
   ctx.reply(welcomeMessage);
-});
-
-// --- /register_this_id ---
-bot.command('register_this_id', (ctx) => {
-  const chatId = ctx.chat.id;
-  if (registeredChatIds.includes(chatId)) {
-    return ctx.reply(`ℹ️ ID Anda (${chatId}) sudah terdaftar dan aktif menerima notifikasi.`);
-  }
-  registeredChatIds.push(chatId);
-  saveConfig();
-  ctx.reply(`✅ Berhasil didaftarkan!\nID: ${chatId}\nTotal penerima: ${registeredChatIds.length} akun.`);
 });
 
 // --- /listids: List all registered chat IDs ---
