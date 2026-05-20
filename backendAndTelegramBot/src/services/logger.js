@@ -40,6 +40,28 @@ function getLogs() {
   return [];
 }
 
+function updateLatestLogWithAI(sensor, deviceIp, imageUrl, humanPresence, aiDetails) {
+  try {
+    if (fs.existsSync(LOG_FILE_PATH)) {
+      const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf8'));
+      for (let i = logs.length - 1; i >= 0; i--) {
+        const log = logs[i];
+        if (log.sensor === sensor && log.deviceId === `cam_${deviceIp.replace(/\./g, '_')}`) {
+          log.imageUrl = imageUrl;
+          log.humanPresence = humanPresence;
+          if (aiDetails) {
+            log.aiDetails = aiDetails;
+          }
+          fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2), 'utf8');
+          break;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error updating log with AI:', error);
+  }
+}
+
 function updateLatestLogImage(sensor, deviceIp, imageUrl) {
   try {
     if (fs.existsSync(LOG_FILE_PATH)) {
@@ -61,5 +83,8 @@ function updateLatestLogImage(sensor, deviceIp, imageUrl) {
 module.exports = {
   logEvent,
   getLogs,
-  updateLatestLogImage
+  updateLatestLogImage,
+  updateLatestLogWithAI
 };
+
+
