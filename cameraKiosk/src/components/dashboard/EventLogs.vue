@@ -91,6 +91,10 @@ const getImageUrl = (url) => {
               <div :class="event.trigger.includes('Motion') ? 'bg-primary' : 'bg-warning'" 
                    class="rounded-circle" style="width: 6px; height: 6px;"></div>
               <span class="fw-bold text-slate-200" style="font-size: 0.8rem;">{{ event.trigger }}</span>
+              <!-- Human Detection Badge -->
+              <span v-if="event.humanPresence" class="badge bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-1 py-0 px-2" style="font-size: 0.6rem; letter-spacing: 0.5px;">
+                <i class="bi bi-person-fill"></i> HUMAN
+              </span>
             </div>
             <span class="text-secondary font-monospace text-nowrap" style="font-size: 0.6rem;">{{ formatEventTime(event.timestamp) }}</span>
           </div>

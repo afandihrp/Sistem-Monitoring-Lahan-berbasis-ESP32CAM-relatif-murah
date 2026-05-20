@@ -76,6 +76,8 @@ const connectWS = () => {
         const eventIndex = events.value.findIndex(e => e.sensor === data.sensor);
         if (eventIndex !== -1) {
           events.value[eventIndex].imageUrl = data.imageUrl;
+          events.value[eventIndex].humanPresence = data.humanPresence;
+          events.value[eventIndex].aiDetails = data.aiDetails;
         }
       } else if (data.type === 'historical_logs') {
         events.value = data.logs.map((log, index) => {
@@ -85,7 +87,9 @@ const connectWS = () => {
             trigger: log.sensor ? `Motion (${log.sensor.charAt(0).toUpperCase() + log.sensor.slice(1)})` : 'Motion',
             location: log.location || 'Unknown',
             sensor: log.sensor,
-            imageUrl: log.imageUrl || 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Motion+Detected'
+            imageUrl: log.imageUrl || 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Motion+Detected',
+            humanPresence: log.humanPresence,
+            aiDetails: log.aiDetails
           };
         }).reverse();
       } else if (data.type === 'servo_config_response') {
