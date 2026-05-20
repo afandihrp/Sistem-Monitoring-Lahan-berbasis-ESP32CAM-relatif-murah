@@ -42,6 +42,9 @@ uint8_t SERVO_POS_DEFAULT = 90;
 const char* ssid = "BatuKhan";
 const char* password = "momoygemoy";
 
+// Security API Key
+const char* apiKey = "momo_gemoy_api_key_123";
+
 const uint8_t left_pir_pin = 13;
 const uint8_t middle_pir_pin = 15;
 const uint8_t right_pir_pin = 14;
@@ -259,9 +262,9 @@ void setup() {
   
   Serial.printf("Resolved gateway.local to: %s\n", serverIP.toString().c_str());
 
-  // Get MAC address and send it as a custom header
+  // Get MAC address and send it as custom headers
   String mac = WiFi.macAddress();
-  String headers = "X-MAC-Address: " + mac;
+  String headers = "X-MAC-Address: " + mac + "\r\nX-API-Key: " + String(apiKey);
   webSocket.setExtraHeaders(headers.c_str());
 
   // Connect to WebSocket using the resolved IP

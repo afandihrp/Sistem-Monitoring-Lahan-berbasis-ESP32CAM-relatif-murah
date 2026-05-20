@@ -6,6 +6,9 @@ const { sendMotionAlert } = require('./services/telegram');
 
 const CONFIG_FILE = path.join(__dirname, '../../data/servoConfig.json');
 
+// Hardcoded API key for ESP32-CAM security
+const CAMERA_API_KEY = 'momo_gemoy_api_key_123';
+
 // Track connected camera devices
 const devices = new Map();
 
@@ -42,8 +45,18 @@ function initWebSocket(server) {
     const isCamera = req.url.startsWith('/camera');
     const remoteIp = req.socket.remoteAddress.replace('::ffff:', '');
     const macAddress = req.headers['x-mac-address'] || 'Unknown MAC';
+    const apiKey = req.headers['x-api-key'];
     
     console.log(`Connection attempt: URL=${req.url}, isCamera=${isCamera}, IP=${remoteIp}`);
+    
+    // Security check for camera connections
+    if (isCamera) {
+      if (apiKey !== CAMERA_API_KEY) {
+        console.warn(`SECURITY: Unauthorized camera connection attempt from ${remoteIp}. Incorrect API Key.`);
+        ws.terminate();
+        return;
+      }
+    }
     
     ws.isAlive = true;
     ws.on('pong', heartbeat);
@@ -90,8 +103,11 @@ function initWebSocket(server) {
     }
     
     ws.on('message', (message, isBinary) => {
+      if (isCamera) {
+        ws.lastDataReceived = Date.now(); // Proof of life via data stream (any message)
+      }
+
       if (isBinary && isCamera) {
-        ws.lastDataReceived = Date.now(); // Proof of life via data stream
         // Broadcast binary camera frames ONLY to Kiosks that subscribed to THIS camera
         const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
         wss.clients.forEach((client) => {
