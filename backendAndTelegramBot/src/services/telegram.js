@@ -64,6 +64,8 @@ Your surveillance gateway is online and ready.
 Available Commands:
 /start - Show this welcome message
 /register_this_id - Subscribe to motion alerts
+/listids - List all registered user IDs
+/deleteid <id> - Remove a registered user ID
 /devices - List all connected camera devices
 /capture - Trigger a new capture on cameras
 /getimage - Retrieve the latest captured image
@@ -80,6 +82,47 @@ bot.command('register_this_id', (ctx) => {
   registeredChatIds.push(chatId);
   saveConfig();
   ctx.reply(`✅ Berhasil didaftarkan!\nID: ${chatId}\nTotal penerima: ${registeredChatIds.length} akun.`);
+});
+
+// --- /listids: List all registered chat IDs ---
+bot.command('listids', (ctx) => {
+  const chatId = ctx.chat.id;
+  // Security check: only registered users can list IDs
+  if (!registeredChatIds.includes(chatId)) {
+    return ctx.reply('❌ Anda tidak memiliki izin untuk melihat daftar ID. Silakan daftar terlebih dahulu dengan /register_this_id');
+  }
+
+  if (registeredChatIds.length === 0) {
+    return ctx.reply('ℹ️ Belum ada ID yang terdaftar.');
+  }
+
+  const list = registeredChatIds.map((id, index) => `${index + 1}. \`${id}\``).join('\n');
+  ctx.reply(`📋 *Daftar ID Terdaftar:* \n\n${list}`, { parse_mode: 'Markdown' });
+});
+
+// --- /deleteid <id>: Remove a chat ID ---
+bot.command('deleteid', (ctx) => {
+  const chatId = ctx.chat.id;
+  // Security check: only registered users can delete IDs
+  if (!registeredChatIds.includes(chatId)) {
+    return ctx.reply('❌ Anda tidak memiliki izin untuk menghapus ID.');
+  }
+
+  const args = ctx.message.text.split(' ');
+  if (args.length < 2) {
+    return ctx.reply('⚠️ Gunakan format: /deleteid <chat_id>');
+  }
+
+  const targetId = parseInt(args[1]);
+  const index = registeredChatIds.indexOf(targetId);
+
+  if (index === -1) {
+    return ctx.reply(`❌ ID \`${targetId}\` tidak ditemukan dalam daftar.`, { parse_mode: 'Markdown' });
+  }
+
+  registeredChatIds.splice(index, 1);
+  saveConfig();
+  ctx.reply(`✅ ID \`${targetId}\` berhasil dihapus.\nTotal penerima sekarang: ${registeredChatIds.length} akun.`, { parse_mode: 'Markdown' });
 });
 
 // --- /devices: Tampilkan semua kamera yang terdaftar ---
