@@ -130,7 +130,7 @@ function createRouter(wss) {
   });
 
   // Upload route for high-res snapshot from ESP32-CAM
-  router.post('/upload', express.raw({ limit: '10mb', type: 'image/jpeg' }), (req, res) => {
+  router.post('/upload', express.raw({ limit: '10mb', type: 'image/jpeg' }), async (req, res) => {
     const sensor = req.query.sensor;
     const ip = req.query.ip;
     
@@ -141,74 +141,68 @@ function createRouter(wss) {
     const timestamp = Date.now();
     const filename = `motion_${ip.replace(/\./g, '_')}_${sensor}_${timestamp}.jpg`;
     const filepath = path.join(__dirname, '../../data', filename);
-    
-    fs.writeFile(filepath, req.body, async (err) => {
-      if (err) {
-        console.error('Error saving image:', err);
-        return res.status(500).send('Error saving image');
+    const imageUrl = `/data/${filename}`;
+
+    try {
+      if (sensor === 'capture') {
+        // On-demand capture: save raw image immediately
+        fs.writeFileSync(filepath, req.body);
+        notifyCaptureResult(filepath);
+        return res.send('Uploaded (Capture)');
       }
 
-      if (sensor === 'capture') {
-        // On-demand capture: kembalikan foto ke Telegram yang menunggu
-        notifyCaptureResult(filepath);
-      } else {
-        // PIR motion: call Python AI Object Detection to analyze image
-        let humanPresence = false;
-        let aiDetails = null;
-        let imageUrl = `/data/${filename}`;
-        let alertFilepath = filepath;
+      // PIR motion: Attempt to call Python AI Object Detection first
+      let imageToSave = req.body;
+      let humanPresence = false;
+      let aiDetails = null;
 
-        try {
-          console.log(`[AI Object Detection] Analyzing picture from IP: ${ip}, Sensor: ${sensor}...`);
-          const aiResult = await checkPersonAI(req.body);
-          
-          if (aiResult && aiResult.details) {
+      try {
+        console.log(`[AI Object Detection] Analyzing picture from IP: ${ip}, Sensor: ${sensor}...`);
+        const aiResult = await checkPersonAI(req.body);
+        
+        if (aiResult && aiResult.imageBuffer) {
+          imageToSave = aiResult.imageBuffer;
+          if (aiResult.details) {
             humanPresence = aiResult.details.ada_orang === true;
             aiDetails = aiResult.details;
             console.log(`[AI Object Detection] Result: ${aiResult.details.pesan} (Human count: ${aiResult.details.jumlah_orang})`);
-            
-            // If human is detected, save the returned outlined output image and update logs
-            if (humanPresence) {
-              const outlinedFilename = `motion_${ip.replace(/\./g, '_')}_${sensor}_${timestamp}_outlined.jpg`;
-              const outlinedFilepath = path.join(__dirname, '../../data', outlinedFilename);
-              
-              // Save the returned outlined output image (imageBuffer) from the python code
-              fs.writeFileSync(outlinedFilepath, aiResult.imageBuffer);
-              console.log(`[AI Object Detection] Outlined image saved to: ${outlinedFilename}`);
-              
-              // Use the outlined image for the kiosk and Telegram alert
-              imageUrl = `/data/${outlinedFilename}`;
-              alertFilepath = outlinedFilepath;
-            }
           }
-        } catch (aiErr) {
-          console.error('[AI Object Detection] Failed to call local AI API:', aiErr.message);
-          // Graceful fallback: humanPresence remains false, original raw image remains the target
         }
-
-        // Update the log JSON with humanPresence boolean and YOLO details
-        updateLatestLogWithAI(sensor, ip, imageUrl, humanPresence, aiDetails);
-        
-        // Send motion alert to Telegram (outlined if human present, otherwise raw)
-        sendMotionAlert(`IP: ${ip}`, sensor, alertFilepath);
-
-        const payload = JSON.stringify({
-          type: 'motion_image_update',
-          sensor: sensor,
-          deviceId: `cam_${ip.replace(/\./g, '_')}`,
-          imageUrl: imageUrl,
-          humanPresence: humanPresence,
-          aiDetails: aiDetails
-        });
-        wss.clients.forEach((client) => {
-          if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-            client.send(payload);
-          }
-        });
+      } catch (aiErr) {
+        console.error('[AI Object Detection] Failed to call local AI API (Falling back to raw image):', aiErr.message);
+        // Graceful fallback: imageToSave remains req.body, humanPresence is false
       }
 
+      // Save the finalized image (either AI-outlined or raw fallback)
+      fs.writeFileSync(filepath, imageToSave);
+      
+      // Update the log JSON
+      updateLatestLogWithAI(sensor, ip, imageUrl, humanPresence, aiDetails);
+      
+      // Send motion alert to Telegram
+      sendMotionAlert(`IP: ${ip}`, sensor, filepath);
+
+      // Notify Web Clients
+      const payload = JSON.stringify({
+        type: 'motion_image_update',
+        sensor: sensor,
+        deviceId: `cam_${ip.replace(/\./g, '_')}`,
+        imageUrl: imageUrl,
+        humanPresence: humanPresence,
+        aiDetails: aiDetails
+      });
+
+      wss.clients.forEach((client) => {
+        if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+          client.send(payload);
+        }
+      });
+
       res.send('Uploaded');
-    });
+    } catch (err) {
+      console.error('Error processing upload:', err);
+      res.status(500).send('Error processing upload');
+    }
   });
 
   return router;
