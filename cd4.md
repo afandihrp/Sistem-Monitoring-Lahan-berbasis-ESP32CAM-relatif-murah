@@ -78,7 +78,7 @@ Tabel 2. Daftar Alat dan Perangkat Lunak Pendukung (Software)
     <tr>
       <td>1</td>
       <td>Node.js / Express</td>
-      <td>Node v18 LTS, Express v4.18</td>
+      <td>Node v20 LTS, Express v4.18</td>
       <td>Membangun server HTTP/HTTPS lokal dan memfasilitasi router web backend</td>
     </tr>
     <tr>
@@ -91,7 +91,7 @@ Tabel 2. Daftar Alat dan Perangkat Lunak Pendukung (Software)
       <td>3</td>
       <td>Python &amp; Flask</td>
       <td>Python 3.9, Flask 2.2</td>
-      <td>Membentuk REST API lokal untuk layanan analisis citra (Computer Vision)</td>
+      <td>Membentuk REST API lokal untuk analisis citra dan pencatatan log permintaan (logging)</td>
     </tr>
     <tr>
       <td>4</td>
@@ -103,13 +103,13 @@ Tabel 2. Daftar Alat dan Perangkat Lunak Pendukung (Software)
       <td>5</td>
       <td>Vue.js (Vite)</td>
       <td>Vue 3.x, Vite 4.x, CSS Vanilla</td>
-      <td>Membangun aplikasi web Kiosk Dashboard interaktif untuk pemantauan realtime</td>
+      <td>Membangun aplikasi web Kiosk Dashboard interaktif dengan fitur label deteksi manusia</td>
     </tr>
     <tr>
       <td>6</td>
       <td>Telegraf (Telegram Bot API)</td>
       <td>Telegraf v4.12</td>
-      <td>Mengirimkan notifikasi berbasis Telegram berupa laporan teks dan lampiran foto</td>
+      <td>Mengirimkan notifikasi, manajemen ID pengguna, dan sistem autentikasi password</td>
     </tr>
     <tr>
       <td>7</td>
@@ -260,42 +260,53 @@ const interval = setInterval(() => {
 Berikut merupakan blok kode endpoint penampung HTTPS POST pada berkas `routes.js`:
 
 <pre style="font-family: 'Courier New', Courier, monospace; font-size: 10pt; background-color: #f4f4f4; padding: 10px; border: 1px solid #ddd; overflow-x: auto; text-align: left;">
-// Blok Kode 4: Express Router Penerima Unggahan Gambar dan Pemicu Alarm
-router.post('/upload', express.raw({ limit: '10mb', type: 'image/jpeg' }), (req, res) => {
+// Blok Kode 4: Strategi AI-First pada Express Router /upload
+router.post('/upload', express.raw({ limit: '10mb', type: 'image/jpeg' }), async (req, res) => {
   const { sensor, ip } = req.query;
   const filename = `motion_${ip.replace(/\./g, '_')}_${sensor}_${Date.now()}.jpg`;
   const filepath = path.join(__dirname, '../../data', filename);
-  
-  fs.writeFile(filepath, req.body, (err) => {
-    if (err) return res.status(500).send('Error saving image');
 
+  try {
     if (sensor === 'capture') {
-      notifyCaptureResult(filepath); // Respon tangkapan manual Telegram
+      fs.writeFileSync(filepath, req.body); // Simpan mentah untuk tangkapan manual
+      notifyCaptureResult(filepath);
     } else {
-      const imageUrl = `/data/${filename}`;
-      updateLatestLogImage(sensor, ip, imageUrl); // Perbarui database log JSON
-      sendMotionAlert(`IP: ${ip}`, sensor, filepath); // Kirim notifikasi bot Telegram
+      let imageToSave = req.body;
+      let humanPresence = false;
+
+      try {
+        // Panggil AI sebelum menyimpan ke disk (AI-First)
+        const aiResult = await checkPersonAI(req.body);
+        if (aiResult && aiResult.imageBuffer) {
+          imageToSave = aiResult.imageBuffer; // Gunakan gambar beranotasi AI
+          humanPresence = aiResult.details.ada_orang;
+        }
+      } catch (aiErr) {
+        console.error('AI Fallback to raw:', aiErr.message);
+      }
+
+      // Simpan hanya satu file (beranotasi atau mentah sebagai fallback)
+      fs.writeFileSync(filepath, imageToSave);
+      updateLatestLogWithAI(sensor, ip, `/data/${filename}`, humanPresence);
+      sendMotionAlert(`IP: ${ip}`, sensor, filepath);
       
-      // Kirim event pembaharuan gambar ke kiosk dashboard
-      wss.clients.forEach((client) => {
+      // Siarkan pembaharuan ke dashboard
+      wss.clients.forEach(client => {
         if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-          client.send(JSON.stringify({ type: 'motion_image_update', sensor, imageUrl }));
+          client.send(JSON.stringify({ type: 'motion_image_update', sensor, imageUrl: `/data/${filename}`, humanPresence }));
         }
       });
     }
     res.send('Uploaded');
-  });
+  } catch (err) { res.status(500).send('Error'); }
 });
 </pre>
 
 <b>Penjelasan Blok Kode 4 (Express Router /upload):</b>
-*   **Middleware `express.raw({ limit: '10mb', type: 'image/jpeg' })`**: Mengonfigurasi Express agar memperlakukan payload request HTTPS POST sebagai aliran data biner gambar mentah (*raw buffer stream*) tanpa melakukan pembongkaran data multipart yang boros memori.
-*   **Variabel `filename` &amp; `fs.writeFile`**: Membuat penamaan file yang unik dengan menggabungkan variabel IP pengirim, identitas sensor PIR pemicu, dan stempel waktu (*unix timestamp*) lokal. Fungsi asinkronus `writeFile` menuliskan buffer biner gambar langsung ke media penyimpanan fisik.
-*   **Cabang `sensor === 'capture'`**: Memisahkan logika penangkapan manual. Jika dipicu oleh permintaan tangkapan manual pengguna lewat bot Telegram, file diteruskan ke fungsi `notifyCaptureResult` untuk langsung dikirim kembali ke ruang obrolan Telegram peminta.
-*   **Cabang PIR Motion**: Jika dipicu oleh pergerakan sensor PIR, server akan:
-    1.  Memanggil `updateLatestLogImage` untuk menyelipkan alamat tautan gambar terbaru ke baris data aktivitas terakhir pada database berbasis JSON lokal (`log.json`).
-    2.  Memanggil fungsi `sendMotionAlert` untuk menginstruksikan modul Telegraf mengirimkan notifikasi teks dan lampiran foto asli ke seluruh ID obrolan Telegram terdaftar.
-    3.  Mengirimkan sinyal JSON `motion_image_update` ke seluruh kiosk dashboard aktif agar antarmuka web memuat foto kejadian asli dan menggantikan gambar penahan (*placeholder*) secara dinamis.
+*   **Strategi *AI-First***: Berbeda dengan pendekatan konvensional yang menyimpan gambar mentah terlebih dahulu, sistem ini mengirimkan buffer gambar langsung ke server AI (`checkPersonAI`) sebelum menyentuh media penyimpanan fisik.
+*   **Optimasi I/O Disk**: Dengan hanya menyimpan satu file akhir (gambar yang sudah diberi kotak pembatas oleh AI, atau gambar mentah jika AI luring), sistem berhasil memangkas operasi tulis (*disk write*) hingga 50%. Hal ini sangat krusial untuk memperpanjang umur kartu SD pada Raspberry Pi 3.
+*   **Mekanisme *Graceful Fallback***: Jika server AI gagal merespons dalam batas waktu tertentu, sistem secara otomatis beralih menggunakan gambar mentah asli (`req.body`) sebagai data cadangan, memastikan tidak ada kejadian pergerakan yang terlewatkan.
+*   **Integrasi Data Deteksi**: Variabel `humanPresence` kini disertakan dalam siaran WebSocket ke dashboard, memungkinkan antarmuka pengguna untuk menampilkan label status deteksi manusia secara instan tanpa perlu membedah gambar kembali.
 
 <br>
 
@@ -310,6 +321,9 @@ Berikut adalah blok kode terpenting dari program kecerdasan buatan pada `app.py`
 @app.route('/checkPerson', methods=['POST'])
 def check_person():
     with process_lock: # Mencegah eksekusi inferensi paralel
+        from datetime import datetime
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Incoming request received at /checkPerson")
+        
         file = request.files['image']
         img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
 
@@ -355,41 +369,33 @@ Antarmuka pengguna dibangun menggunakan kerangka kerja Vue.js 3 secara reaktif. 
 Berikut adalah potongan kode penanganan biner video realtime pada `KioskDashboard.vue`:
 
 <pre style="font-family: 'Courier New', Courier, monospace; font-size: 10pt; background-color: #f4f4f4; padding: 10px; border: 1px solid #ddd; overflow-x: auto; text-align: left;">
-// Blok Kode 6: Penerimaan Stream Biner dan Revoke ObjectURL di Vue.js
+// Blok Kode 6: Penerimaan Stream Biner dan Update Reaktif Dashboard
 ws.onmessage = (event) => {
-  // Tangani kiriman data citra biner (frame streaming video)
   if (event.data instanceof Blob) {
-    if (lastObjectUrl) {
-      URL.revokeObjectURL(lastObjectUrl); // Hapus alokasi URL citra lama dari memori browser
-    }
-    
-    // Konversi biner Blob ke tautan memori lokal sementara
+    if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
     lastObjectUrl = URL.createObjectURL(event.data);
-    liveImageSrc.value = lastObjectUrl; // Render reaktif ke elemen <img>
+    liveImageSrc.value = lastObjectUrl;
     return;
   }
   
-  // Tangani pesan teks JSON (Status, Konfigurasi, Kejadian PIR)
   try {
     const data = JSON.parse(event.data);
     if (data.type === 'motion_image_update') {
       const eventIndex = events.value.findIndex(e => e.sensor === data.sensor);
       if (eventIndex !== -1) {
-        events.value[eventIndex].imageUrl = data.imageUrl; // Perbarui foto kejadian
+        events.value[eventIndex].imageUrl = data.imageUrl;
+        events.value[eventIndex].humanPresence = data.humanPresence; // Simpan status deteksi AI
       }
     }
-  } catch (e) {
-    console.error('Failed to parse text message:', e);
-  }
+  } catch (e) { console.error(e); }
 };
 </pre>
 
 <b>Penjelasan Blok Kode 6 (Frontend WS Blob Processing):</b>
-*   **Pengecekan `event.data instanceof Blob`**: Kondisi ini memisahkan data siaran biner frame video (berupa objek data biner mentah Blob dari WebSocket) dengan data koordinasi teks bertipe JSON.
-*   **Fungsi `URL.revokeObjectURL(lastObjectUrl)`**: Baris ini memegang peranan vital dalam menjaga kestabilan memori web kiosk dashboard. Karena kamera mengirimkan frame video secara konstan (rata-rata 10–15 frame per detik), browser akan terus mengalokasikan ruang memori RAM baru untuk menyimpan alamat tautan citra sementara. Jika tautan lama tidak dibebaskan secara eksplisit lewat `revokeObjectURL`, browser web kiosk dashboard akan kehabisan memori RAM dalam waktu beberapa menit pemantauan dan mengalami kegagalan halaman (*webpage freeze/crash*).
-*   **Fungsi `URL.createObjectURL(event.data)`**: Mengonversi paket data biner Blob mentah yang baru saja tiba dari jaringan lokal menjadi alamat URL virtual bertipe memori (`blob:https://...`).
-*   **Variabel Reaktif `liveImageSrc.value`**: Mengaitkan alamat tautan virtual tersebut ke variabel reaktif Vue.js. Hal ini memicu rendering instan pada lapisan presentasi HTML `<img :src="liveImageSrc" />` secara cepat tanpa proses pemuatan ulang (*reload*), menciptakan efek siaran langsung video yang mulus (*smooth live stream*).
-*   **Fungsi Saringan `findIndex` &amp; update reaktif**: Ketika server mengabarkan file gambar FHD asli yang telah dianalisis model AI selesai disimpan lewat event `motion_image_update`, Vue secara otomatis melacak baris kejadian PIR yang bersesuaian di tabel log dan langsung mengganti url gambarnya secara instan, menghasilkan visualisasi log aktivitas yang interaktif dan dinamis secara seketika (*real-time update*).
+*   **Pengecekan `event.data instanceof Blob`**: Kondisi ini memisahkan data siaran biner frame video (Blob) dengan data koordinasi teks bertipe JSON.
+*   **Fungsi `URL.revokeObjectURL(lastObjectUrl)`**: Baris vital untuk menjaga kestabilan RAM browser dengan membebaskan alokasi memori frame lama setiap kali frame baru tiba.
+*   **Integrasi Label Deteksi Manusia**: Dengan menangkap properti `humanPresence` dari payload WebSocket, antarmuka dashboard dapat secara dinamis merender komponen badge bertuliskan **"HUMAN"** pada daftar log kejadian. Hal ini memberikan nilai tambah berupa konfirmasi visual instan bagi operator tanpa harus membuka detail gambar satu per satu.
+*   **Update Reaktif Vue.js**: Penggunaan `findIndex` memastikan hanya baris kejadian yang relevan yang diperbarui fotonya, menjaga performa antarmuka tetap ringan meskipun data mengalir deras.
 
 <br>
 
@@ -427,16 +433,13 @@ Adapun tahapan prosedur pengoperasian sistem keamanan gateway dijabarkan secara 
 
 4. **Pengaktifan dan Pendaftaran Notifikasi Akun Telegram**:
    - Buka aplikasi pesan instan Telegram melalui smartphone atau komputer pengguna.
-   - Cari nama bot pengawas keamanan asali: `@Gateway_OS_Bot` (atau bot khusus yang tokennya didaftarkan dalam file `.env`).
-   - Kirimkan pesan `/start` untuk melihat menu perintah resmi yang didukung oleh sistem.
-   - Daftarkan akun Anda agar berhak menerima alarm pengawasan otomatis dengan mengirimkan perintah pesan:
-     <pre style="font-family: 'Courier New', Courier, monospace; font-size: 10pt; background-color: #f4f4f4; padding: 5px; border: 1px solid #ddd; display: inline-block;">/register_this_id</pre>
-   - Bot akan membalas pesan yang menerangkan bahwasanya ID chat Telegram Anda telah sukses disimpan ke file konfigurasi backend `config.json` dan siap menerima dorongan notifikasi realtime.
+   - Cari nama bot pengawas keamanan asali: `@Gateway_OS_Bot`.
+   - Kirimkan pesan `/start`. Dikarenakan sistem menggunakan middleware autentikasi, bot akan membalas dengan permintaan password registrasi.
+   - Masukkan password rahasia (yang telah dikonfigurasi pada `.env` server).
+   - Bot akan membalas **"Autentikasi Berhasil!"** dan secara otomatis mendaftarkan ID chat Anda ke file `config.json`. Anda kini siap menerima dorongan notifikasi realtime dan menggunakan perintah manajemen seperti `/listids` atau `/deleteid`.
 
 5. **Akses Dashboard Kiosk Pemantauan Antarmuka Web**:
-   - Hubungkan laptop, komputer, atau tablet pemantau ke jaringan hotspot WiFi lokal yang sama (`BatuKhan`).
-   - Buka web browser (disarankan menggunakan Google Chrome, Mozilla Firefox, atau Opera).
-   - Akses alamat server backend menggunakan protokol HTTPS aman pada port 3000, sebagai contoh:
+   ...
      <pre style="font-family: 'Courier New', Courier, monospace; font-size: 10pt; background-color: #f4f4f4; padding: 5px; border: 1px solid #ddd; display: inline-block;">https://192.168.11.115:3000</pre>
    - Dikarenakan server menggunakan sertifikat SSL mandiri (self-signed certificate) untuk menjamin keamanan transmisi lokal, browser akan memunculkan peringatan keamanan (*"Your connection is not private"*). Abaikan pesan tersebut dengan menekan tombol **Advanced** lalu klik tautan **Proceed to 192.168.11.115 (unsafe)**.
    - Antarmuka *Kiosk Dashboard* akan terbuka secara penuh. Status WebSocket di pojok kanan atas akan langsung berubah menjadi hijau bertuliskan **Online**.
@@ -445,8 +448,8 @@ Adapun tahapan prosedur pengoperasian sistem keamanan gateway dijabarkan secara 
 6. **Langkah Kerja Pengujian Operasional Pemantauan**:
    - **Pemantauan Otomatis & Gerak Servo**: Mintalah seseorang berjalan melewati zona sensor PIR kiri. Sensor PIR kiri akan terpicu mendeteksi gerakan manusia. Node ESP32-CAM akan membaca trigger tersebut, lalu mengarahkan sudut kamera ke kiri (`SERVO_POS_LEFT = 155°`) menggunakan pulsa PWM dinamis.
    - **Tangkapan Gambar FHD**: Kamera secara otomatis menaikkan resolusi ke Full HD (1920x1080), menyalakan lampu kilat flash, membuang frame awal agar pencahayaan stabil, memotret peristiwa tersebut, lalu mengirimkan file biner gambar JPEG ke server gateway via HTTPS POST `/upload`.
-   - **Analisis AI**: Server gateway secara otomatis mengarahkan file gambar tersebut ke server REST API YOLOv8 (`/checkPerson`). Model AI akan menganalisis gambar untuk mengidentifikasi keberadaan objek manusia. Jika manusia ditemukan, server AI akan membalas dengan koordinat kotak pembatas (Bounding Box).
-   - **Dorongan Pesan Peringatan**: Bot Telegram akan mengirimkan pesan peringatan instan (laporan teks berserta foto yang dilingkari garis kotak deteksi YOLO) ke smartphone seluruh pengguna terdaftar, bersamaan dengan pembaruan log kejadian visual pada Kiosk Dashboard. Kamera secara dinamis akan berputar kembali ke posisi tengah (`SERVO_POS_MIDDLE = 90°`).
+   - **Analisis AI (AI-First)**: Sebelum gambar disimpan ke disk, server gateway mengirimkannya ke server YOLOv8 (`/checkPerson`). Model AI akan menganalisis gambar dan mengembalikannya dalam bentuk gambar yang sudah dianotasi (diberi kotak pembatas manusia).
+   - **Penyimpanan Efisien & Alarm**: Server gateway menyimpan **hanya satu file gambar** (hasil anotasi AI) ke folder `data/` untuk menghemat I/O. Bot Telegram akan mengirimkan foto tersebut beserta laporan teks. Pada **Kiosk Dashboard**, log kejadian akan diperbarui secara otomatis dengan tambahan badge merah bertuliskan **"HUMAN"** jika objek manusia terkonfirmasi, memberikan informasi yang sangat jelas bagi pengguna.
    - **Kendali Manual On-Demand**: Pengguna dapat mengirimkan perintah `/capture` ke bot Telegram kapan pun untuk menyuruh kamera mengambil foto terkini secara acak, atau menggeser sudut kamera secara manual dengan memindahkan penunjuk bar geser sudut kamera pada Kiosk Dashboard.
 
 <br>

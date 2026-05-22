@@ -19,6 +19,9 @@ print("[INFO] Model siap menerima request POST!\n")
 def check_person():
     # Mencegah eksekusi paralel yang memakan RAM
     with process_lock:
+        from datetime import datetime
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Incoming request received at /checkPerson")
+        
         if 'image' not in request.files:
             return jsonify({"status": "error", "message": "Key 'image' tidak ditemukan di request"}), 400
         
