@@ -139,7 +139,7 @@ Berikut adalah blok kode penting pertama yang mengatur sudut putaran motor servo
 // Blok Kode 1: Logika Pemetaan Inversi Sudut Servo
 void setServoAngle(uint8_t angle) {
   if (angle > 180) angle = 180;
-  
+
   // Inversi arah perputaran fisik servo SG90
   int duty = map(angle, 0, 180, 983, 205);
   ledcWrite(SERVO_PIN, duty);
@@ -189,11 +189,11 @@ void captureAndUpload(String label) {
   client.setInsecure(); // Mengizinkan SSL Mandiri (Self-Signed Certificate)
   HTTPClient http;
   String uploadUrl = "https://" + serverIP.toString() + ":3000/upload?sensor=" + label + "&ip=" + WiFi.localIP().toString();
-  
+
   http.begin(client, uploadUrl);
   http.addHeader("Content-Type", "image/jpeg");
   int httpResponseCode = http.POST(fb->buf, fb->len);
-  
+
   http.end();
   esp_camera_fb_return(fb); // Bebaskan frame buffer kamera
 
@@ -284,7 +284,7 @@ router.post('/upload', express.raw({ limit: '10mb', type: 'image/jpeg' }), async
       } catch (aiErr) {
         console.error('AI Fallback to raw:', aiErr.message);
       }
-
+    
       // Simpan hanya satu file (beranotasi atau mentah sebagai fallback)
       fs.writeFileSync(filepath, imageToSave);
       updateLatestLogWithAI(sensor, ip, `/data/${filename}`, humanPresence);
@@ -323,16 +323,16 @@ def check_person():
     with process_lock: # Mencegah eksekusi inferensi paralel
         from datetime import datetime
         print(f"[{datetime.now().strftime('%H:%M:%S')}] Incoming request received at /checkPerson")
-        
+
         file = request.files['image']
         img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
-
+    
         # Downscale resolusi citra masukan untuk efisiensi CPU
         height, width = img.shape[:2]
         if max(height, width) > 640:
             scale = 640 / max(height, width)
             img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR)
-
+    
         # Inferensi YOLOv8 khusus kelas 0 (Manusia) dengan resolusi model 320px
         results = model.predict(source=img, classes=[0], conf=0.5, imgsz=320, verbose=False)
         
@@ -341,11 +341,11 @@ def check_person():
         
         _, buffer = cv2.imencode('.jpg', img_hasil)
         img_bytes_out = buffer.tobytes()
-
+    
         # Pembersihan RAM secara agresif
         del img, results, img_hasil
         gc.collect()
-
+    
         return Response(generate_multipart(jumlah_orang, img_bytes_out), mimetype='multipart/form-data; boundary=Response-Boundary-123456789')
 </pre>
 
@@ -377,7 +377,7 @@ ws.onmessage = (event) => {
     liveImageSrc.value = lastObjectUrl;
     return;
   }
-  
+
   try {
     const data = JSON.parse(event.data);
     if (data.type === 'motion_image_update') {

@@ -39,8 +39,8 @@ uint8_t SERVO_POS_RIGHT = 0;
 uint8_t SERVO_POS_DEFAULT = 90;
 
 // WiFi credentials
-const char* ssid = "BatuKhan";
-const char* password = "momoygemoy";
+const char* ssid = "Tenda03";
+const char* password = "BRHtenda68";
 
 // Security API Key
 const char* apiKey = "momo_gemoy_api_key_123";

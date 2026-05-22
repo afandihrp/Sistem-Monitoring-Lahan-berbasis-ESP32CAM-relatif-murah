@@ -1,0 +1,107 @@
+====================================================================
+DEPLOYMENT GUIDE: PROJECT TA GATEWAY ON RASPBERRY PI 3 (FULLPAGEOS)
+====================================================================
+
+This guide will walk you through deploying your Node.js backend and Vue frontend onto a Raspberry Pi 3 running FullPageOS. FullPageOS is designed to boot directly into a full-screen Chromium browser, making it perfect for your camera kiosk dashboard.
+
+--------------------------------------------------------------------
+STEP 1: PREPARE THE RASPBERRY PI & FULLPAGEOS
+--------------------------------------------------------------------
+1. Flash FullPageOS onto your MicroSD card using Raspberry Pi Imager.
+2. Before booting, configure your WiFi by editing `fullpageos-network.txt` on the SD card (if not using ethernet).
+3. Boot the Pi, wait for it to load, and find its IP address.
+4. SSH into the Pi from your laptop:
+   ssh pi@<PI_IP_ADDRESS>
+   (Default password is usually "raspberry")
+
+--------------------------------------------------------------------
+STEP 2: TRANSFER FILES TO THE RASPBERRY PI
+--------------------------------------------------------------------
+Copy your project files from your desktop to the Pi. From your desktop terminal, run:
+
+scp -r /home/afandi/Desktop/projectTaGateway pi@<PI_IP_ADDRESS>:/home/pi/
+
+This will copy the entire project folder to `/home/pi/projectTaGateway`.
+
+--------------------------------------------------------------------
+STEP 3: INSTALL NODE.JS & PM2 ON THE PI
+--------------------------------------------------------------------
+SSH into the Pi and install Node.js and PM2 (a process manager to keep your apps running in the background and start them on boot).
+
+1. Install Node.js (Version 18 is recommended for Pi 3):
+   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+   sudo apt-get install -y nodejs
+
+2. Install PM2 and 'serve' (to host the Vue frontend):
+   sudo npm install -g pm2 serve
+
+--------------------------------------------------------------------
+STEP 4: SET UP AND RUN THE BACKEND
+--------------------------------------------------------------------
+1. Navigate to the backend directory:
+   cd /home/pi/projectTaGateway/backendAndTelegramBot
+
+2. Install dependencies:
+   npm install
+
+3. Start the backend using PM2:
+   pm2 start src/index.js --name "gateway-backend"
+
+(Note: Ensure your index.js or app.js is the correct entry point. Also, make sure any necessary /data folders for servoConfig.json exist and have write permissions).
+
+--------------------------------------------------------------------
+STEP 5: BUILD AND SERVE THE FRONTEND
+--------------------------------------------------------------------
+1. Navigate to the frontend directory:
+   cd /home/pi/projectTaGateway/cameraKiosk
+
+2. Install dependencies:
+   npm install
+
+3. Build the Vue app for production:
+   npm run build
+
+   (This will compile your code into static files inside a new "dist" folder).
+
+4. Serve the frontend on port 8080 using PM2:
+   pm2 start "serve -s dist -l 8080" --name "kiosk-frontend"
+
+--------------------------------------------------------------------
+STEP 6: ENABLE AUTO-START ON BOOT
+--------------------------------------------------------------------
+Now that both the backend and frontend are running, save the PM2 state so it restores them automatically if the Pi reboots or loses power.
+
+1. Save the current processes:
+   pm2 save
+
+2. Generate the startup script:
+   pm2 startup
+
+   (PM2 will output a specific "sudo env..." command in the terminal. Copy that exact command and run it).
+
+--------------------------------------------------------------------
+STEP 7: CONFIGURE FULLPAGEOS TO SHOW YOUR DASHBOARD
+--------------------------------------------------------------------
+By default, FullPageOS points to a welcome page. You need to tell it to point to your new local frontend!
+
+1. Edit the FullPageOS URL file:
+   sudo nano /boot/fullpageos.txt
+   (Note: On newer versions, this might be at /boot/firmware/fullpageos.txt or /boot/fullpageos.txt)
+
+2. Delete whatever URL is in there, and replace it with:
+   http://localhost:8080
+
+3. Save the file (Ctrl+O, Enter) and exit Nano (Ctrl+X).
+
+--------------------------------------------------------------------
+STEP 8: REBOOT & ENJOY
+--------------------------------------------------------------------
+Restart your Raspberry Pi:
+sudo reboot
+
+When the Pi boots up:
+1. PM2 will automatically start the Backend server in the background.
+2. PM2 will automatically start the Frontend static server on port 8080.
+3. FullPageOS will launch Chromium in full-screen Kiosk mode and open http://localhost:8080.
+
+Your Camera Kiosk dashboard should now be fully autonomous on the Pi 3!
