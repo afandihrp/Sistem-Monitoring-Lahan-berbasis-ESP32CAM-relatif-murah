@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify, Response
 
 app = Flask(__name__)
 
-# === OPTIMASI PI 3: Kunci proses agar tidak ada request bersamaan ===
+# === OPTIMASI PI 3: Kunci proses agar tidak ada request bersamaan (mencegah OOM Crash) ===
 process_lock = threading.Lock()
 
 # Tentukan path ke file model TFLite Anda
@@ -15,11 +15,19 @@ MODEL_PATH = "yolov8n_float32.tflite"
 
 def run_tflite_inference(img_bgr):
     """
-    Memuat model TFLite on-demand, melakukan preprocessing, 
-    menjalankan inferensi, dan mengembalikan hasil deteksi 'orang' (Class 0).
+    Memuat interpreter TFLite secara on-demand berbasis arsitektur sistem (PC/Pi),
+    melakukan preprocessing gambar, menjalankan inferensi, dan mengembalikan koordinat 'orang'.
     """
-    # Import di dalam fungsi agar RAM benar-benar bersih saat tidak digunakan
-    import tflite_runtime.interpreter as tflite
+    # === DETEKSI OTOMATIS ARSITEKTUR SYSTEM ===
+    try:
+        # Digunakan di Raspberry Pi (Ringan & Hemat RAM)
+        import tflite_runtime.interpreter as tflite
+        print("[INFO] Menggunakan library: tflite_runtime (Mode Raspberry Pi)")
+    except ImportError:
+        # Digunakan di Laptop / PC Desktop (Karena tflite_runtime tidak mendukung x86_64 secara default)
+        from tensorflow import lite as tflite
+        print("[INFO] Menggunakan library: tensorflow.lite (Mode PC Desktop)")
+    # ==========================================
 
     # 1. Load Model On-Demand
     interpreter = tflite.Interpreter(model_path=MODEL_PATH)
@@ -29,7 +37,7 @@ def run_tflite_inference(img_bgr):
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
     
-    # Ambil ukuran input yang diminta model (biasanya [1, 320, 320, 3] atau [1, 640, 640, 3])
+    # Ambil ukuran input yang diminta model (biasanya [1, 640, 640, 3] atau [1, 320, 320, 3])
     input_shape = input_details[0]['shape']
     input_height, input_width = input_shape[1], input_shape[2]
 
@@ -44,10 +52,9 @@ def run_tflite_inference(img_bgr):
     
     # 5. Ambil Output
     output_data = interpreter.get_tensor(output_details[0]['index'])
-    
-    # YOLOv8 TFLite output shape biasanya: [1, 84, 2100] atau sejenisnya
-    # Kita transpose agar lebih mudah diproses menjadi baris-baris prediksi
     output_data = np.squeeze(output_data)
+    
+    # Transpose format output YOLOv8 TFLite dari (84, 8400) menjadi (8400, 84)
     if output_data.shape[0] < output_data.shape[1]:
         output_data = output_data.T
 
@@ -60,10 +67,12 @@ def run_tflite_inference(img_bgr):
     y_scale = orig_h / input_height
 
     # 6. Parsing Output (Mencari Class 0 = Person)
-    # YOLOv8 format: [x_center, y_center, width, height, class0_conf, class1_conf, ...]
+    # Diturunkan ke 0.25 agar TFLite lebih sensitif mendeteksi orang di Pi/PC
+    CONF_THRESHOLD = 0.25  
+    
     for row in output_data:
-        class_conf = row[4] # Index 4 adalah kelas 'person' di COCO dataset
-        if class_conf > 0.5:  # Confidence threshold
+        class_conf = float(row[4]) # Index 4 adalah kelas 'person' di COCO dataset
+        if class_conf > CONF_THRESHOLD:
             xc, yc, w, h = row[0], row[1], row[2], row[3]
             
             # Ubah dari Center-XYWH ke XYXY (Top-Left, Bottom-Right)
@@ -73,18 +82,20 @@ def run_tflite_inference(img_bgr):
             y2 = int((yc + h / 2) * y_scale)
             
             boxes.append([x1, y1, x2, y2])
-            confidences.append(float(class_conf))
+            confidences.append(class_conf)
 
-    # NMS (Non-Maximum Suppression) untuk menghapus kotak yang tumpang tindih
-    indices = cv2.dnn.NMSBoxes(boxes, confidences, score_threshold=0.5, nms_threshold=0.4)
-    
+    # 7. NMS (Non-Maximum Suppression) untuk menghapus kotak bertumpuk
     final_boxes = []
-    if len(indices) > 0:
-        for i in indices.flatten():
-            final_boxes.append({
-                "confidence": round(confidences[i], 2),
-                "posisi": boxes[i]
-            })
+    if len(boxes) > 0:
+        indices = cv2.dnn.NMSBoxes(boxes, confidences, score_threshold=CONF_THRESHOLD, nms_threshold=0.4)
+        if len(indices) > 0:
+            for i in indices.flatten():
+                final_boxes.append({
+                    "confidence": round(confidences[i], 2),
+                    "posisi": boxes[i]
+                })
+
+    print(f"[DEBUG TFLITE] Mentah ditemukan: {len(boxes)} baris -> Pasca NMS: {len(final_boxes)}")
 
     # Bersihkan memori interpreter secara paksa
     del interpreter, input_details, output_details, img_rgb, img_resized, img_input, output_data
@@ -114,6 +125,8 @@ def check_person():
         if max(height, width) > max_dim:
             scale = max_dim / max(height, width)
             img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR)
+            # Update data dimensi setelah dikecilkan
+            height, width = img.shape[:2]
 
         # Jalankan proses TFLite secara on-demand
         print("[INFO] Menjalankan inferensi TFLite...")
@@ -122,16 +135,30 @@ def check_person():
         jumlah_orang = len(koordinat_kotak)
         ada_orang = jumlah_orang > 0
         
-        # Menggambar kotak manual (karena kita tidak pakai r.plot() milik ultralytics lagi)
+        # === ENGINE OUTLINE HIGH-VISIBILITY (Menggantikan r.plot() Ultralytics) ===
         img_hasil = img.copy()
         for box in koordinat_kotak:
             x1, y1, x2, y2 = box["posisi"]
             conf = box["confidence"]
-            # Gambar kotak merah
-            cv2.rectangle(img_hasil, (x1, y1), (x2, y2), (0, 0, 255), 2)
-            # Label tulisan
-            cv2.putText(img_hasil, f"Person {conf}", (x1, max(y1 - 10, 20)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            
+            # Clamp koordinat agar tidak offset keluar dari resolusi gambar asli
+            x1 = max(0, min(x1, width - 1))
+            y1 = max(0, min(y1, height - 1))
+            x2 = max(0, min(x2, width - 1))
+            y2 = max(0, min(y2, height - 1))
+            
+            # 1. Gambar Bounding Box Merah (Ketebalan dinaikkan ke 3 agar mencolok)
+            cv2.rectangle(img_hasil, (x1, y1), (x2, y2), (0, 0, 255), 3)
+            
+            # 2. Gambar Background Banner Merah Solid untuk Text Label
+            label = f"Orang: {int(conf * 100)}%"
+            (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+            cv2.rectangle(img_hasil, (x1, y1 - text_h - 10), (x1 + text_w, y1), (0, 0, 255), cv2.FILLED)
+            
+            # 3. Tulis Teks Putih di atas Banner Merah
+            cv2.putText(img_hasil, label, (x1, y1 - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+        # ===========================================================================
 
         # Encode gambar hasil outlining (JPEG format)
         _, buffer = cv2.imencode('.jpg', img_hasil)
@@ -148,7 +175,7 @@ def check_person():
         # === Bersihkan Sisa Memori RAM ===
         del img_bytes, nparr, img, img_hasil, buffer
         gc.collect()
-        print("[INFO] RAM dibersihkan.")
+        print("[INFO] RAM dibersihkan.\n")
 
         # Mengembalikan response sebagai multipart/form-data
         boundary = 'Response-Boundary-123456789'

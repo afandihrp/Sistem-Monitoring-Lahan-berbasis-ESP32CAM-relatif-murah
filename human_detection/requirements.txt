@@ -1,1 +1,9 @@
+Saat Ditest di Laptop PC (pc_env):
+Pastikan Anda sudah menginstal full TensorFlow agar fungsi fallback try-except di atas bekerja:
+
 pip install opencv-python-headless numpy Flask waitress tensorflow
+
+Saat Di-deploy ke Raspberry Pi 3 (ai_env):
+Pastikan Anda mengabaikan full TensorFlow (karena terlalu berat) dan menggunakan runtime ringkas bawaan Pi:
+
+pip install opencv-python-headless "numpy<2" Flask waitress tflite-runtime
