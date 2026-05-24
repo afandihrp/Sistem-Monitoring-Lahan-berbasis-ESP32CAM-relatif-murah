@@ -17,7 +17,7 @@ except ImportError:
     from tensorflow import lite as tflite
     print("[INFO] Menggunakan library: tensorflow.lite (Mode PC Desktop)")
 
-interpreter = tflite.Interpreter(model_path=MODEL_PATH)
+interpreter = tflite.Interpreter(model_path=MODEL_PATH, num_threads=4)
 interpreter.allocate_tensors()
 
 input_details  = interpreter.get_input_details()
