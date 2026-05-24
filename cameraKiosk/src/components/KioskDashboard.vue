@@ -18,11 +18,17 @@ const devices = ref([])
 const liveImageSrc = ref('')
 const liveBoxes = ref([])
 let lastObjectUrl = null
-let boxClearTimeout = null
 
 const currentStreamIndex = ref(0)
 const currentStream = computed(() => devices.value[currentStreamIndex.value] || { name: 'No Active Stream', ip: 'N/A', status: 'Offline' })
 const aiDetecting = computed(() => liveBoxes.value.length > 0)
+const visibleBoxes = computed(() => aiConnected.value ? liveBoxes.value : [])
+
+watch(aiConnected, (connected) => {
+  if (!connected) {
+    liveBoxes.value = []
+  }
+})
 
 const connectWS = () => {
   const backendUrl = `wss://${window.location.hostname}:3000`
@@ -72,12 +78,6 @@ const connectWS = () => {
       } else if (data.type === 'stream_boxes') {
         if (data.deviceId === currentStream.value.id) {
           liveBoxes.value = data.boxes
-          
-          // Clear boxes after 2 seconds of inactivity
-          if (boxClearTimeout) clearTimeout(boxClearTimeout)
-          boxClearTimeout = setTimeout(() => {
-            liveBoxes.value = []
-          }, 2000)
         }
       } else if (data.type === 'motion_event') {
         events.value.unshift({
@@ -215,7 +215,7 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
       <StreamView 
         :currentStream="currentStream" 
         :liveImageSrc="liveImageSrc"
-        :liveBoxes="liveBoxes"
+        :liveBoxes="visibleBoxes"
         :windowWidth="windowWidth"
         @triggerCameraAction="triggerCameraAction"
         @triggerServoAction="triggerServoAction"
