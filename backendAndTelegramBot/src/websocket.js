@@ -1,7 +1,7 @@
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
+const { aiClient } = require('./services/aiClient');
 const { logEvent, getLogs } = require('./services/logger');
 const { sendMotionAlert } = require('./services/telegram');
 
@@ -17,48 +17,11 @@ const devices = new Map();
  * Helper to call local Python AI for real-time stream detection (JSON only)
  */
 function detectStreamAI(imageBuffer) {
-  return new Promise((resolve, reject) => {
-    const boundary = '----StreamBoundary' + Date.now();
-    const header = `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="frame.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`;
-    const footer = `\r\n--${boundary}--\r\n`;
-    
-    const bodyBuffer = Buffer.concat([
-      Buffer.from(header, 'utf8'),
-      imageBuffer,
-      Buffer.from(footer, 'utf8')
-    ]);
-    
-    const options = {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/detectJSON',
-      method: 'POST',
-      headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        'Content-Length': bodyBuffer.length
-      },
-      timeout: 2000 
-    };
-    
-    const req = http.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) { reject(e); }
-        } else {
-          reject(new Error(`AI Status ${res.statusCode}`));
-        }
-      });
+  return aiClient.sendRequest(imageBuffer, false, 1500)
+    .catch((err) => {
+      // Silently fail AI stream sampling to avoid spamming logs
+      return null;
     });
-    
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('AI Timeout')); });
-    req.write(bodyBuffer);
-    req.end();
-  });
 }
 
 function heartbeat() {

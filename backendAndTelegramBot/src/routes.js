@@ -1,106 +1,29 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
+const { aiClient } = require('./services/aiClient');
 const { updateLatestLogImage, updateLatestLogWithAI } = require('./services/logger');
 const { sendMotionAlert, notifyCaptureResult } = require('./services/telegram');
 
 /**
- * Parse custom multipart response from Python AI server
+ * Call Python AI Server via WebSocket to check if a person is in the image and get annotated image
  */
-function parsePythonMultipartResponse(buffer) {
-  const boundary = '--Response-Boundary-123456789';
-  const indices = [];
-  let index = buffer.indexOf(boundary);
+async function checkPersonAI(imageBuffer) {
+  const result = await aiClient.sendRequest(imageBuffer, true, 10000);
   
-  while (index !== -1) {
-    indices.push(index);
-    index = buffer.indexOf(boundary, index + boundary.length);
-  }
-  
-  if (indices.length < 3) {
-    throw new Error(`Invalid multipart response structure: expected 3 boundaries, found ${indices.length}`);
-  }
-  
-  // Part 1: JSON details
-  const part1HeaderEnd = buffer.indexOf('\r\n\r\n', indices[0]);
-  if (part1HeaderEnd === -1 || part1HeaderEnd >= indices[1]) {
-    throw new Error('Invalid Part 1 headers');
-  }
-  const jsonStart = part1HeaderEnd + 4;
-  const jsonEnd = indices[1] - 2; // subtract \r\n
-  const jsonBuffer = buffer.subarray ? buffer.subarray(jsonStart, jsonEnd) : buffer.slice(jsonStart, jsonEnd);
-  const details = JSON.parse(jsonBuffer.toString('utf8'));
-  
-  // Part 2: Outlined Image
-  const part2HeaderEnd = buffer.indexOf('\r\n\r\n', indices[1]);
-  if (part2HeaderEnd === -1 || part2HeaderEnd >= indices[2]) {
-    throw new Error('Invalid Part 2 headers');
-  }
-  const imageStart = part2HeaderEnd + 4;
-  const imageEnd = indices[2] - 2; // subtract \r\n
-  const imageBuffer = buffer.subarray ? buffer.subarray(imageStart, imageEnd) : buffer.slice(imageStart, imageEnd);
-  
-  return { details, imageBuffer };
-}
+  const details = {
+    status: result.status,
+    pesan: result.pesan,
+    ada_orang: result.ada_orang,
+    jumlah_orang: result.jumlah_orang,
+    koordinat_kotak: result.koordinat_kotak
+  };
 
-/**
- * Call Python Flask server to check if a person is in the image
- */
-function checkPersonAI(imageBuffer) {
-  return new Promise((resolve, reject) => {
-    const boundary = '----WebKitFormBoundary7MA4YWxkTrZu0gW';
-    const header = `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="image.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`;
-    const footer = `\r\n--${boundary}--\r\n`;
-    
-    const bodyBuffer = Buffer.concat([
-      Buffer.from(header, 'utf8'),
-      imageBuffer,
-      Buffer.from(footer, 'utf8')
-    ]);
-    
-    const options = {
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/checkPerson',
-      method: 'POST',
-      headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        'Content-Length': bodyBuffer.length
-      },
-      timeout: 10000 // 10s timeout
-    };
-    
-    const req = http.request(options, (res) => {
-      const chunks = [];
-      res.on('data', (chunk) => chunks.push(chunk));
-      res.on('end', () => {
-        const resBuffer = Buffer.concat(chunks);
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          try {
-            const parsed = parsePythonMultipartResponse(resBuffer);
-            resolve(parsed);
-          } catch (err) {
-            reject(new Error(`Failed to parse AI response: ${err.message}`));
-          }
-        } else {
-          reject(new Error(`AI Server returned HTTP ${res.statusCode}`));
-        }
-      });
-    });
-    
-    req.on('error', (err) => {
-      reject(err);
-    });
-    
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('AI request timeout'));
-    });
-    
-    req.write(bodyBuffer);
-    req.end();
-  });
+  const annotatedImageBuffer = Buffer.from(result.annotated_image, 'base64');
+  return {
+    details,
+    imageBuffer: annotatedImageBuffer
+  };
 }
 
 function createRouter(wss) {

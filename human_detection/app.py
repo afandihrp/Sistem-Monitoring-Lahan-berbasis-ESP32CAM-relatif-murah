@@ -1,17 +1,14 @@
+import asyncio
+import websockets
+import json
 import cv2
 import numpy as np
-import json
 import gc
-import threading
-from flask import Flask, request, jsonify, Response
-
-app = Flask(__name__)
-
-# === OPTIMASI PI 3: Kunci proses agar tidak ada request bersamaan (mencegah OOM Crash) ===
-process_lock = threading.Lock()
+import base64
+from datetime import datetime
 
 # Tentukan path ke file model TFLite Anda
-MODEL_PATH = "yolov8n_float32.tflite" 
+MODEL_PATH = "yolov8n_int8.tflite"
 
 def run_tflite_inference(img_bgr):
     try:
@@ -61,7 +58,6 @@ def run_tflite_inference(img_bgr):
     max_score_seen = 0.0
 
     for row in output_data:
-        # ✅ FIX BUG #1: Class scores ada di index 4 ke atas
         class_scores = row[4:]
         class_id     = int(np.argmax(class_scores))
         class_conf   = float(class_scores[class_id])
@@ -73,7 +69,6 @@ def run_tflite_inference(img_bgr):
         if class_id == 0 and class_conf > CONF_THRESHOLD:
             xc, yc, w, h = float(row[0]), float(row[1]), float(row[2]), float(row[3])
 
-            # ✅ FIX BUG #2: Koordinat normalized (0–1) langsung ke pixel asli
             x1 = int((xc - w / 2) * orig_w)
             y1 = int((yc - h / 2) * orig_h)
             x2 = int((xc + w / 2) * orig_w)
@@ -104,148 +99,121 @@ def run_tflite_inference(img_bgr):
     del interpreter, img_rgb, img_resized, img_input, output_data
     return final_boxes
 
+async def handle_client(websocket, path=None):
+    print(f"[INFO] Client connected: {websocket.remote_address}")
+    try:
+        async for message in websocket:
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Incoming request received over WebSocket")
+            try:
+                data = json.loads(message)
+                req_id = data.get("requestId")
+                img_b64 = data.get("image")
+                annotate = data.get("annotate", False)
 
-@app.route('/checkPerson', methods=['POST'])
-def check_person():
-    with process_lock:
-        from datetime import datetime
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Incoming request received at /checkPerson")
-        
-        if 'image' not in request.files:
-            return jsonify({"status": "error", "message": "Key 'image' tidak ditemukan di request"}), 400
-        
-        file = request.files['image']
-        img_bytes = file.read()
-        nparr = np.frombuffer(img_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        if img is None:
-            return jsonify({"status": "error", "message": "File gambar korup"}), 400
+                if not img_b64:
+                    await websocket.send(json.dumps({
+                        "requestId": req_id,
+                        "status": "error",
+                        "message": "Key 'image' tidak ditemukan di request"
+                    }))
+                    continue
 
-        # === OPTIMASI PI 3: Downscale gambar jika terlalu besar ===
-        height, width = img.shape[:2]
-        max_dim = 640
-        if max(height, width) > max_dim:
-            scale = max_dim / max(height, width)
-            img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR)
-            # Update data dimensi setelah dikecilkan
-            height, width = img.shape[:2]
+                # Decode gambar dari base64
+                img_bytes = base64.b64decode(img_b64)
+                nparr = np.frombuffer(img_bytes, np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-        # Jalankan proses TFLite secara on-demand
-        print("[INFO] Menjalankan inferensi TFLite...")
-        koordinat_kotak = run_tflite_inference(img)
-        
-        jumlah_orang = len(koordinat_kotak)
-        ada_orang = jumlah_orang > 0
-        
-        # === ENGINE OUTLINE HIGH-VISIBILITY (Menggantikan r.plot() Ultralytics) ===
-        img_hasil = img.copy()
-        for box in koordinat_kotak:
-            x1, y1, x2, y2 = box["posisi"]
-            conf = box["confidence"]
-            
-            # Clamp koordinat agar tidak offset keluar dari batas piksel gambar asli
-            x1 = max(0, min(x1, width - 1))
-            y1 = max(0, min(y1, height - 1))
-            x2 = max(0, min(x2, width - 1))
-            y2 = max(0, min(y2, height - 1))
-            
-            # 1. Gambar Bounding Box Merah (Ketebalan = 3 piksel)
-            cv2.rectangle(img_hasil, (x1, y1), (x2, y2), (0, 0, 255), 3)
-            
-            # 2. Hitung ukuran text label secara dinamis
-            label = f"Orang: {int(conf * 100)}%"
-            (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-            
-            # Amankan posisi Y banner agar tidak offset ke atas jika objek berada mepet di tepi atas layar
-            y_banner_top = max(y1 - text_h - 10, 0)
-            y_banner_bottom = max(y1, text_h + 10)
-            
-            # 3. Gambar Background Banner Merah Solid untuk Text Label
-            cv2.rectangle(img_hasil, (x1, y_banner_top), (x1 + text_w + 4, y_banner_bottom), (0, 0, 255), cv2.FILLED)
-            
-            # 4. Tulis Teks Putih di atas Banner Merah
-            cv2.putText(img_hasil, label, (x1 + 2, y_banner_bottom - 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
-        # ===========================================================================
+                if img is None:
+                    await websocket.send(json.dumps({
+                        "requestId": req_id,
+                        "status": "error",
+                        "message": "File gambar korup"
+                    }))
+                    continue
 
-        # Encode gambar hasil outlining (JPEG format)
-        _, buffer = cv2.imencode('.jpg', img_hasil)
-        img_bytes_out = buffer.tobytes()
-        
-        json_data = {
-            "status": "success",
-            "pesan": "AWAS: Orang terdeteksi!" if ada_orang else "Aman, tidak ada orang.",
-            "ada_orang": ada_orang,
-            "jumlah_orang": jumlah_orang,
-            "koordinat_kotak": koordinat_kotak
-        }
+                # Downscale gambar jika terlalu besar
+                height, width = img.shape[:2]
+                max_dim = 640
+                if max(height, width) > max_dim:
+                    scale = max_dim / max(height, width)
+                    img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR)
+                    height, width = img.shape[:2]
 
-        # === Bersihkan Sisa Memori RAM ===
-        del img_bytes, nparr, img, img_hasil, buffer
-        gc.collect()
-        print("[INFO] RAM dibersihkan.\n")
+                print("[INFO] Menjalankan inferensi TFLite...")
+                koordinat_kotak = run_tflite_inference(img)
+                jumlah_orang = len(koordinat_kotak)
+                ada_orang = jumlah_orang > 0
 
-        # Mengembalikan response sebagai multipart/form-data
-        boundary = 'Response-Boundary-123456789'
-        
-        def generate():
-            yield (f'--{boundary}\r\n'
-                   f'Content-Disposition: form-data; name="details"\r\n'
-                   f'Content-Type: application/json\r\n\r\n').encode('utf-8')
-            yield json.dumps(json_data).encode('utf-8')
-            yield b'\r\n'
-            
-            yield (f'--{boundary}\r\n'
-                   f'Content-Disposition: form-data; name="image"; filename="output.jpg"\r\n'
-                   f'Content-Type: image/jpeg\r\n\r\n').encode('utf-8')
-            yield img_bytes_out
-            yield b'\r\n'
-            
-            yield (f'--{boundary}--\r\n').encode('utf-8')
-            
-        return Response(generate(), mimetype=f'multipart/form-data; boundary={boundary}')
+                response = {
+                    "requestId": req_id,
+                    "status": "success",
+                    "pesan": "AWAS: Orang terdeteksi!" if ada_orang else "Aman, tidak ada orang.",
+                    "ada_orang": ada_orang,
+                    "jumlah_orang": jumlah_orang,
+                    "koordinat_kotak": koordinat_kotak
+                }
 
-@app.route('/detectJSON', methods=['POST'])
-def detect_json():
-    """
-    Endpoint ringan khusus untuk streaming: 
-    Hanya mengembalikan JSON koordinat, tanpa proses menggambar/encoding gambar.
-    """
-    with process_lock:
-        if 'image' not in request.files:
-            return jsonify({"status": "error", "message": "Key 'image' tidak ditemukan"}), 400
-        
-        file = request.files['image']
-        img_bytes = file.read()
-        nparr = np.frombuffer(img_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        if img is None:
-            return jsonify({"status": "error", "message": "File gambar korup"}), 400
+                # Jika diminta untuk menggambar bounding box (checkPerson)
+                if annotate:
+                    img_hasil = img.copy()
+                    for box in koordinat_kotak:
+                        x1, y1, x2, y2 = box["posisi"]
+                        conf = box["confidence"]
 
-        # Downscale jika perlu (sama dengan check_person)
-        height, width = img.shape[:2]
-        max_dim = 640
-        if max(height, width) > max_dim:
-            scale = max_dim / max(height, width)
-            img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR)
+                        x1 = max(0, min(x1, width - 1))
+                        y1 = max(0, min(y1, height - 1))
+                        x2 = max(0, min(x2, width - 1))
+                        y2 = max(0, min(y2, height - 1))
 
-        # Jalankan inferensi
-        koordinat_kotak = run_tflite_inference(img)
-        
-        # Bersihkan RAM segera
-        del img_bytes, nparr, img
-        gc.collect()
+                        # Bounding Box merah
+                        cv2.rectangle(img_hasil, (x1, y1), (x2, y2), (0, 0, 255), 3)
 
-        return jsonify({
-            "status": "success",
-            "ada_orang": len(koordinat_kotak) > 0,
-            "jumlah_orang": len(koordinat_kotak),
-            "koordinat_kotak": koordinat_kotak
-        })
+                        # Banner teks label
+                        label = f"Orang: {int(conf * 100)}%"
+                        (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                        y_banner_top = max(y1 - text_h - 10, 0)
+                        y_banner_bottom = max(y1, text_h + 10)
+
+                        cv2.rectangle(img_hasil, (x1, y_banner_top), (x1 + text_w + 4, y_banner_bottom), (0, 0, 255), cv2.FILLED)
+                        cv2.putText(img_hasil, label, (x1 + 2, y_banner_bottom - 4),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+
+                    # Encode gambar hasil outlining ke JPEG
+                    _, buffer = cv2.imencode('.jpg', img_hasil)
+                    img_bytes_out = buffer.tobytes()
+                    
+                    # Convert to base64
+                    response["annotated_image"] = base64.b64encode(img_bytes_out).decode('utf-8')
+                    del img_hasil, buffer
+
+                await websocket.send(json.dumps(response))
+
+                # Bersihkan sisa memori RAM
+                del img_bytes, nparr, img
+                gc.collect()
+                print("[INFO] RAM dibersihkan.\n")
+
+            except Exception as e:
+                print(f"[ERROR] Gagal memproses request: {e}")
+                try:
+                    await websocket.send(json.dumps({
+                        "requestId": req_id if 'req_id' in locals() else None,
+                        "status": "error",
+                        "message": f"Server error: {str(e)}"
+                    }))
+                except:
+                    pass
+
+    except websockets.exceptions.ConnectionClosed:
+        print(f"[INFO] Client disconnected: {websocket.remote_address}")
+
+async def main():
+    print("\n[INFO] Menjalankan server WebSockets di port 5000...")
+    async with websockets.serve(handle_client, "0.0.0.0", 5000):
+        await asyncio.Future()  # Jalankan selamanya
 
 if __name__ == '__main__':
-    from waitress import serve
-    print("\n[INFO] Menjalankan server menggunakan Waitress di port 5000...")
-    serve(app, host='0.0.0.0', port=5000, threads=4)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("[INFO] Server dihentikan.")
