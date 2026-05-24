@@ -50,34 +50,41 @@ def run_tflite_inference(img_bgr):
     if output_data.shape[0] < output_data.shape[1]:
         output_data = output_data.T
 
-    boxes       = []
-    confidences = []
-
     orig_h, orig_w = img_bgr.shape[:2]
     CONF_THRESHOLD = 0.25
-    max_score_seen = 0.0
 
-    for row in output_data:
-        class_scores = row[4:]
-        class_id     = int(np.argmax(class_scores))
-        class_conf   = float(class_scores[class_id])
+    # 1. Ambil class scores (kolom index 4 ke atas)
+    class_scores = output_data[:, 4:]
+    
+    # 2. Cari class dengan score tertinggi untuk setiap bounding box
+    class_ids = np.argmax(class_scores, axis=1)
+    class_confs = class_scores[np.arange(len(class_scores)), class_ids]
 
-        if class_conf > max_score_seen:
-            max_score_seen = class_conf
-
-        # Hanya deteksi class 0 = 'person'
-        if class_id == 0 and class_conf > CONF_THRESHOLD:
-            xc, yc, w, h = float(row[0]), float(row[1]), float(row[2]), float(row[3])
-
-            x1 = int((xc - w / 2) * orig_w)
-            y1 = int((yc - h / 2) * orig_h)
-            x2 = int((xc + w / 2) * orig_w)
-            y2 = int((yc + h / 2) * orig_h)
-
-            boxes.append([x1, y1, x2, y2])
-            confidences.append(class_conf)
-
+    max_score_seen = float(np.max(class_scores)) if class_scores.size > 0 else 0.0
     print(f"[DEBUG] Skor tertinggi: {round(max_score_seen, 4)}")
+
+    # 3. Filter hanya untuk class 0 (person) dan confidence > CONF_THRESHOLD
+    mask = (class_ids == 0) & (class_confs > CONF_THRESHOLD)
+    
+    boxes = []
+    confidences = []
+
+    if np.any(mask):
+        matching_rows = output_data[mask]
+        matching_confs = class_confs[mask]
+        
+        xc = matching_rows[:, 0]
+        yc = matching_rows[:, 1]
+        w  = matching_rows[:, 2]
+        h  = matching_rows[:, 3]
+        
+        x1 = ((xc - w / 2) * orig_w).astype(np.int32)
+        y1 = ((yc - h / 2) * orig_h).astype(np.int32)
+        x2 = ((xc + w / 2) * orig_w).astype(np.int32)
+        y2 = ((yc + h / 2) * orig_h).astype(np.int32)
+        
+        boxes = np.column_stack((x1, y1, x2, y2)).tolist()
+        confidences = matching_confs.tolist()
 
     # NMS
     final_boxes = []
