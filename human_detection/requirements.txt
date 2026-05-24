@@ -1,5 +1,1 @@
-Flask
-ultralytics
-opencv-python-headless
-numpy
-waitress
+pip install opencv-python-headless numpy Flask waitress tensorflow
