@@ -17,9 +17,9 @@ const devices = new Map();
  * Helper to call local Python AI for real-time stream detection (JSON only)
  */
 function detectStreamAI(imageBuffer) {
-  return aiClient.sendRequest(imageBuffer, false, 1500)
+  return aiClient.sendRequest(imageBuffer, false, 5000)
     .catch((err) => {
-      // Silently fail AI stream sampling to avoid spamming logs
+      console.warn('[AI Client] Stream detection failed:', err.message);
       return null;
     });
 }
@@ -129,25 +129,29 @@ function initWebSocket(server) {
         // --- PHASE 2: AI SAMPLING (1 FPS) ---
         const now = Date.now();
         if (device && (!device.lastAiDetectionTime || now - device.lastAiDetectionTime >= 1000)) {
-          device.lastAiDetectionTime = now;
-          
-          detectStreamAI(message).then(result => {
-            if (result && result.status === 'success') {
-              const boxPayload = JSON.stringify({
-                type: 'stream_boxes',
-                deviceId: deviceId,
-                boxes: result.koordinat_kotak
-              });
-              
-              wss.clients.forEach((client) => {
-                if (client.readyState === 1 && !client.path.startsWith('/camera') && client.activeDeviceId === deviceId) {
-                  client.send(boxPayload);
-                }
-              });
-            }
-          }).catch(err => {
-            // Silently fail AI stream sampling to avoid spamming logs
-          });
+          if (!device.isAiProcessing) {
+            device.isAiProcessing = true;
+            device.lastAiDetectionTime = now;
+            
+            detectStreamAI(message).then(result => {
+              device.isAiProcessing = false;
+              if (result && result.status === 'success') {
+                const boxPayload = JSON.stringify({
+                  type: 'stream_boxes',
+                  deviceId: deviceId,
+                  boxes: result.koordinat_kotak
+                });
+                
+                wss.clients.forEach((client) => {
+                  if (client.readyState === 1 && !client.path.startsWith('/camera') && client.activeDeviceId === deviceId) {
+                    client.send(boxPayload);
+                  }
+                });
+              }
+            }).catch(err => {
+              device.isAiProcessing = false;
+            });
+          }
         }
         // ------------------------------------
 

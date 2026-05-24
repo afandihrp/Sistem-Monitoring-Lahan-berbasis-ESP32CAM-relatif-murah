@@ -10,25 +10,25 @@ from datetime import datetime
 # Tentukan path ke file model TFLite Anda
 MODEL_PATH = "yolov8n_int8.tflite"
 
+try:
+    import tflite_runtime.interpreter as tflite
+    print("[INFO] Menggunakan library: tflite_runtime (Mode Raspberry Pi)")
+except ImportError:
+    from tensorflow import lite as tflite
+    print("[INFO] Menggunakan library: tensorflow.lite (Mode PC Desktop)")
+
+interpreter = tflite.Interpreter(model_path=MODEL_PATH)
+interpreter.allocate_tensors()
+
+input_details  = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
+input_shape  = input_details[0]['shape']
+input_height = input_shape[1]
+input_width  = input_shape[2]
+input_dtype  = input_details[0]['dtype']
+
 def run_tflite_inference(img_bgr):
-    try:
-        import tflite_runtime.interpreter as tflite
-        print("[INFO] Menggunakan library: tflite_runtime (Mode Raspberry Pi)")
-    except ImportError:
-        from tensorflow import lite as tflite
-        print("[INFO] Menggunakan library: tensorflow.lite (Mode PC Desktop)")
-
-    interpreter = tflite.Interpreter(model_path=MODEL_PATH)
-    interpreter.allocate_tensors()
-
-    input_details  = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-
-    input_shape  = input_details[0]['shape']
-    input_height = input_shape[1]
-    input_width  = input_shape[2]
-    input_dtype  = input_details[0]['dtype']
-
     # Preprocessing
     img_rgb     = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
     img_resized = cv2.resize(img_rgb, (input_width, input_height), interpolation=cv2.INTER_LINEAR)
@@ -96,7 +96,7 @@ def run_tflite_inference(img_bgr):
 
     print(f"[DEBUG] Mentah: {len(boxes)} → Pasca NMS: {len(final_boxes)}")
 
-    del interpreter, img_rgb, img_resized, img_input, output_data
+    del img_rgb, img_resized, img_input, output_data
     return final_boxes
 
 async def handle_client(websocket, path=None):
@@ -209,7 +209,7 @@ async def handle_client(websocket, path=None):
 
 async def main():
     print("\n[INFO] Menjalankan server WebSockets di port 5000...")
-    async with websockets.serve(handle_client, "0.0.0.0", 5000):
+    async with websockets.serve(handle_client, "0.0.0.0", 5000, max_size=20 * 1024 * 1024):
         await asyncio.Future()  # Jalankan selamanya
 
 if __name__ == '__main__':
