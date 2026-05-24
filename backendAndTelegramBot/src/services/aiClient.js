@@ -8,6 +8,7 @@ class AIClient {
     this.reconnectTimer = null;
     this.requestIdCounter = 0;
     this.isConnected = false;
+    this.statusListeners = [];
     this.connect();
   }
 
@@ -23,6 +24,7 @@ class AIClient {
     this.ws.on('open', () => {
       console.log('[AI Client] Connected to Python AI server successfully.');
       this.isConnected = true;
+      this.notifyStatusChange();
     });
 
     this.ws.on('message', (data) => {
@@ -49,6 +51,9 @@ class AIClient {
       if (this.isConnected) {
         console.warn('[AI Client] Connection to Python AI server closed.');
         this.isConnected = false;
+        this.notifyStatusChange();
+      } else {
+        this.isConnected = false;
       }
       this.rejectAllPending(new Error('AI Server Connection Closed'));
       this.scheduleReconnect();
@@ -74,6 +79,20 @@ class AIClient {
       reject(error);
     }
     this.pendingRequests.clear();
+  }
+
+  onStatusChange(listener) {
+    this.statusListeners.push(listener);
+  }
+
+  notifyStatusChange() {
+    for (const listener of this.statusListeners) {
+      try {
+        listener(this.isConnected);
+      } catch (err) {
+        console.error('[AI Client] Error in status listener:', err);
+      }
+    }
   }
 
   sendRequest(imageBuffer, annotate = false, timeoutMs = 10000) {

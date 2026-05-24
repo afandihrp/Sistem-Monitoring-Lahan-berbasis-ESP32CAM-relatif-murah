@@ -112,6 +112,9 @@ function initWebSocket(server) {
       if (historicalLogs && historicalLogs.length > 0) {
         ws.send(JSON.stringify({ type: 'historical_logs', logs: historicalLogs }));
       }
+
+      // Send current AI server connection status immediately
+      ws.send(JSON.stringify({ type: 'ai_status', isConnected: aiClient.isConnected }));
     }
     
     ws.on('message', (message, isBinary) => {
@@ -299,6 +302,16 @@ function initWebSocket(server) {
     });
   }, 5000);
 
+
+  aiClient.onStatusChange((isConnected) => {
+    console.log(`[AI Client] Connection status changed. Connected: ${isConnected}`);
+    const payload = JSON.stringify({ type: 'ai_status', isConnected });
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+        client.send(payload);
+      }
+    });
+  });
 
   wss.on('close', function close() {
     clearInterval(interval);

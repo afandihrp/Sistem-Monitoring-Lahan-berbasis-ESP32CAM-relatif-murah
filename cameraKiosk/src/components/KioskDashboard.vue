@@ -11,6 +11,7 @@ setInterval(() => {
 }, 1000)
 
 const wsStatus = ref('Offline')
+const aiConnected = ref(false)
 let ws = null
 
 const devices = ref([])
@@ -21,6 +22,7 @@ let boxClearTimeout = null
 
 const currentStreamIndex = ref(0)
 const currentStream = computed(() => devices.value[currentStreamIndex.value] || { name: 'No Active Stream', ip: 'N/A', status: 'Offline' })
+const aiDetecting = computed(() => liveBoxes.value.length > 0)
 
 const connectWS = () => {
   const backendUrl = `wss://${window.location.hostname}:3000`
@@ -63,6 +65,8 @@ const connectWS = () => {
         } else if (data.direction === 'left') {
           currentStreamIndex.value = (currentStreamIndex.value - 1 + devices.value.length) % devices.value.length
         }
+      } else if (data.type === 'ai_status') {
+        aiConnected.value = data.isConnected
       } else if (data.type === 'device_list') {
         devices.value = data.devices
       } else if (data.type === 'stream_boxes') {
@@ -205,7 +209,7 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
 
 <template>
   <div class="main-wrapper d-flex flex-column" data-bs-theme="dark">
-    <TopNav :currentTime="currentTime" :wsStatus="wsStatus" />
+    <TopNav :currentTime="currentTime" :wsStatus="wsStatus" :aiConnected="aiConnected" :aiDetecting="aiDetecting" />
 
     <main class="row g-0 flex-grow-1" id="main-layout">
       <StreamView 

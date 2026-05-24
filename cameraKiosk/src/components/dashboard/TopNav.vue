@@ -7,6 +7,14 @@ defineProps({
   wsStatus: {
     type: String,
     required: true
+  },
+  aiConnected: {
+    type: Boolean,
+    required: true
+  },
+  aiDetecting: {
+    type: Boolean,
+    required: true
   }
 })
 </script>
@@ -25,12 +33,23 @@ defineProps({
             {{ new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) }}
           </div>
         </div>
-        <div class="d-flex gap-2 text-secondary" style="font-size: 0.8rem;">
-          <span class="d-flex align-items-center gap-1">
-            <span :class="wsStatus === 'Online' ? 'text-success' : 'text-danger'" class="fw-bold d-flex align-items-center gap-1">
-              <i :class="wsStatus === 'Online' ? 'bi-broadcast text-success' : 'bi-broadcast-pin text-danger'"></i>
-              <span class="d-none d-sm-inline">WS:</span> {{ wsStatus }}
-            </span>
+        <div class="d-flex flex-column align-items-end justify-content-center text-secondary" style="font-size: 0.85rem; line-height: 1.2;">
+          <span :class="wsStatus === 'Online' ? 'text-success' : 'text-danger'" class="fw-bold d-flex align-items-center gap-1" style="font-size: 0.8rem;">
+            <i :class="wsStatus === 'Online' ? 'bi-broadcast text-success' : 'bi-broadcast-pin text-danger'"></i>
+            <span class="d-none d-sm-inline">WS:</span> {{ wsStatus }}
+          </span>
+          <!-- Three-State AI Connection and Detection Label -->
+          <span v-if="!aiConnected" class="fw-bold d-flex align-items-center gap-1 text-danger" style="font-size: 0.65rem; margin-top: 1px;">
+            <i class="bi bi-cloud-slash text-danger"></i>
+            AI: OFFLINE
+          </span>
+          <span v-else-if="aiDetecting" class="fw-bold d-flex align-items-center gap-1 text-warning" style="font-size: 0.65rem; margin-top: 1px;">
+            <i class="bi bi-eye-fill text-warning animate-pulse"></i>
+            AI: DETECTING
+          </span>
+          <span v-else class="fw-bold d-flex align-items-center gap-1 text-success" style="font-size: 0.65rem; margin-top: 1px;">
+            <i class="bi bi-eye text-success"></i>
+            AI: SCANNING
           </span>
         </div>
       </div>
@@ -41,6 +60,14 @@ defineProps({
 <style scoped>
 .font-monospace { font-family: 'JetBrains Mono', ui-monospace, monospace !important; }
 .bi-shield-lock-fill { filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.5)); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.animate-pulse {
+  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
 
 @media (max-width: 480px) {
   .navbar-brand {
