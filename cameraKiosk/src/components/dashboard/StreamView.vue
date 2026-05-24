@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import ServoConfiguratorModal from './ServoConfiguratorModal.vue'
 
 const props = defineProps({
@@ -11,6 +11,10 @@ const props = defineProps({
     type: String,
     required: true
   },
+  liveBoxes: {
+    type: Array,
+    default: () => []
+  },
   windowWidth: {
     type: Number,
     required: true
@@ -20,6 +24,65 @@ const props = defineProps({
 const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig'])
 const servoValue = ref(90)
 const showConfig = ref(false)
+const overlayCanvas = ref(null)
+const streamImg = ref(null)
+
+const drawBoxes = () => {
+  const canvas = overlayCanvas.value
+  const img = streamImg.value
+  if (!canvas || !img) return
+
+  const ctx = canvas.getContext('2d')
+  
+  // Match canvas size to displayed image size
+  canvas.width = img.clientWidth
+  canvas.height = img.clientHeight
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  if (!props.liveBoxes || props.liveBoxes.length === 0) return
+
+  // Determine scale (assuming original AI detection was on 640x480 or similar)
+  // But wait, the AI server returns absolute pixels relative to the image sent.
+  // We need to know the original image size to scale correctly.
+  // The ESP32-CAM HVGA is 480x320.
+  const origW = 480
+  const origH = 320
+  
+  const scaleX = canvas.width / origW
+  const scaleY = canvas.height / origH
+
+  props.liveBoxes.forEach(box => {
+    const [x1, y1, x2, y2] = box.posisi
+    const conf = box.confidence
+
+    const bx1 = x1 * scaleX
+    const by1 = y1 * scaleY
+    const bw = (x2 - x1) * scaleX
+    const bh = (y2 - y1) * scaleY
+
+    // Draw Box
+    ctx.strokeStyle = '#ff0000'
+    ctx.lineWidth = 3
+    ctx.strokeRect(bx1, by1, bw, bh)
+
+    // Draw Label
+    const label = `Person ${Math.round(conf * 100)}%`
+    ctx.font = 'bold 14px Arial'
+    const textMetrics = ctx.measureText(label)
+    const textHeight = 18
+    
+    ctx.fillStyle = '#ff0000'
+    ctx.fillRect(bx1, by1 - textHeight, textMetrics.width + 10, textHeight)
+    
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(label, bx1 + 5, by1 - 5)
+  })
+}
+
+watch(() => props.liveBoxes, drawBoxes, { deep: true })
+watch(() => props.liveImageSrc, drawBoxes)
+watch(() => props.windowWidth, drawBoxes)
 
 const handleSaveConfig = (config) => {
   emit('saveServoConfig', {
@@ -69,8 +132,15 @@ const handleSaveConfig = (config) => {
       <div class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
         <img :src="currentStream.status === 'Online' ? (liveImageSrc || `https://via.placeholder.com/1920x1080/000000/3b82f6?text=WAITING+FOR+STREAM`) : `https://via.placeholder.com/1920x1080/000000/000000?text=.`" 
              class="w-100 h-100 object-fit-contain" 
+             ref="streamImg"
              alt="Main Stream" />
         
+        <!-- AI Overlay Canvas -->
+        <canvas ref="overlayCanvas" 
+                class="position-absolute pointer-events-none"
+                style="pointer-events: none; z-index: 10;">
+        </canvas>
+
         <!-- Offline Overlay -->
         <div v-if="currentStream.status !== 'Online'" 
              class="position-absolute top-50 start-50 translate-middle d-flex flex-column align-items-center text-secondary opacity-50">

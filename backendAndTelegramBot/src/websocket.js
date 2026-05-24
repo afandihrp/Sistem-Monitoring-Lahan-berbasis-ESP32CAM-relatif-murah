@@ -1,6 +1,7 @@
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const { logEvent, getLogs } = require('./services/logger');
 const { sendMotionAlert } = require('./services/telegram');
 
@@ -11,6 +12,54 @@ const CAMERA_API_KEY = 'momo_gemoy_api_key_123';
 
 // Track connected camera devices
 const devices = new Map();
+
+/**
+ * Helper to call local Python AI for real-time stream detection (JSON only)
+ */
+function detectStreamAI(imageBuffer) {
+  return new Promise((resolve, reject) => {
+    const boundary = '----StreamBoundary' + Date.now();
+    const header = `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="frame.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`;
+    const footer = `\r\n--${boundary}--\r\n`;
+    
+    const bodyBuffer = Buffer.concat([
+      Buffer.from(header, 'utf8'),
+      imageBuffer,
+      Buffer.from(footer, 'utf8')
+    ]);
+    
+    const options = {
+      hostname: '127.0.0.1',
+      port: 5000,
+      path: '/detectJSON',
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': bodyBuffer.length
+      },
+      timeout: 2000 
+    };
+    
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) { reject(e); }
+        } else {
+          reject(new Error(`AI Status ${res.statusCode}`));
+        }
+      });
+    });
+    
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('AI Timeout')); });
+    req.write(bodyBuffer);
+    req.end();
+  });
+}
 
 function heartbeat() {
   this.isAlive = true;
@@ -108,8 +157,35 @@ function initWebSocket(server) {
       }
 
       if (isBinary && isCamera) {
-        // Broadcast binary camera frames ONLY to Kiosks that subscribed to THIS camera
         const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
+        const device = devices.get(deviceId);
+
+        // --- PHASE 2: AI SAMPLING (1 FPS) ---
+        const now = Date.now();
+        if (device && (!device.lastAiDetectionTime || now - device.lastAiDetectionTime >= 1000)) {
+          device.lastAiDetectionTime = now;
+          
+          detectStreamAI(message).then(result => {
+            if (result && result.status === 'success') {
+              const boxPayload = JSON.stringify({
+                type: 'stream_boxes',
+                deviceId: deviceId,
+                boxes: result.koordinat_kotak
+              });
+              
+              wss.clients.forEach((client) => {
+                if (client.readyState === 1 && !client.path.startsWith('/camera') && client.activeDeviceId === deviceId) {
+                  client.send(boxPayload);
+                }
+              });
+            }
+          }).catch(err => {
+            // Silently fail AI stream sampling to avoid spamming logs
+          });
+        }
+        // ------------------------------------
+
+        // Broadcast binary camera frames ONLY to Kiosks that subscribed to THIS camera
         wss.clients.forEach((client) => {
           if (client.readyState === 1 && !client.path.startsWith('/camera') && client.activeDeviceId === deviceId) {
             client.send(message, { binary: true });

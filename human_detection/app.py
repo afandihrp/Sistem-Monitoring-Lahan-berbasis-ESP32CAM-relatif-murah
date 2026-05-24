@@ -206,6 +206,45 @@ def check_person():
             
         return Response(generate(), mimetype=f'multipart/form-data; boundary={boundary}')
 
+@app.route('/detectJSON', methods=['POST'])
+def detect_json():
+    """
+    Endpoint ringan khusus untuk streaming: 
+    Hanya mengembalikan JSON koordinat, tanpa proses menggambar/encoding gambar.
+    """
+    with process_lock:
+        if 'image' not in request.files:
+            return jsonify({"status": "error", "message": "Key 'image' tidak ditemukan"}), 400
+        
+        file = request.files['image']
+        img_bytes = file.read()
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return jsonify({"status": "error", "message": "File gambar korup"}), 400
+
+        # Downscale jika perlu (sama dengan check_person)
+        height, width = img.shape[:2]
+        max_dim = 640
+        if max(height, width) > max_dim:
+            scale = max_dim / max(height, width)
+            img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR)
+
+        # Jalankan inferensi
+        koordinat_kotak = run_tflite_inference(img)
+        
+        # Bersihkan RAM segera
+        del img_bytes, nparr, img
+        gc.collect()
+
+        return jsonify({
+            "status": "success",
+            "ada_orang": len(koordinat_kotak) > 0,
+            "jumlah_orang": len(koordinat_kotak),
+            "koordinat_kotak": koordinat_kotak
+        })
+
 if __name__ == '__main__':
     from waitress import serve
     print("\n[INFO] Menjalankan server menggunakan Waitress di port 5000...")

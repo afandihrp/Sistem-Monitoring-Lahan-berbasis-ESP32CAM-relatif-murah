@@ -15,7 +15,9 @@ let ws = null
 
 const devices = ref([])
 const liveImageSrc = ref('')
+const liveBoxes = ref([])
 let lastObjectUrl = null
+let boxClearTimeout = null
 
 const currentStreamIndex = ref(0)
 const currentStream = computed(() => devices.value[currentStreamIndex.value] || { name: 'No Active Stream', ip: 'N/A', status: 'Offline' })
@@ -63,6 +65,16 @@ const connectWS = () => {
         }
       } else if (data.type === 'device_list') {
         devices.value = data.devices
+      } else if (data.type === 'stream_boxes') {
+        if (data.deviceId === currentStream.value.id) {
+          liveBoxes.value = data.boxes
+          
+          // Clear boxes after 2 seconds of inactivity
+          if (boxClearTimeout) clearTimeout(boxClearTimeout)
+          boxClearTimeout = setTimeout(() => {
+            liveBoxes.value = []
+          }, 2000)
+        }
       } else if (data.type === 'motion_event') {
         events.value.unshift({
           id: Date.now(),
@@ -198,10 +210,11 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
     <main class="row g-0 flex-grow-1" id="main-layout">
       <StreamView 
         :currentStream="currentStream" 
-        :liveImageSrc="liveImageSrc" 
+        :liveImageSrc="liveImageSrc"
+        :liveBoxes="liveBoxes"
         :windowWidth="windowWidth"
-        @triggerCameraAction="triggerCameraAction"
-        @triggerServoAction="triggerServoAction"
+        @triggerCameraAction="handleCameraAction"
+        @triggerServoAction="handleServoAction"
         @saveServoConfig="handleSaveServoConfig"
       />
 
