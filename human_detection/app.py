@@ -14,80 +14,84 @@ process_lock = threading.Lock()
 MODEL_PATH = "yolov8n_float32.tflite" 
 
 def run_tflite_inference(img_bgr):
-    """
-    Memuat interpreter TFLite secara on-demand berbasis arsitektur sistem (PC/Pi),
-    melakukan preprocessing gambar, menjalankan inferensi, dan mengembalikan koordinat 'orang'.
-    """
-    # === DETEKSI OTOMATIS ARSITEKTUR SYSTEM ===
     try:
-        # Digunakan di Raspberry Pi (Ringan & Hemat RAM)
         import tflite_runtime.interpreter as tflite
         print("[INFO] Menggunakan library: tflite_runtime (Mode Raspberry Pi)")
     except ImportError:
-        # Digunakan di Laptop / PC Desktop (Karena tflite_runtime tidak mendukung x86_64 secara default)
         from tensorflow import lite as tflite
         print("[INFO] Menggunakan library: tensorflow.lite (Mode PC Desktop)")
-    # ==========================================
 
-    # 1. Load Model On-Demand
     interpreter = tflite.Interpreter(model_path=MODEL_PATH)
     interpreter.allocate_tensors()
 
-    # 2. Ambil detail input & output tensor
-    input_details = interpreter.get_input_details()
+    input_details  = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
-    
-    # Ambil ukuran input yang diminta model (biasanya [1, 640, 640, 3] atau [1, 320, 320, 3])
-    input_shape = input_details[0]['shape']
-    input_height, input_width = input_shape[1], input_shape[2]
 
-    # 3. Preprocessing Gambar (Resize & Normalisasi sesuai kebutuhan YOLOv8)
-    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    input_shape  = input_details[0]['shape']
+    input_height = input_shape[1]
+    input_width  = input_shape[2]
+    input_dtype  = input_details[0]['dtype']
+
+    # Preprocessing
+    img_rgb     = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
     img_resized = cv2.resize(img_rgb, (input_width, input_height), interpolation=cv2.INTER_LINEAR)
-    img_input = np.expand_dims(img_resized, axis=0).astype(np.float32) / 255.0
+    img_input   = np.expand_dims(img_resized, axis=0)
 
-    # 4. Jalankan Inferensi
+    if input_dtype == np.float32:
+        img_input = img_input.astype(np.float32) / 255.0
+    else:
+        img_input = img_input.astype(input_dtype)
+
+    # Inferensi
     interpreter.set_tensor(input_details[0]['index'], img_input)
     interpreter.invoke()
-    
-    # 5. Ambil Output
+
     output_data = interpreter.get_tensor(output_details[0]['index'])
     output_data = np.squeeze(output_data)
-    
-    # Transpose format output YOLOv8 TFLite dari (84, 8400) menjadi (8400, 84)
+
+    # Transpose: (84, 8400) → (8400, 84)
     if output_data.shape[0] < output_data.shape[1]:
         output_data = output_data.T
 
-    boxes = []
+    boxes       = []
     confidences = []
-    
-    # Faktor skala untuk mengembalikan koordinat ke ukuran asli gambar BGR
-    orig_h, orig_w = img_bgr.shape[:2]
-    x_scale = orig_w / input_width
-    y_scale = orig_h / input_height
 
-    # 6. Parsing Output (Mencari Class 0 = Person)
-    # Diturunkan ke 0.25 agar TFLite lebih sensitif mendeteksi orang di Pi/PC
-    CONF_THRESHOLD = 0.25  
-    
+    orig_h, orig_w = img_bgr.shape[:2]
+    CONF_THRESHOLD = 0.25
+    max_score_seen = 0.0
+
     for row in output_data:
-        class_conf = float(row[4]) # Index 4 adalah kelas 'person' di COCO dataset
-        if class_conf > CONF_THRESHOLD:
-            xc, yc, w, h = row[0], row[1], row[2], row[3]
-            
-            # Ubah dari Center-XYWH ke XYXY (Top-Left, Bottom-Right)
-            x1 = int((xc - w / 2) * x_scale)
-            y1 = int((yc - h / 2) * y_scale)
-            x2 = int((xc + w / 2) * x_scale)
-            y2 = int((yc + h / 2) * y_scale)
-            
+        # ✅ FIX BUG #1: Class scores ada di index 4 ke atas
+        class_scores = row[4:]
+        class_id     = int(np.argmax(class_scores))
+        class_conf   = float(class_scores[class_id])
+
+        if class_conf > max_score_seen:
+            max_score_seen = class_conf
+
+        # Hanya deteksi class 0 = 'person'
+        if class_id == 0 and class_conf > CONF_THRESHOLD:
+            xc, yc, w, h = float(row[0]), float(row[1]), float(row[2]), float(row[3])
+
+            # ✅ FIX BUG #2: Koordinat normalized (0–1) langsung ke pixel asli
+            x1 = int((xc - w / 2) * orig_w)
+            y1 = int((yc - h / 2) * orig_h)
+            x2 = int((xc + w / 2) * orig_w)
+            y2 = int((yc + h / 2) * orig_h)
+
             boxes.append([x1, y1, x2, y2])
             confidences.append(class_conf)
 
-    # 7. NMS (Non-Maximum Suppression) untuk menghapus kotak bertumpuk
+    print(f"[DEBUG] Skor tertinggi: {round(max_score_seen, 4)}")
+
+    # NMS
     final_boxes = []
     if len(boxes) > 0:
-        indices = cv2.dnn.NMSBoxes(boxes, confidences, score_threshold=CONF_THRESHOLD, nms_threshold=0.4)
+        indices = cv2.dnn.NMSBoxes(
+            boxes, confidences,
+            score_threshold=CONF_THRESHOLD,
+            nms_threshold=0.45
+        )
         if len(indices) > 0:
             for i in indices.flatten():
                 final_boxes.append({
@@ -95,10 +99,9 @@ def run_tflite_inference(img_bgr):
                     "posisi": boxes[i]
                 })
 
-    print(f"[DEBUG TFLITE] Mentah ditemukan: {len(boxes)} baris -> Pasca NMS: {len(final_boxes)}")
+    print(f"[DEBUG] Mentah: {len(boxes)} → Pasca NMS: {len(final_boxes)}")
 
-    # Bersihkan memori interpreter secara paksa
-    del interpreter, input_details, output_details, img_rgb, img_resized, img_input, output_data
+    del interpreter, img_rgb, img_resized, img_input, output_data
     return final_boxes
 
 
@@ -141,22 +144,28 @@ def check_person():
             x1, y1, x2, y2 = box["posisi"]
             conf = box["confidence"]
             
-            # Clamp koordinat agar tidak offset keluar dari resolusi gambar asli
+            # Clamp koordinat agar tidak offset keluar dari batas piksel gambar asli
             x1 = max(0, min(x1, width - 1))
             y1 = max(0, min(y1, height - 1))
             x2 = max(0, min(x2, width - 1))
             y2 = max(0, min(y2, height - 1))
             
-            # 1. Gambar Bounding Box Merah (Ketebalan dinaikkan ke 3 agar mencolok)
+            # 1. Gambar Bounding Box Merah (Ketebalan = 3 piksel)
             cv2.rectangle(img_hasil, (x1, y1), (x2, y2), (0, 0, 255), 3)
             
-            # 2. Gambar Background Banner Merah Solid untuk Text Label
+            # 2. Hitung ukuran text label secara dinamis
             label = f"Orang: {int(conf * 100)}%"
             (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-            cv2.rectangle(img_hasil, (x1, y1 - text_h - 10), (x1 + text_w, y1), (0, 0, 255), cv2.FILLED)
             
-            # 3. Tulis Teks Putih di atas Banner Merah
-            cv2.putText(img_hasil, label, (x1, y1 - 5),
+            # Amankan posisi Y banner agar tidak offset ke atas jika objek berada mepet di tepi atas layar
+            y_banner_top = max(y1 - text_h - 10, 0)
+            y_banner_bottom = max(y1, text_h + 10)
+            
+            # 3. Gambar Background Banner Merah Solid untuk Text Label
+            cv2.rectangle(img_hasil, (x1, y_banner_top), (x1 + text_w + 4, y_banner_bottom), (0, 0, 255), cv2.FILLED)
+            
+            # 4. Tulis Teks Putih di atas Banner Merah
+            cv2.putText(img_hasil, label, (x1 + 2, y_banner_bottom - 4),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
         # ===========================================================================
 
