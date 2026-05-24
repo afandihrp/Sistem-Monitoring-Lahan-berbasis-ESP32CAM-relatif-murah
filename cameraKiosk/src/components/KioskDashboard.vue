@@ -213,8 +213,8 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
         :liveImageSrc="liveImageSrc"
         :liveBoxes="liveBoxes"
         :windowWidth="windowWidth"
-        @triggerCameraAction="handleCameraAction"
-        @triggerServoAction="handleServoAction"
+        @triggerCameraAction="triggerCameraAction"
+        @triggerServoAction="triggerServoAction"
         @saveServoConfig="handleSaveServoConfig"
       />
 
