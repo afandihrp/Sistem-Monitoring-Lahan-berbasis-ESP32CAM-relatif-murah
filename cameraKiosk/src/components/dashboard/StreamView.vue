@@ -42,24 +42,14 @@ const drawBoxes = () => {
 
   if (!props.liveBoxes || props.liveBoxes.length === 0) return
 
-  // Determine scale (assuming original AI detection was on 640x480 or similar)
-  // But wait, the AI server returns absolute pixels relative to the image sent.
-  // We need to know the original image size to scale correctly.
-  // The ESP32-CAM HVGA is 480x320.
-  const origW = 480
-  const origH = 320
-  
-  const scaleX = canvas.width / origW
-  const scaleY = canvas.height / origH
-
   props.liveBoxes.forEach(box => {
-    const [x1, y1, x2, y2] = box.posisi
+    const [x1_norm, y1_norm, x2_norm, y2_norm] = box.posisi
     const conf = box.confidence
 
-    const bx1 = x1 * scaleX
-    const by1 = y1 * scaleY
-    const bw = (x2 - x1) * scaleX
-    const bh = (y2 - y1) * scaleY
+    const bx1 = x1_norm * canvas.width
+    const by1 = y1_norm * canvas.height
+    const bw = (x2_norm - x1_norm) * canvas.width
+    const bh = (y2_norm - y1_norm) * canvas.height
 
     // Draw Box
     ctx.strokeStyle = '#ff0000'

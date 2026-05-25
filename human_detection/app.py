@@ -13,7 +13,7 @@ MODEL_PATH = "yolov8n_int8.tflite"
 import ai_edge_litert.interpreter as tflite
 print("[INFO] Menggunakan library: ai_edge_litert")
 
-interpreter = tflite.Interpreter(model_path=MODEL_PATH, num_threads=4)
+interpreter = tflite.Interpreter(model_path=MODEL_PATH, num_threads=16)
 interpreter.allocate_tensors()
 
 input_details  = interpreter.get_input_details()
@@ -92,9 +92,15 @@ def run_tflite_inference(img_bgr):
         )
         if len(indices) > 0:
             for i in indices.flatten():
+                x1, y1, x2, y2 = boxes[i]
                 final_boxes.append({
                     "confidence": round(confidences[i], 2),
-                    "posisi": boxes[i]
+                    "posisi": [
+                        round(float(x1 / orig_w), 4),
+                        round(float(y1 / orig_h), 4),
+                        round(float(x2 / orig_w), 4),
+                        round(float(y2 / orig_h), 4)
+                    ]
                 })
 
     print(f"[DEBUG] Mentah: {len(boxes)} → Pasca NMS: {len(final_boxes)}")
@@ -160,8 +166,13 @@ async def handle_client(websocket, path=None):
                 if annotate:
                     img_hasil = img.copy()
                     for box in koordinat_kotak:
-                        x1, y1, x2, y2 = box["posisi"]
+                        x1_norm, y1_norm, x2_norm, y2_norm = box["posisi"]
                         conf = box["confidence"]
+
+                        x1 = int(x1_norm * width)
+                        y1 = int(y1_norm * height)
+                        x2 = int(x2_norm * width)
+                        y2 = int(y2_norm * height)
 
                         x1 = max(0, min(x1, width - 1))
                         y1 = max(0, min(y1, height - 1))
