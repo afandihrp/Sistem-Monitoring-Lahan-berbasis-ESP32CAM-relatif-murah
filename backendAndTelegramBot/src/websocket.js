@@ -387,7 +387,8 @@ function initWebSocket(server) {
   
   const aiPollInterval = setInterval(() => {
     devices.forEach((device, deviceId) => {
-      if (device.status === 'Online' && device.latestFrame && !device.isAiProcessing) {
+      // Only run AI stream detection for the globally active camera stream to save CPU
+      if (deviceId === globalActiveDeviceId && device.status === 'Online' && device.latestFrame && !device.isAiProcessing) {
         const frameToProcess = device.latestFrame;
         device.latestFrame = null; // Clear so we don't repeat the same frame
         device.isAiProcessing = true;
@@ -401,8 +402,9 @@ function initWebSocket(server) {
               boxes: result.koordinat_kotak
             });
             
+            // Broadcast boxes to ALL connected kiosks
             wss.clients.forEach((client) => {
-              if (client.readyState === 1 && !client.path.startsWith('/camera') && client.activeDeviceId === deviceId) {
+              if (client.readyState === 1 && !client.path.startsWith('/camera')) {
                 client.send(boxPayload);
               }
             });
@@ -427,7 +429,7 @@ function initWebSocket(server) {
 
   wss.on('close', function close() {
     clearInterval(interval);
-    // clearInterval(aiPollInterval);
+    clearInterval(aiPollInterval);
   });
 
   return wss;
