@@ -4,108 +4,13 @@ import json
 import cv2
 import numpy as np
 import gc
-from datetime import datetime
 
-# Tentukan path ke file model TFLite Anda
-MODEL_PATH = "yolov8n_int8.tflite"
+import config
+from detector import PersonDetector
+from annotator import annotate_image
 
-import ai_edge_litert.interpreter as tflite
-print("[INFO] Menggunakan library: ai_edge_litert")
-
-interpreter = tflite.Interpreter(model_path=MODEL_PATH, num_threads=4)
-interpreter.allocate_tensors()
-
-input_details  = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
-
-input_shape  = input_details[0]['shape']
-input_height = input_shape[1]
-input_width  = input_shape[2]
-input_dtype  = input_details[0]['dtype']
-
-def run_tflite_inference(img_bgr):
-    # Preprocessing
-    img_rgb     = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    img_resized = cv2.resize(img_rgb, (input_width, input_height), interpolation=cv2.INTER_LINEAR)
-    img_input   = np.expand_dims(img_resized, axis=0)
-
-    if input_dtype == np.float32:
-        img_input = img_input.astype(np.float32) / 255.0
-    else:
-        img_input = img_input.astype(input_dtype)
-
-    # Inferensi
-    interpreter.set_tensor(input_details[0]['index'], img_input)
-    interpreter.invoke()
-
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-    output_data = np.squeeze(output_data)
-
-    # Transpose: (84, 8400) → (8400, 84)
-    if output_data.shape[0] < output_data.shape[1]:
-        output_data = output_data.T
-
-    orig_h, orig_w = img_bgr.shape[:2]
-    CONF_THRESHOLD = 0.25
-
-    # 1. Ambil class scores (kolom index 4 ke atas)
-    class_scores = output_data[:, 4:]
-    
-    # 2. Cari class dengan score tertinggi untuk setiap bounding box
-    class_ids = np.argmax(class_scores, axis=1)
-    class_confs = class_scores[np.arange(len(class_scores)), class_ids]
-
-    max_score_seen = float(np.max(class_scores)) if class_scores.size > 0 else 0.0
-    # print(f"[DEBUG] Skor tertinggi: {round(max_score_seen, 4)}")
-
-    # 3. Filter hanya untuk class 0 (person) dan confidence > CONF_THRESHOLD
-    mask = (class_ids == 0) & (class_confs > CONF_THRESHOLD)
-    
-    boxes = []
-    confidences = []
-
-    if np.any(mask):
-        matching_rows = output_data[mask]
-        matching_confs = class_confs[mask]
-        
-        xc = matching_rows[:, 0]
-        yc = matching_rows[:, 1]
-        w  = matching_rows[:, 2]
-        h  = matching_rows[:, 3]
-        
-        x1 = ((xc - w / 2) * orig_w).astype(np.int32)
-        y1 = ((yc - h / 2) * orig_h).astype(np.int32)
-        x2 = ((xc + w / 2) * orig_w).astype(np.int32)
-        y2 = ((yc + h / 2) * orig_h).astype(np.int32)
-        
-        boxes = np.column_stack((x1, y1, x2, y2)).tolist()
-        confidences = matching_confs.tolist()
-
-    # NMS
-    final_boxes = []
-    if len(boxes) > 0:
-        indices = cv2.dnn.NMSBoxes(
-            boxes, confidences,
-            score_threshold=CONF_THRESHOLD,
-            nms_threshold=0.45
-        )
-        if len(indices) > 0:
-            for i in indices.flatten():
-                x1, y1, x2, y2 = boxes[i]
-                final_boxes.append({
-                    "confidence": round(confidences[i], 2),
-                    "posisi": [
-                        round(float(x1 / orig_w), 4),
-                        round(float(y1 / orig_h), 4),
-                        round(float(x2 / orig_w), 4),
-                        round(float(y2 / orig_h), 4)
-                    ]
-                })
-
-    # print(f"[DEBUG] Mentah: {len(boxes)} → Pasca NMS: {len(final_boxes)}")
-
-    del img_rgb, img_resized, img_input, output_data
-    return final_boxes
+# Inisialisasi detector secara global (dimuat sekali saat server start)
+detector = PersonDetector()
 
 async def handle_client(websocket, path=None):
     print(f"[INFO] Client connected: {websocket.remote_address}")
@@ -132,7 +37,7 @@ async def handle_client(websocket, path=None):
                         }))
                         continue
 
-                    # Downscale gambar jika terlalu besar
+                    # Downscale gambar jika terlalu besar (maksimal 640px pada sisi terpanjang)
                     height, width = img.shape[:2]
                     max_dim = 640
                     if max(height, width) > max_dim:
@@ -140,44 +45,20 @@ async def handle_client(websocket, path=None):
                         img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR)
                         height, width = img.shape[:2]
 
-                    koordinat_kotak = run_tflite_inference(img)
+                    # Deteksi orang menggunakan subsystem detector
+                    koordinat_kotak = detector.run_inference(img)
                     jumlah_orang = len(koordinat_kotak)
                     ada_orang = jumlah_orang > 0
 
                     if annotate:
-                        img_hasil = img.copy()
-                        for box in koordinat_kotak:
-                            x1_norm, y1_norm, x2_norm, y2_norm = box["posisi"]
-                            conf = box["confidence"]
-
-                            x1 = int(x1_norm * width)
-                            y1 = int(y1_norm * height)
-                            x2 = int(x2_norm * width)
-                            y2 = int(y2_norm * height)
-
-                            x1 = max(0, min(x1, width - 1))
-                            y1 = max(0, min(y1, height - 1))
-                            x2 = max(0, min(x2, width - 1))
-                            y2 = max(0, min(y2, height - 1))
-
-                            # Bounding Box merah
-                            cv2.rectangle(img_hasil, (x1, y1), (x2, y2), (0, 0, 255), 3)
-
-                            # Banner teks label
-                            label = f"Orang: {int(conf * 100)}%"
-                            (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-                            y_banner_top = max(y1 - text_h - 10, 0)
-                            y_banner_bottom = max(y1, text_h + 10)
-
-                            cv2.rectangle(img_hasil, (x1, y_banner_top), (x1 + text_w + 4, y_banner_bottom), (0, 0, 255), cv2.FILLED)
-                            cv2.putText(img_hasil, label, (x1 + 2, y_banner_bottom - 4),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+                        # Anotasi bounding box menggunakan subsystem annotator
+                        img_hasil = annotate_image(img, koordinat_kotak)
 
                         # Encode gambar hasil outlining ke JPEG
                         _, buffer = cv2.imencode('.jpg', img_hasil)
                         img_bytes_out = buffer.tobytes()
 
-                        # Construct binary response
+                        # Konstruksi binary response
                         metadata = {
                             "status": "success",
                             "pesan": "AWAS: Orang terdeteksi!" if ada_orang else "Aman, tidak ada orang.",
@@ -195,7 +76,7 @@ async def handle_client(websocket, path=None):
 
                         del img_hasil, buffer
                     else:
-                        # Non-annotated: send standard JSON response string
+                        # Non-annotated: kirim standard JSON response string
                         response = {
                             "requestId": req_id,
                             "status": "success",
@@ -206,7 +87,7 @@ async def handle_client(websocket, path=None):
                         }
                         await websocket.send(json.dumps(response))
 
-                    # Bersihkan sisa memori RAM
+                    # Bersihkan sisa memori RAM untuk performa optimal di Raspberry Pi
                     del img_bytes, nparr, img
                     gc.collect()
 
@@ -232,8 +113,13 @@ async def handle_client(websocket, path=None):
         print(f"[INFO] Client disconnected: {websocket.remote_address}")
 
 async def main():
-    print("\n[INFO] Menjalankan server WebSockets di port 5000...")
-    async with websockets.serve(handle_client, "0.0.0.0", 5000, max_size=20 * 1024 * 1024):
+    print(f"\n[INFO] Menjalankan server WebSockets di {config.HOST}:{config.PORT}...")
+    async with websockets.serve(
+        handle_client, 
+        config.HOST, 
+        config.PORT, 
+        max_size=config.MAX_WS_SIZE
+    ):
         await asyncio.Future()  # Jalankan selamanya
 
 if __name__ == '__main__':
