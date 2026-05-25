@@ -38,15 +38,10 @@ function createRouter(wss) {
   router.get('/action', (req, res) => {
     const action = req.query.do;
     if (action === 'left' || action === 'right') {
-      const payload = JSON.stringify({ type: 'stream_action', direction: action });
-      wss.clients.forEach((client) => {
-        // WebSocket.OPEN is 1
-        if (client.readyState === 1) {
-          client.send(payload);
-        }
-      });
-      console.log(`Broadcasted action: ${action}`);
-      res.send(`Action ${action} executed`);
+      const { switchActiveStream } = require('./websocket');
+      const newActiveId = switchActiveStream(action);
+      console.log(`Action ${action} executed. New active stream: ${newActiveId}`);
+      res.send(`Action ${action} executed. New active stream: ${newActiveId}`);
     } else {
       res.status(400).send('Invalid action. Use ?do=left or ?do=right');
     }

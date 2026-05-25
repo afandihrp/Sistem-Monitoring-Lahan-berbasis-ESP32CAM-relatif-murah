@@ -10,8 +10,10 @@ const CONFIG_FILE = path.join(__dirname, '../../data/servoConfig.json');
 // Hardcoded API key for ESP32-CAM security
 const CAMERA_API_KEY = 'momo_gemoy_api_key_123';
 
-// Track connected camera devices
+// Track connected camera devices and globally active stream
 const devices = new Map();
+let globalActiveDeviceId = null;
+let wssInstance = null;
 
 /**
  * Helper to call local Python AI for real-time stream detection (JSON only)
@@ -52,6 +54,7 @@ function broadcastDeviceList(wss) {
 
 function initWebSocket(server) {
   const wss = new WebSocketServer({ server });
+  wssInstance = wss;
 
   wss.on('connection', (ws, req) => {
     const isCamera = req.url.startsWith('/camera');
@@ -92,6 +95,19 @@ function initWebSocket(server) {
       });
       broadcastDeviceList(wss);
 
+      // Auto-activate first online camera if none active, or if current active is offline
+      const currentActiveDevice = globalActiveDeviceId ? devices.get(globalActiveDeviceId) : null;
+      if (!globalActiveDeviceId || !currentActiveDevice || currentActiveDevice.status === 'Offline') {
+        globalActiveDeviceId = deviceId;
+        console.log(`[Auto-Activate] Set camera as global active stream: ${globalActiveDeviceId}`);
+        const activeStreamPayload = JSON.stringify({ type: 'active_stream_updated', deviceId: globalActiveDeviceId });
+        wss.clients.forEach((client) => {
+          if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+            client.send(activeStreamPayload);
+          }
+        });
+      }
+
       if (fs.existsSync(CONFIG_FILE)) {
         try {
           const allConfigs = JSON.parse(fs.readFileSync(CONFIG_FILE));
@@ -115,6 +131,11 @@ function initWebSocket(server) {
 
       // Send current AI server connection status immediately
       ws.send(JSON.stringify({ type: 'ai_status', isConnected: aiClient.isConnected }));
+
+      // Send current active stream to the new Kiosk immediately to synchronize
+      if (globalActiveDeviceId) {
+        ws.send(JSON.stringify({ type: 'active_stream_updated', deviceId: globalActiveDeviceId }));
+      }
     }
     
     ws.on('message', (message, isBinary) => {
@@ -128,14 +149,46 @@ function initWebSocket(server) {
 
         if (device) {
           device.latestFrame = message; // Keep updating to the absolute newest frame
+          
+          // Only run AI stream processing for the globally active camera stream
+          if (deviceId === globalActiveDeviceId) {
+            // --- EXPERIMENTAL MAXED-OUT MODE ---
+            // if (!device.isAiProcessing) {
+            //   device.isAiProcessing = true;
+            //   device.latestFrame = null; // Clear frame to prevent repeat
+              
+            //   detectStreamAI(message).then(result => {
+            //     device.isAiProcessing = false;
+            //     if (result && result.status === 'success') {
+            //       const boxPayload = JSON.stringify({
+            //         type: 'stream_boxes',
+            //         deviceId: deviceId,
+            //         boxes: result.koordinat_kotak
+            //       });
+                  
+            //       // Broadcast to ALL kiosks
+            //       wss.clients.forEach((client) => {
+            //         if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+            //           client.send(boxPayload);
+            //         }
+            //       });
+            //     }
+            //   }).catch(err => {
+            //     device.isAiProcessing = false;
+            //   });
+            // }
+            // ------------------------------------
+          }
         }
 
-        // Broadcast binary camera frames ONLY to Kiosks that subscribed to THIS camera
-        wss.clients.forEach((client) => {
-          if (client.readyState === 1 && !client.path.startsWith('/camera') && client.activeDeviceId === deviceId) {
-            client.send(message, { binary: true });
-          }
-        });
+        // Broadcast binary camera frames ONLY for the active camera to ALL kiosks
+        if (deviceId === globalActiveDeviceId) {
+          wss.clients.forEach((client) => {
+            if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+              client.send(message, { binary: true });
+            }
+          });
+        }
       } else if (!isBinary) {
         try {
           const data = JSON.parse(message.toString());
@@ -182,9 +235,19 @@ function initWebSocket(server) {
             // agar gambar yang dilampirkan selalu foto dari event ini, bukan foto lama
 
           } else if (data.type === 'set_active_stream' && !isCamera) {
-            // Kiosk subscribing to a specific camera stream
-            ws.activeDeviceId = data.deviceId;
-            console.log(`Kiosk subscribed to stream: ${data.deviceId}`);
+            // Centralized Active Stream Update
+            if (globalActiveDeviceId !== data.deviceId) {
+              globalActiveDeviceId = data.deviceId;
+              console.log(`Global active stream changed to: ${globalActiveDeviceId}`);
+              
+              // Broadcast stream change to ALL other kiosks
+              const activeStreamPayload = JSON.stringify({ type: 'active_stream_updated', deviceId: globalActiveDeviceId });
+              wss.clients.forEach((client) => {
+                if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                  client.send(activeStreamPayload);
+                }
+              });
+            }
           } else if (data.type === 'servo_control' && !isCamera) {
             // Forward servo control from Kiosk to specific Camera
             const device = devices.get(data.deviceId);
@@ -238,6 +301,25 @@ function initWebSocket(server) {
           device.status = 'Offline';
           device.lastSeen = new Date().toLocaleTimeString();
           console.log(`Camera ${remoteIp} disconnected.`);
+          
+          // Dynamic Auto-Activation Switch if active camera went offline
+          if (deviceId === globalActiveDeviceId) {
+            const onlineDevice = Array.from(devices.values()).find(d => d.status === 'Online');
+            if (onlineDevice) {
+              globalActiveDeviceId = onlineDevice.id;
+              console.log(`[Auto-Activate Switch] Active camera went offline. Switched to: ${globalActiveDeviceId}`);
+            } else {
+              globalActiveDeviceId = null;
+              console.log(`[Auto-Activate Switch] Active camera went offline. No online cameras left.`);
+            }
+            const activeStreamPayload = JSON.stringify({ type: 'active_stream_updated', deviceId: globalActiveDeviceId });
+            wss.clients.forEach((client) => {
+              if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                client.send(activeStreamPayload);
+              }
+            });
+          }
+          
           broadcastDeviceList(wss);
         }
       } else {
@@ -258,6 +340,25 @@ function initWebSocket(server) {
           if (device) {
             device.status = 'Offline';
             device.lastSeen = new Date().toLocaleTimeString();
+            
+            // Dynamic Auto-Activation Switch if active camera went offline
+            if (deviceId === globalActiveDeviceId) {
+              const onlineDevice = Array.from(devices.values()).find(d => d.status === 'Online');
+              if (onlineDevice) {
+                globalActiveDeviceId = onlineDevice.id;
+                console.log(`[Auto-Activate Switch] Active camera timed out. Switched to: ${globalActiveDeviceId}`);
+              } else {
+                globalActiveDeviceId = null;
+                console.log(`[Auto-Activate Switch] Active camera timed out. No online cameras left.`);
+              }
+              const activeStreamPayload = JSON.stringify({ type: 'active_stream_updated', deviceId: globalActiveDeviceId });
+              wss.clients.forEach((client) => {
+                if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                  client.send(activeStreamPayload);
+                }
+              });
+            }
+            
             broadcastDeviceList(wss);
           }
           return ws.terminate();
@@ -282,6 +383,8 @@ function initWebSocket(server) {
   }, 5000);
 
   // Central Polling Task: Decoupled Consumer pulling the newest frame at 1 FPS (1000ms)
+  // (Temporarily disabled for Maxed-Out PC experiment)
+  
   const aiPollInterval = setInterval(() => {
     devices.forEach((device, deviceId) => {
       if (device.status === 'Online' && device.latestFrame && !device.isAiProcessing) {
@@ -310,6 +413,7 @@ function initWebSocket(server) {
       }
     });
   }, 1000);
+  //-----------------------------------------------------
 
   aiClient.onStatusChange((isConnected) => {
     console.log(`[AI Client] Connection status changed. Connected: ${isConnected}`);
@@ -323,7 +427,7 @@ function initWebSocket(server) {
 
   wss.on('close', function close() {
     clearInterval(interval);
-    clearInterval(aiPollInterval);
+    // clearInterval(aiPollInterval);
   });
 
   return wss;
@@ -346,4 +450,32 @@ function getDevices() {
   return devices;
 }
 
-module.exports = { initWebSocket, getDevices, sendCaptureRequest };
+function switchActiveStream(direction) {
+  const deviceList = Array.from(devices.values());
+  if (deviceList.length <= 1) return globalActiveDeviceId;
+
+  let currentIndex = deviceList.findIndex(d => d.id === globalActiveDeviceId);
+  if (currentIndex === -1) currentIndex = 0;
+
+  let nextIndex;
+  if (direction === 'right') {
+    nextIndex = (currentIndex + 1) % deviceList.length;
+  } else {
+    nextIndex = (currentIndex - 1 + deviceList.length) % deviceList.length;
+  }
+
+  globalActiveDeviceId = deviceList[nextIndex].id;
+  console.log(`[SwitchActiveStream] Changed active stream to: ${globalActiveDeviceId} (direction: ${direction})`);
+
+  if (wssInstance) {
+    const activeStreamPayload = JSON.stringify({ type: 'active_stream_updated', deviceId: globalActiveDeviceId });
+    wssInstance.clients.forEach((client) => {
+      if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+        client.send(activeStreamPayload);
+      }
+    });
+  }
+  return globalActiveDeviceId;
+}
+
+module.exports = { initWebSocket, getDevices, sendCaptureRequest, switchActiveStream };

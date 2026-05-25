@@ -13,6 +13,7 @@ setInterval(() => {
 const wsStatus = ref('Offline')
 const aiConnected = ref(false)
 let ws = null
+let pendingActiveStreamId = null
 
 const devices = ref([])
 const liveImageSrc = ref('')
@@ -37,9 +38,6 @@ const connectWS = () => {
   ws.onopen = () => {
     console.log('Connected to WebSocket server')
     wsStatus.value = 'Online'
-    if (currentStream.value && currentStream.value.id) {
-      ws.send(JSON.stringify({ type: 'set_active_stream', deviceId: currentStream.value.id }))
-    }
   }
 
   ws.onclose = () => {
@@ -65,16 +63,29 @@ const connectWS = () => {
 
     try {
       const data = JSON.parse(event.data)
-      if (data.type === 'stream_action') {
-        if (data.direction === 'right') {
-          currentStreamIndex.value = (currentStreamIndex.value + 1) % devices.value.length
-        } else if (data.direction === 'left') {
-          currentStreamIndex.value = (currentStreamIndex.value - 1 + devices.value.length) % devices.value.length
+      if (data.type === 'active_stream_updated') {
+        const index = devices.value.findIndex(d => d.id === data.deviceId)
+        if (index !== -1) {
+          if (currentStreamIndex.value !== index) {
+            currentStreamIndex.value = index
+          }
+          pendingActiveStreamId = null
+        } else {
+          pendingActiveStreamId = data.deviceId
         }
       } else if (data.type === 'ai_status') {
         aiConnected.value = data.isConnected
       } else if (data.type === 'device_list') {
         devices.value = data.devices
+        if (pendingActiveStreamId) {
+          const index = devices.value.findIndex(d => d.id === pendingActiveStreamId)
+          if (index !== -1) {
+            if (currentStreamIndex.value !== index) {
+              currentStreamIndex.value = index
+            }
+            pendingActiveStreamId = null
+          }
+        }
       } else if (data.type === 'stream_boxes') {
         if (data.deviceId === currentStream.value.id) {
           liveBoxes.value = data.boxes
@@ -118,12 +129,6 @@ const connectWS = () => {
     }
   }
 }
-
-watch(currentStream, (newStream) => {
-  if (ws && ws.readyState === 1 && newStream && newStream.id) {
-    ws.send(JSON.stringify({ type: 'set_active_stream', deviceId: newStream.id }))
-  }
-})
 
 const handleRequestServoConfig = (event) => {
   const { mac } = event.detail;
