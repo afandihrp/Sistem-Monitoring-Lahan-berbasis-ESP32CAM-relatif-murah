@@ -1,9 +1,4 @@
-Saat Ditest di Laptop PC (pc_env):
-Pastikan Anda sudah menginstal full TensorFlow agar fungsi fallback try-except di atas bekerja:
+Saat Ditest di Laptop PC (pc_env) atau Di-deploy ke Raspberry Pi 3 (ai_env):
+Pastikan Anda menggunakan Google LiteRT (ai-edge-litert) yang hemat memori dan sepenuhnya mendukung Python 3.13+:
 
-pip install opencv-python-headless numpy websockets tensorflow
-
-Saat Di-deploy ke Raspberry Pi 3 (ai_env):
-Pastikan Anda mengabaikan full TensorFlow (karena terlalu berat) dan menggunakan runtime ringkas bawaan Pi:
-
-pip install opencv-python-headless "numpy<2" websockets tflite-runtime
+pip install opencv-python-headless numpy websockets ai-edge-litert

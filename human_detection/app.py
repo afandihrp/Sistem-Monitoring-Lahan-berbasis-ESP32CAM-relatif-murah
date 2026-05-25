@@ -10,12 +10,8 @@ from datetime import datetime
 # Tentukan path ke file model TFLite Anda
 MODEL_PATH = "yolov8n_int8.tflite"
 
-try:
-    import tflite_runtime.interpreter as tflite
-    print("[INFO] Menggunakan library: tflite_runtime (Mode Raspberry Pi)")
-except ImportError:
-    from tensorflow import lite as tflite
-    print("[INFO] Menggunakan library: tensorflow.lite (Mode PC Desktop)")
+import ai_edge_litert.interpreter as tflite
+print("[INFO] Menggunakan library: ai_edge_litert")
 
 interpreter = tflite.Interpreter(model_path=MODEL_PATH, num_threads=4)
 interpreter.allocate_tensors()
