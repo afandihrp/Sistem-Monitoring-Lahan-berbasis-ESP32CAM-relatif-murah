@@ -46,14 +46,50 @@ const drawBoxes = () => {
 
   if (!props.liveBoxes || props.liveBoxes.length === 0) return
 
+  // Calculate the exact displayed bounds of the image inside the <img> element (accounting for object-fit: contain)
+  const getDisplayImageRect = () => {
+    const naturalWidth = img.naturalWidth;
+    const naturalHeight = img.naturalHeight;
+    const clientWidth = img.clientWidth;
+    const clientHeight = img.clientHeight;
+
+    if (!naturalWidth || !naturalHeight || !clientWidth || !clientHeight) {
+      return { left: 0, top: 0, width: clientWidth, height: clientHeight };
+    }
+
+    const imageRatio = naturalWidth / naturalHeight;
+    const elementRatio = clientWidth / clientHeight;
+
+    let width, height, left, top;
+
+    if (elementRatio > imageRatio) {
+      // The element is wider than the image: height matches element, width is scaled
+      height = clientHeight;
+      width = height * imageRatio;
+      top = 0;
+      left = (clientWidth - width) / 2;
+    } else {
+      // The element is taller than the image: width matches element, height is scaled
+      width = clientWidth;
+      height = width / imageRatio;
+      left = 0;
+      top = (clientHeight - height) / 2;
+    }
+
+    return { left, top, width, height };
+  }
+
+  const rect = getDisplayImageRect();
+
   props.liveBoxes.forEach(box => {
     const [x1_norm, y1_norm, x2_norm, y2_norm] = box.posisi
     const conf = box.confidence
 
-    const bx1 = x1_norm * canvas.width
-    const by1 = y1_norm * canvas.height
-    const bw = (x2_norm - x1_norm) * canvas.width
-    const bh = (y2_norm - y1_norm) * canvas.height
+    // Scale and shift coordinates relative to the actual displayed camera feeds (excluding black bars)
+    const bx1 = rect.left + x1_norm * rect.width
+    const by1 = rect.top + y1_norm * rect.height
+    const bw = (x2_norm - x1_norm) * rect.width
+    const bh = (y2_norm - y1_norm) * rect.height
 
     // Draw Box
     ctx.strokeStyle = '#ff0000'
