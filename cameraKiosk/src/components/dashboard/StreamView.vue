@@ -144,7 +144,7 @@ const handleSaveConfig = (config) => {
       </div>
     </section>
 
-    <!-- CONTROLS PANEL: Visible on all viewports for full PTZ and View Mode functionality -->
+    <!-- CONTROLS PANEL: Always visible, dynamically collapses view mode controls on desktop (>1000px) -->
     <div class="controls-panel bg-slate-800 border-bottom border-slate-700 p-3">
       <div class="d-flex flex-column gap-4">
         <!-- Camera Grid Controls -->
@@ -166,8 +166,8 @@ const handleSaveConfig = (config) => {
             </div>
           </div>
 
-          <!-- View Mode Toggle -->
-          <div class="col-md-6 d-flex flex-column gap-2">
+          <!-- View Mode Toggle (Only visible and controllable on mobile screens) -->
+          <div v-show="windowWidth <= 1000" class="col-md-6 d-flex flex-column gap-2">
             <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">View Mode</label>
             <div class="d-flex gap-2">
               <button @click="emit('setViewMode', 'single')" 
@@ -298,7 +298,9 @@ const handleSaveConfig = (config) => {
 /* --- DESKTOP --- */
 @media (min-width: 1001px) {
   .stream-section {
-    height: 100%;
+    flex-grow: 1;
+    min-height: 0;
+    height: 0; /* Let flexbox allocate height dynamically without page overflow */
   }
 }
 
