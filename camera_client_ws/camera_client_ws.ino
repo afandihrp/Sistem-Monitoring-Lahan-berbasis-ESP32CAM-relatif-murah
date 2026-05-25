@@ -265,13 +265,12 @@ void setup() {
   
   Serial.printf("Resolved gateway.local to: %s\n", serverIP.toString().c_str());
 
-  // Get MAC address and send it as custom headers
+  // Get MAC address and construct connection path with query parameters
   String mac = WiFi.macAddress();
-  String headers = "X-MAC-Address: " + mac + "\r\nX-API-Key: " + String(apiKey);
-  webSocket.setExtraHeaders(headers.c_str());
+  String path = "/camera?mac=" + mac + "&apiKey=" + String(apiKey);
 
-  // Connect to WebSocket using the resolved IP
-  webSocket.beginSSL(serverIP.toString().c_str(), 3000, "/camera", "", "");
+  // Connect to WebSocket using the resolved IP and query string path
+  webSocket.beginSSL(serverIP.toString().c_str(), 3000, path.c_str(), "", "");
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000);
 }

@@ -59,8 +59,11 @@ function initWebSocket(server) {
   wss.on('connection', (ws, req) => {
     const isCamera = req.url.startsWith('/camera');
     const remoteIp = req.socket.remoteAddress.replace('::ffff:', '');
-    const macAddress = req.headers['x-mac-address'] || 'Unknown MAC';
-    const apiKey = req.headers['x-api-key'];
+    
+    // Parse query parameters from request URL
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const macAddress = url.searchParams.get('mac') || 'Unknown MAC';
+    const apiKey = url.searchParams.get('apiKey');
     
     console.log(`Connection attempt: URL=${req.url}, isCamera=${isCamera}, IP=${remoteIp}`);
     
@@ -414,7 +417,7 @@ function initWebSocket(server) {
         });
       }
     });
-  }, 1000);
+  }, 100);
   //-----------------------------------------------------
 
   aiClient.onStatusChange((isConnected) => {
