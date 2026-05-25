@@ -1,6 +1,6 @@
 # Configuration settings for the human detection subsystem
 
-MODEL_PATH = "yolov8n_int8.tflite"
+MODEL_PATH = "yolo11n_int8.tflite"
 
 # Detection and NMS Hyperparameters
 CONF_THRESHOLD = 0.25
