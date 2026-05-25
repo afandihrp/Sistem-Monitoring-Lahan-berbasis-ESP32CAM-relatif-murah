@@ -18,6 +18,18 @@ class PersonDetector:
         self.input_width = self.input_shape[2]
         self.input_dtype = self.input_details[0]['dtype']
 
+        # Inspeksi dimensi output untuk auto-verifikasi model (80-class vs 1-class)
+        output_shape = self.output_details[0]['shape']
+        # YOLOv8 output tensor biasanya berdimensi [1, channels, boxes] (misal: [1, 84, 8400] atau [1, 5, 8400])
+        # channels mewakili 4 koordinat box + jumlah class
+        num_channels = output_shape[1] if output_shape[1] < output_shape[2] else output_shape[2]
+        num_classes = num_channels - 4
+        
+        if num_classes == 1:
+            print(f"[INFO] Loaded model output channels: {num_channels} (Detected Person-Only model)")
+        else:
+            print(f"[INFO] Loaded model output channels: {num_channels} (Detected {num_classes}-class COCO model)")
+
     def run_inference(self, img_bgr):
         # Preprocessing
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
