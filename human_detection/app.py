@@ -13,7 +13,7 @@ MODEL_PATH = "yolov8n_int8.tflite"
 import ai_edge_litert.interpreter as tflite
 print("[INFO] Menggunakan library: ai_edge_litert")
 
-interpreter = tflite.Interpreter(model_path=MODEL_PATH, num_threads=16)
+interpreter = tflite.Interpreter(model_path=MODEL_PATH, num_threads=4)
 interpreter.allocate_tensors()
 
 input_details  = interpreter.get_input_details()
@@ -57,7 +57,7 @@ def run_tflite_inference(img_bgr):
     class_confs = class_scores[np.arange(len(class_scores)), class_ids]
 
     max_score_seen = float(np.max(class_scores)) if class_scores.size > 0 else 0.0
-    print(f"[DEBUG] Skor tertinggi: {round(max_score_seen, 4)}")
+    # print(f"[DEBUG] Skor tertinggi: {round(max_score_seen, 4)}")
 
     # 3. Filter hanya untuk class 0 (person) dan confidence > CONF_THRESHOLD
     mask = (class_ids == 0) & (class_confs > CONF_THRESHOLD)
@@ -103,7 +103,7 @@ def run_tflite_inference(img_bgr):
                     ]
                 })
 
-    print(f"[DEBUG] Mentah: {len(boxes)} → Pasca NMS: {len(final_boxes)}")
+    # print(f"[DEBUG] Mentah: {len(boxes)} → Pasca NMS: {len(final_boxes)}")
 
     del img_rgb, img_resized, img_input, output_data
     return final_boxes
@@ -112,7 +112,7 @@ async def handle_client(websocket, path=None):
     print(f"[INFO] Client connected: {websocket.remote_address}")
     try:
         async for message in websocket:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Incoming request received over WebSocket")
+            # print(f"[{datetime.now().strftime('%H:%M:%S')}] Incoming request received over WebSocket")
             try:
                 data = json.loads(message)
                 req_id = data.get("requestId")
@@ -148,7 +148,7 @@ async def handle_client(websocket, path=None):
                     img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR)
                     height, width = img.shape[:2]
 
-                print("[INFO] Menjalankan inferensi TFLite...")
+                # print("[INFO] Menjalankan inferensi TFLite...")
                 koordinat_kotak = run_tflite_inference(img)
                 jumlah_orang = len(koordinat_kotak)
                 ada_orang = jumlah_orang > 0
@@ -205,7 +205,7 @@ async def handle_client(websocket, path=None):
                 # Bersihkan sisa memori RAM
                 del img_bytes, nparr, img
                 gc.collect()
-                print("[INFO] RAM dibersihkan.\n")
+                # print("[INFO] RAM dibersihkan.\n")
 
             except Exception as e:
                 print(f"[ERROR] Gagal memproses request: {e}")
