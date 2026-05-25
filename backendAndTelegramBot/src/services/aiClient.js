@@ -2,8 +2,9 @@ const WebSocket = require('ws');
 
 class AIClient {
   constructor() {
-    // this.url = 'ws://127.0.0.1:5000';
-    this.url = 'ws://projectta.local:5000';
+    this.url = 'ws://127.0.0.1:5000';
+    // this.url = 'ws://projectta.local:5000';
+    // this.url = 'ws://momoy.local:5000';
     this.ws = null;
     this.pendingRequests = new Map();
     this.reconnectTimer = null;
@@ -28,15 +29,34 @@ class AIClient {
       this.notifyStatusChange();
     });
 
-    this.ws.on('message', (data) => {
+    this.ws.on('message', (data, isBinary) => {
       try {
-        const response = JSON.parse(data.toString());
+        let response;
+        if (!isBinary) {
+          // Standard text message (JSON string)
+          response = JSON.parse(data.toString());
+        } else {
+          // Binary message (for annotate = true)
+          const buffer = data;
+          const requestId = buffer.readUInt32BE(0);
+          const jsonLen = buffer.readUInt32BE(4);
+          const jsonString = buffer.toString('utf8', 8, 8 + jsonLen);
+          response = JSON.parse(jsonString);
+          response.requestId = requestId;
+          
+          // Convert the remaining bytes of the buffer (which is the JPEG image) to base64
+          // to maintain complete backward compatibility with the rest of the backend
+          const imgBuffer = buffer.subarray(8 + jsonLen);
+          response.annotated_image = imgBuffer.toString('base64');
+          response.status = 'success';
+        }
+
         const { requestId } = response;
         if (requestId !== undefined && this.pendingRequests.has(requestId)) {
           const { resolve, reject, timeout } = this.pendingRequests.get(requestId);
           clearTimeout(timeout);
           this.pendingRequests.delete(requestId);
-          
+
           if (response.status === 'success') {
             resolve(response);
           } else {
@@ -103,14 +123,15 @@ class AIClient {
       }
 
       const requestId = ++this.requestIdCounter;
-      const base64Image = imageBuffer.toString('base64');
 
-      const payload = JSON.stringify({
-        requestId,
-        type: 'detect',
-        image: base64Image,
-        annotate
-      });
+      // Construct binary payload:
+      // Bytes 0-3: requestId (UInt32BE)
+      // Byte 4: annotate flag (UInt8)
+      // Bytes 5+: raw binary JPEG image buffer
+      const header = Buffer.alloc(5);
+      header.writeUInt32BE(requestId, 0);
+      header.writeUInt8(annotate ? 1 : 0, 4);
+      const payload = Buffer.concat([header, imageBuffer]);
 
       const timeout = setTimeout(() => {
         if (this.pendingRequests.has(requestId)) {
@@ -120,7 +141,7 @@ class AIClient {
       }, timeoutMs);
 
       this.pendingRequests.set(requestId, { resolve, reject, timeout });
-      this.ws.send(payload);
+      this.ws.send(payload, { binary: true });
     });
   }
 }

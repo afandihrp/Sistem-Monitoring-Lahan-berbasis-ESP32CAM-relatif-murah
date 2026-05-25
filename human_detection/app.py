@@ -4,7 +4,6 @@ import json
 import cv2
 import numpy as np
 import gc
-import base64
 from datetime import datetime
 
 # Tentukan path ke file model TFLite Anda
@@ -112,111 +111,122 @@ async def handle_client(websocket, path=None):
     print(f"[INFO] Client connected: {websocket.remote_address}")
     try:
         async for message in websocket:
-            # print(f"[{datetime.now().strftime('%H:%M:%S')}] Incoming request received over WebSocket")
-            try:
-                data = json.loads(message)
-                req_id = data.get("requestId")
-                img_b64 = data.get("image")
-                annotate = data.get("annotate", False)
-
-                if not img_b64:
-                    await websocket.send(json.dumps({
-                        "requestId": req_id,
-                        "status": "error",
-                        "message": "Key 'image' tidak ditemukan di request"
-                    }))
-                    continue
-
-                # Decode gambar dari base64
-                img_bytes = base64.b64decode(img_b64)
-                nparr = np.frombuffer(img_bytes, np.uint8)
-                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-                if img is None:
-                    await websocket.send(json.dumps({
-                        "requestId": req_id,
-                        "status": "error",
-                        "message": "File gambar korup"
-                    }))
-                    continue
-
-                # Downscale gambar jika terlalu besar
-                height, width = img.shape[:2]
-                max_dim = 640
-                if max(height, width) > max_dim:
-                    scale = max_dim / max(height, width)
-                    img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR)
-                    height, width = img.shape[:2]
-
-                # print("[INFO] Menjalankan inferensi TFLite...")
-                koordinat_kotak = run_tflite_inference(img)
-                jumlah_orang = len(koordinat_kotak)
-                ada_orang = jumlah_orang > 0
-
-                response = {
-                    "requestId": req_id,
-                    "status": "success",
-                    "pesan": "AWAS: Orang terdeteksi!" if ada_orang else "Aman, tidak ada orang.",
-                    "ada_orang": ada_orang,
-                    "jumlah_orang": jumlah_orang,
-                    "koordinat_kotak": koordinat_kotak
-                }
-
-                # Jika diminta untuk menggambar bounding box (checkPerson)
-                if annotate:
-                    img_hasil = img.copy()
-                    for box in koordinat_kotak:
-                        x1_norm, y1_norm, x2_norm, y2_norm = box["posisi"]
-                        conf = box["confidence"]
-
-                        x1 = int(x1_norm * width)
-                        y1 = int(y1_norm * height)
-                        x2 = int(x2_norm * width)
-                        y2 = int(y2_norm * height)
-
-                        x1 = max(0, min(x1, width - 1))
-                        y1 = max(0, min(y1, height - 1))
-                        x2 = max(0, min(x2, width - 1))
-                        y2 = max(0, min(y2, height - 1))
-
-                        # Bounding Box merah
-                        cv2.rectangle(img_hasil, (x1, y1), (x2, y2), (0, 0, 255), 3)
-
-                        # Banner teks label
-                        label = f"Orang: {int(conf * 100)}%"
-                        (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-                        y_banner_top = max(y1 - text_h - 10, 0)
-                        y_banner_bottom = max(y1, text_h + 10)
-
-                        cv2.rectangle(img_hasil, (x1, y_banner_top), (x1 + text_w + 4, y_banner_bottom), (0, 0, 255), cv2.FILLED)
-                        cv2.putText(img_hasil, label, (x1 + 2, y_banner_bottom - 4),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
-
-                    # Encode gambar hasil outlining ke JPEG
-                    _, buffer = cv2.imencode('.jpg', img_hasil)
-                    img_bytes_out = buffer.tobytes()
-                    
-                    # Convert to base64
-                    response["annotated_image"] = base64.b64encode(img_bytes_out).decode('utf-8')
-                    del img_hasil, buffer
-
-                await websocket.send(json.dumps(response))
-
-                # Bersihkan sisa memori RAM
-                del img_bytes, nparr, img
-                gc.collect()
-                # print("[INFO] RAM dibersihkan.\n")
-
-            except Exception as e:
-                print(f"[ERROR] Gagal memproses request: {e}")
+            if isinstance(message, bytes):
+                # Binary request (high-performance stream)
                 try:
-                    await websocket.send(json.dumps({
-                        "requestId": req_id if 'req_id' in locals() else None,
-                        "status": "error",
-                        "message": f"Server error: {str(e)}"
-                    }))
-                except:
-                    pass
+                    # Bytes 0-3: request_id (UInt32BE)
+                    # Byte 4: annotate (UInt8)
+                    # Bytes 5+: raw binary JPEG image
+                    req_id = int.from_bytes(message[0:4], byteorder='big')
+                    annotate = message[4] == 1
+                    img_bytes = message[5:]
+
+                    nparr = np.frombuffer(img_bytes, np.uint8)
+                    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+                    if img is None:
+                        await websocket.send(json.dumps({
+                            "requestId": req_id,
+                            "status": "error",
+                            "message": "File gambar korup"
+                        }))
+                        continue
+
+                    # Downscale gambar jika terlalu besar
+                    height, width = img.shape[:2]
+                    max_dim = 640
+                    if max(height, width) > max_dim:
+                        scale = max_dim / max(height, width)
+                        img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR)
+                        height, width = img.shape[:2]
+
+                    koordinat_kotak = run_tflite_inference(img)
+                    jumlah_orang = len(koordinat_kotak)
+                    ada_orang = jumlah_orang > 0
+
+                    if annotate:
+                        img_hasil = img.copy()
+                        for box in koordinat_kotak:
+                            x1_norm, y1_norm, x2_norm, y2_norm = box["posisi"]
+                            conf = box["confidence"]
+
+                            x1 = int(x1_norm * width)
+                            y1 = int(y1_norm * height)
+                            x2 = int(x2_norm * width)
+                            y2 = int(y2_norm * height)
+
+                            x1 = max(0, min(x1, width - 1))
+                            y1 = max(0, min(y1, height - 1))
+                            x2 = max(0, min(x2, width - 1))
+                            y2 = max(0, min(y2, height - 1))
+
+                            # Bounding Box merah
+                            cv2.rectangle(img_hasil, (x1, y1), (x2, y2), (0, 0, 255), 3)
+
+                            # Banner teks label
+                            label = f"Orang: {int(conf * 100)}%"
+                            (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                            y_banner_top = max(y1 - text_h - 10, 0)
+                            y_banner_bottom = max(y1, text_h + 10)
+
+                            cv2.rectangle(img_hasil, (x1, y_banner_top), (x1 + text_w + 4, y_banner_bottom), (0, 0, 255), cv2.FILLED)
+                            cv2.putText(img_hasil, label, (x1 + 2, y_banner_bottom - 4),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+
+                        # Encode gambar hasil outlining ke JPEG
+                        _, buffer = cv2.imencode('.jpg', img_hasil)
+                        img_bytes_out = buffer.tobytes()
+
+                        # Construct binary response
+                        metadata = {
+                            "status": "success",
+                            "pesan": "AWAS: Orang terdeteksi!" if ada_orang else "Aman, tidak ada orang.",
+                            "ada_orang": ada_orang,
+                            "jumlah_orang": jumlah_orang,
+                            "koordinat_kotak": koordinat_kotak
+                        }
+                        metadata_bytes = json.dumps(metadata).encode('utf-8')
+                        json_len = len(metadata_bytes)
+
+                        # Header: req_id (4 bytes) + json_len (4 bytes)
+                        header = req_id.to_bytes(4, byteorder='big') + json_len.to_bytes(4, byteorder='big')
+                        response_bytes = header + metadata_bytes + img_bytes_out
+                        await websocket.send(response_bytes)
+
+                        del img_hasil, buffer
+                    else:
+                        # Non-annotated: send standard JSON response string
+                        response = {
+                            "requestId": req_id,
+                            "status": "success",
+                            "pesan": "AWAS: Orang terdeteksi!" if ada_orang else "Aman, tidak ada orang.",
+                            "ada_orang": ada_orang,
+                            "jumlah_orang": jumlah_orang,
+                            "koordinat_kotak": koordinat_kotak
+                        }
+                        await websocket.send(json.dumps(response))
+
+                    # Bersihkan sisa memori RAM
+                    del img_bytes, nparr, img
+                    gc.collect()
+
+                except Exception as e:
+                    print(f"[ERROR] Gagal memproses binary request: {e}")
+                    try:
+                        await websocket.send(json.dumps({
+                            "requestId": req_id if 'req_id' in locals() else None,
+                            "status": "error",
+                            "message": f"Server error: {str(e)}"
+                        }))
+                    except:
+                        pass
+            else:
+                # Text requests are rejected since the system uses raw binary frames
+                print("[WARNING] Menerima pesan teks tidak terduga, menolak request.")
+                await websocket.send(json.dumps({
+                    "status": "error",
+                    "message": "AI Server strictly operates on high-performance raw binary frames."
+                }))
 
     except websockets.exceptions.ConnectionClosed:
         print(f"[INFO] Client disconnected: {websocket.remote_address}")
