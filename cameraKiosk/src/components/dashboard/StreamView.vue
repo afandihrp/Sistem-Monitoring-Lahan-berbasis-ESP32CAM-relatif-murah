@@ -180,22 +180,20 @@ const handleSaveConfig = (config) => {
       </div>
     </section>
 
-    <!-- CONTROLS PANEL: Always visible, dynamically collapses view mode controls on desktop (>1000px) -->
-    <div class="controls-panel bg-slate-800 border-bottom border-slate-700 p-3">
+    <!-- CONTROLS PANEL: Strictly visible on mobile viewports (<1000px) -->
+    <div v-if="windowWidth <= 1000" class="controls-panel bg-slate-800 border-bottom border-slate-700 p-3">
       <div class="d-flex flex-column gap-4">
         <!-- Camera Grid Controls -->
         <div class="row g-2 align-items-end">
-          <!-- Camera Switch (Only enabled when not in Multiple View) -->
-          <div class="col-md-6 d-flex flex-column gap-2">
+          <!-- Camera Switch (Only visible when not in Multiple View) -->
+          <div v-if="viewMode !== 'multiple'" class="col-md-6 d-flex flex-column gap-2">
             <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Camera Switch</label>
             <div class="d-flex gap-2">
               <button @click="emit('triggerCameraAction', 'left')" 
-                      :disabled="viewMode === 'multiple'"
                       class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
                 <i class="bi bi-chevron-left"></i> Left
               </button>
               <button @click="emit('triggerCameraAction', 'right')" 
-                      :disabled="viewMode === 'multiple'"
                       class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
                 Right <i class="bi bi-chevron-right"></i>
               </button>
@@ -203,7 +201,7 @@ const handleSaveConfig = (config) => {
           </div>
 
           <!-- View Mode Toggle (Only visible and controllable on mobile screens) -->
-          <div v-show="windowWidth <= 1000" class="col-md-6 d-flex flex-column gap-2">
+          <div v-if="windowWidth <= 1000" class="col-md-6 d-flex flex-column gap-2">
             <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">View Mode</label>
             <div class="d-flex gap-2">
               <button @click="emit('setViewMode', 'single')" 
@@ -218,8 +216,8 @@ const handleSaveConfig = (config) => {
           </div>
         </div>
 
-        <!-- Servo Controls (PTZ Slider) -->
-        <div class="d-flex flex-column gap-2">
+        <!-- Servo Controls (PTZ Slider, Only visible when not in Multiple View) -->
+        <div v-if="viewMode !== 'multiple'" class="d-flex flex-column gap-2">
           <div class="d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
               <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Servo (PTZ)</label>
