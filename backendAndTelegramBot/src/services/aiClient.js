@@ -2,9 +2,9 @@ const WebSocket = require('ws');
 
 class AIClient {
   constructor() {
-    this.url = 'ws://127.0.0.1:5000';
+    // this.url = 'ws://127.0.0.1:5000';
     // this.url = 'ws://projectta.local:5000';
-    // this.url = 'ws://momoy.local:5000';
+    this.url = 'ws://momoy.local:5000';
     this.ws = null;
     this.pendingRequests = new Map();
     this.reconnectTimer = null;

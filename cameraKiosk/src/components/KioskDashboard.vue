@@ -18,6 +18,7 @@ let pendingActiveStreamId = null
 const devices = ref([])
 const liveImageSrc = ref('')
 const liveBoxes = ref([])
+const viewMode = ref('single')
 let lastObjectUrl = null
 
 const currentStreamIndex = ref(0)
@@ -38,6 +39,7 @@ const connectWS = () => {
   ws.onopen = () => {
     console.log('Connected to WebSocket server')
     wsStatus.value = 'Online'
+    ws.send(JSON.stringify({ type: 'set_view_mode', mode: viewMode.value }))
   }
 
   ws.onclose = () => {
@@ -87,7 +89,9 @@ const connectWS = () => {
           }
         }
       } else if (data.type === 'stream_boxes') {
-        if (data.deviceId === currentStream.value.id) {
+        if (viewMode.value === 'multiple' && data.deviceId === 'multiple') {
+          liveBoxes.value = data.boxes
+        } else if (viewMode.value === 'single' && data.deviceId === currentStream.value.id) {
           liveBoxes.value = data.boxes
         }
       } else if (data.type === 'motion_event') {
@@ -181,6 +185,13 @@ const triggerServoAction = (value) => {
   }
 }
 
+const handleSetViewMode = (mode) => {
+  viewMode.value = mode
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'set_view_mode', mode }))
+  }
+}
+
 const handleSaveServoConfig = (data) => {
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ 
@@ -222,9 +233,11 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
         :liveImageSrc="liveImageSrc"
         :liveBoxes="visibleBoxes"
         :windowWidth="windowWidth"
+        :viewMode="viewMode"
         @triggerCameraAction="triggerCameraAction"
         @triggerServoAction="triggerServoAction"
         @saveServoConfig="handleSaveServoConfig"
+        @setViewMode="handleSetViewMode"
       />
 
       <aside class="col-lg-2 sidebar-section d-flex flex-column bg-slate-900 border-start border-slate-700">

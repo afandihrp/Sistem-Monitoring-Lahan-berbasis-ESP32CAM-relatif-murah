@@ -18,10 +18,14 @@ const props = defineProps({
   windowWidth: {
     type: Number,
     required: true
+  },
+  viewMode: {
+    type: String,
+    default: 'single'
   }
 })
 
-const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig'])
+const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'setViewMode'])
 const servoValue = ref(90)
 const showConfig = ref(false)
 const overlayCanvas = ref(null)
@@ -140,19 +144,41 @@ const handleSaveConfig = (config) => {
       </div>
     </section>
 
-    <!-- MOBILE CONTROLS: Only visible below 1000px -->
-    <div v-show="windowWidth <= 1000" class="mobile-controls-panel bg-slate-800 border-bottom border-slate-700 p-3">
+    <!-- CONTROLS PANEL: Visible on all viewports for full PTZ and View Mode functionality -->
+    <div class="controls-panel bg-slate-800 border-bottom border-slate-700 p-3">
       <div class="d-flex flex-column gap-4">
-        <!-- Camera Controls -->
-        <div class="d-flex flex-column gap-2">
-          <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Camera Switch</label>
-          <div class="d-flex gap-2">
-            <button @click="emit('triggerCameraAction', 'left')" class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
-              <i class="bi bi-chevron-left"></i> Left
-            </button>
-            <button @click="emit('triggerCameraAction', 'right')" class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
-              Right <i class="bi bi-chevron-right"></i>
-            </button>
+        <!-- Camera Grid Controls -->
+        <div class="row g-2 align-items-end">
+          <!-- Camera Switch (Only enabled when not in Multiple View) -->
+          <div class="col-md-6 d-flex flex-column gap-2">
+            <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Camera Switch</label>
+            <div class="d-flex gap-2">
+              <button @click="emit('triggerCameraAction', 'left')" 
+                      :disabled="viewMode === 'multiple'"
+                      class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
+                <i class="bi bi-chevron-left"></i> Left
+              </button>
+              <button @click="emit('triggerCameraAction', 'right')" 
+                      :disabled="viewMode === 'multiple'"
+                      class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
+                Right <i class="bi bi-chevron-right"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- View Mode Toggle -->
+          <div class="col-md-6 d-flex flex-column gap-2">
+            <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">View Mode</label>
+            <div class="d-flex gap-2">
+              <button @click="emit('setViewMode', 'single')" 
+                      :class="['btn flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2', viewMode === 'single' ? 'btn-primary' : 'btn-outline-primary']">
+                <i class="bi bi-camera-fill"></i> Single View
+              </button>
+              <button @click="emit('setViewMode', 'multiple')" 
+                      :class="['btn flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2', viewMode === 'multiple' ? 'btn-primary' : 'btn-outline-primary']">
+                <i class="bi bi-grid-3x3-gap-fill"></i> Multiple View
+              </button>
+            </div>
           </div>
         </div>
 

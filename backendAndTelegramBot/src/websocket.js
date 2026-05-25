@@ -1,6 +1,7 @@
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 const { aiClient } = require('./services/aiClient');
 const { logEvent, getLogs } = require('./services/logger');
 const { sendMotionAlert } = require('./services/telegram');
@@ -50,6 +51,65 @@ function broadcastDeviceList(wss) {
       client.send(payload);
     }
   });
+}
+
+/**
+ * Stitch JPEG frames based on the number of online devices using sharp
+ */
+async function stitchFrames(onlineDevices) {
+  const count = onlineDevices.length;
+  if (count === 0) return null;
+  if (count === 1) return onlineDevices[0].latestFrame;
+
+  try {
+    if (count === 2) {
+      // Stack 2 JPEGs vertically (Top / Bottom, output: 640x960)
+      const img1 = await sharp(onlineDevices[0].latestFrame).resize(640, 480).toBuffer();
+      const img2 = await sharp(onlineDevices[1].latestFrame).resize(640, 480).toBuffer();
+
+      return await sharp({
+        create: {
+          width: 640,
+          height: 960,
+          channels: 3,
+          background: { r: 0, g: 0, b: 0 }
+        }
+      })
+      .composite([
+        { input: img1, top: 0, left: 0 },
+        { input: img2, top: 480, left: 0 }
+      ])
+      .jpeg()
+      .toBuffer();
+    } else {
+      // 3 or 4 JPEGs in a 2x2 grid (output: 1280x960)
+      const compositeList = [];
+      for (let i = 0; i < Math.min(count, 4); i++) {
+        const dev = onlineDevices[i];
+        if (dev.latestFrame) {
+          const imgResized = await sharp(dev.latestFrame).resize(640, 480).toBuffer();
+          const top = i < 2 ? 0 : 480;
+          const left = i % 2 === 0 ? 0 : 640;
+          compositeList.push({ input: imgResized, top, left });
+        }
+      }
+
+      return await sharp({
+        create: {
+          width: 1280,
+          height: 960,
+          channels: 3,
+          background: { r: 0, g: 0, b: 0 }
+        }
+      })
+      .composite(compositeList)
+      .jpeg()
+      .toBuffer();
+    }
+  } catch (err) {
+    console.error('[Stitching] Failed to stitch JPEG frames:', err.message);
+    return null;
+  }
 }
 
 function initWebSocket(server) {
@@ -123,6 +183,7 @@ function initWebSocket(server) {
       }
     } else {
       console.log('Kiosk connected.');
+      ws.viewMode = 'single'; // Default to single active camera view
       // Send current device list to the new Kiosk immediately
       broadcastDeviceList(wss);
       
@@ -184,14 +245,14 @@ function initWebSocket(server) {
           }
         }
 
-        // Broadcast binary camera frames ONLY for the active camera to ALL kiosks
-        if (deviceId === globalActiveDeviceId) {
-          wss.clients.forEach((client) => {
-            if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+        // Broadcast binary camera frames ONLY for the active camera to kiosks in single view mode
+        wss.clients.forEach((client) => {
+          if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+            if (client.viewMode !== 'multiple' && deviceId === globalActiveDeviceId) {
               client.send(message, { binary: true });
             }
-          });
-        }
+          }
+        });
       } else if (!isBinary) {
         try {
           const data = JSON.parse(message.toString());
@@ -237,6 +298,17 @@ function initWebSocket(server) {
             // Telegram alert sekarang dikirim dari routes.js SETELAH foto tersimpan
             // agar gambar yang dilampirkan selalu foto dari event ini, bukan foto lama
 
+          } else if (data.type === 'set_view_mode' && !isCamera) {
+            ws.viewMode = data.mode;
+            console.log(`[ViewMode] Kiosk set view mode to: ${ws.viewMode}`);
+            if (ws.viewMode === 'single') {
+              const activeDevice = devices.get(globalActiveDeviceId);
+              ws.send(JSON.stringify({
+                type: 'stream_boxes',
+                deviceId: globalActiveDeviceId,
+                boxes: (activeDevice && activeDevice.latestBoxes) ? activeDevice.latestBoxes : []
+              }));
+            }
           } else if (data.type === 'set_active_stream' && !isCamera) {
             // Centralized Active Stream Update
             if (globalActiveDeviceId !== data.deviceId) {
@@ -385,12 +457,16 @@ function initWebSocket(server) {
     });
   }, 5000);
 
-  // Central Polling Task: Decoupled Consumer pulling the newest frame at 1 FPS (1000ms)
-  // (Temporarily disabled for Maxed-Out PC experiment)
-  
+  let isStitchedAiProcessing = false;
+
+  // Central Polling Task: Run AI on active single stream only when needed
   const aiPollInterval = setInterval(() => {
+    const hasSingleViewKiosk = wssInstance && Array.from(wssInstance.clients).some(client => 
+      client.readyState === 1 && !client.path.startsWith('/camera') && client.viewMode !== 'multiple'
+    );
+    if (!hasSingleViewKiosk) return;
+
     devices.forEach((device, deviceId) => {
-      // Only run AI stream detection for the globally active camera stream to save CPU
       if (deviceId === globalActiveDeviceId && device.status === 'Online' && device.latestFrame && !device.isAiProcessing) {
         const frameToProcess = device.latestFrame;
         device.latestFrame = null; // Clear so we don't repeat the same frame
@@ -399,16 +475,19 @@ function initWebSocket(server) {
         detectStreamAI(frameToProcess).then(result => {
           device.isAiProcessing = false;
           if (result && result.status === 'success') {
+            device.latestBoxes = result.koordinat_kotak;
+            
             const boxPayload = JSON.stringify({
               type: 'stream_boxes',
               deviceId: deviceId,
               boxes: result.koordinat_kotak
             });
             
-            // Broadcast boxes to ALL connected kiosks
-            wss.clients.forEach((client) => {
+            wss.clients.forEach(client => {
               if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-                client.send(boxPayload);
+                if (client.viewMode !== 'multiple' && deviceId === globalActiveDeviceId) {
+                  client.send(boxPayload);
+                }
               }
             });
           }
@@ -417,6 +496,55 @@ function initWebSocket(server) {
         });
       }
     });
+  }, 200);
+
+  // Central Stitching Task: Stitch JPEGs at 10 FPS (100ms) and run AI on combined view
+  const stitchInterval = setInterval(async () => {
+    if (!wssInstance) return;
+
+    const activeKiosks = Array.from(wssInstance.clients).filter(client => 
+      client.readyState === 1 && !client.path.startsWith('/camera')
+    );
+
+    const hasMultipleViewKiosk = activeKiosks.some(client => client.viewMode === 'multiple');
+    if (!hasMultipleViewKiosk) return;
+
+    // Get all online cameras with a valid frame
+    const onlineDevices = Array.from(devices.values()).filter(d => d.status === 'Online' && d.latestFrame);
+    if (onlineDevices.length === 0) return;
+
+    const stitchedBuffer = await stitchFrames(onlineDevices);
+    if (!stitchedBuffer) return;
+
+    // Send the merged binary stream to all multi-view kiosks
+    activeKiosks.forEach(client => {
+      if (client.viewMode === 'multiple') {
+        client.send(stitchedBuffer, { binary: true });
+      }
+    });
+
+    // Run AI on the merged stitched binary view
+    if (!isStitchedAiProcessing) {
+      isStitchedAiProcessing = true;
+      detectStreamAI(stitchedBuffer).then(result => {
+        isStitchedAiProcessing = false;
+        if (result && result.status === 'success') {
+          const boxPayload = JSON.stringify({
+            type: 'stream_boxes',
+            deviceId: 'multiple',
+            boxes: result.koordinat_kotak
+          });
+          
+          activeKiosks.forEach(client => {
+            if (client.viewMode === 'multiple') {
+              client.send(boxPayload);
+            }
+          });
+        }
+      }).catch(err => {
+        isStitchedAiProcessing = false;
+      });
+    }
   }, 100);
   //-----------------------------------------------------
 
@@ -433,6 +561,7 @@ function initWebSocket(server) {
   wss.on('close', function close() {
     clearInterval(interval);
     clearInterval(aiPollInterval);
+    clearInterval(stitchInterval);
   });
 
   return wss;
