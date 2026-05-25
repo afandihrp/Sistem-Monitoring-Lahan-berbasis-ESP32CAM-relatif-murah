@@ -126,34 +126,9 @@ function initWebSocket(server) {
         const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
         const device = devices.get(deviceId);
 
-        // --- PHASE 2: AI SAMPLING (1 FPS) ---
-        const now = Date.now();
-        if (device && (!device.lastAiDetectionTime || now - device.lastAiDetectionTime >= 1000)) {
-          if (!device.isAiProcessing) {
-            device.isAiProcessing = true;
-            device.lastAiDetectionTime = now;
-            
-            detectStreamAI(message).then(result => {
-              device.isAiProcessing = false;
-              if (result && result.status === 'success') {
-                const boxPayload = JSON.stringify({
-                  type: 'stream_boxes',
-                  deviceId: deviceId,
-                  boxes: result.koordinat_kotak
-                });
-                
-                wss.clients.forEach((client) => {
-                  if (client.readyState === 1 && !client.path.startsWith('/camera') && client.activeDeviceId === deviceId) {
-                    client.send(boxPayload);
-                  }
-                });
-              }
-            }).catch(err => {
-              device.isAiProcessing = false;
-            });
-          }
+        if (device) {
+          device.latestFrame = message; // Keep updating to the absolute newest frame
         }
-        // ------------------------------------
 
         // Broadcast binary camera frames ONLY to Kiosks that subscribed to THIS camera
         wss.clients.forEach((client) => {
@@ -306,6 +281,35 @@ function initWebSocket(server) {
     });
   }, 5000);
 
+  // Central Polling Task: Decoupled Consumer pulling the newest frame at 1 FPS (1000ms)
+  const aiPollInterval = setInterval(() => {
+    devices.forEach((device, deviceId) => {
+      if (device.status === 'Online' && device.latestFrame && !device.isAiProcessing) {
+        const frameToProcess = device.latestFrame;
+        device.latestFrame = null; // Clear so we don't repeat the same frame
+        device.isAiProcessing = true;
+        
+        detectStreamAI(frameToProcess).then(result => {
+          device.isAiProcessing = false;
+          if (result && result.status === 'success') {
+            const boxPayload = JSON.stringify({
+              type: 'stream_boxes',
+              deviceId: deviceId,
+              boxes: result.koordinat_kotak
+            });
+            
+            wss.clients.forEach((client) => {
+              if (client.readyState === 1 && !client.path.startsWith('/camera') && client.activeDeviceId === deviceId) {
+                client.send(boxPayload);
+              }
+            });
+          }
+        }).catch(err => {
+          device.isAiProcessing = false;
+        });
+      }
+    });
+  }, 1000);
 
   aiClient.onStatusChange((isConnected) => {
     console.log(`[AI Client] Connection status changed. Connected: ${isConnected}`);
@@ -319,6 +323,7 @@ function initWebSocket(server) {
 
   wss.on('close', function close() {
     clearInterval(interval);
+    clearInterval(aiPollInterval);
   });
 
   return wss;
