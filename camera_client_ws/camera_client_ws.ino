@@ -291,9 +291,9 @@ void captureAndUpload(String label) {
 
  
   if (s->id.PID == OV3660_PID) {
-    s->set_framesize(s, FRAMESIZE_UXGA);
+    s->set_framesize(s, FRAMESIZE_FHD); // OV3660 supports Full HD (1920x1080)
   } else if (s->id.PID == OV2640_PID) {
-    s->set_framesize(s, FRAMESIZE_FHD);
+    s->set_framesize(s, FRAMESIZE_UXGA); // OV2640 physical limit is UXGA (1600x1200)
   }
 
   delay(500); // Tunggu sensor stabil
