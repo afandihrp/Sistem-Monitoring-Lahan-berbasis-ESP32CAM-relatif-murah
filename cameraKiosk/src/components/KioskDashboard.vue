@@ -12,6 +12,7 @@ setInterval(() => {
 
 const wsStatus = ref('Offline')
 const aiConnected = ref(false)
+const aiEnabled = ref(true)
 let ws = null
 let pendingActiveStreamId = null
 
@@ -24,10 +25,16 @@ let lastObjectUrl = null
 const currentStreamIndex = ref(0)
 const currentStream = computed(() => devices.value[currentStreamIndex.value] || { name: 'No Active Stream', ip: 'N/A', status: 'Offline' })
 const aiDetecting = computed(() => liveBoxes.value.length > 0)
-const visibleBoxes = computed(() => aiConnected.value ? liveBoxes.value : [])
+const visibleBoxes = computed(() => (aiConnected.value && aiEnabled.value) ? liveBoxes.value : [])
 
 watch(aiConnected, (connected) => {
   if (!connected) {
+    liveBoxes.value = []
+  }
+})
+
+watch(aiEnabled, (enabled) => {
+  if (!enabled) {
     liveBoxes.value = []
   }
 })
@@ -40,6 +47,7 @@ const connectWS = () => {
     console.log('Connected to WebSocket server')
     wsStatus.value = 'Online'
     ws.send(JSON.stringify({ type: 'set_view_mode', mode: viewMode.value }))
+    ws.send(JSON.stringify({ type: 'set_ai_enabled', enabled: aiEnabled.value }))
   }
 
   ws.onclose = () => {
@@ -77,6 +85,8 @@ const connectWS = () => {
         }
       } else if (data.type === 'ai_status') {
         aiConnected.value = data.isConnected
+      } else if (data.type === 'ai_enabled_updated') {
+        aiEnabled.value = data.enabled
       } else if (data.type === 'device_list') {
         devices.value = data.devices
         if (pendingActiveStreamId) {
@@ -192,6 +202,13 @@ const handleSetViewMode = (mode) => {
   }
 }
 
+const handleSetAiEnabled = (enabled) => {
+  aiEnabled.value = enabled
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'set_ai_enabled', enabled }))
+  }
+}
+
 const handleSaveServoConfig = (data) => {
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ 
@@ -225,7 +242,7 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
 
 <template>
   <div class="main-wrapper d-flex flex-column" data-bs-theme="dark">
-    <TopNav :currentTime="currentTime" :wsStatus="wsStatus" :aiConnected="aiConnected" :aiDetecting="aiDetecting" />
+    <TopNav :currentTime="currentTime" :wsStatus="wsStatus" :aiConnected="aiConnected" :aiDetecting="aiDetecting" :aiEnabled="aiEnabled" />
 
     <main class="row g-0 flex-grow-1" id="main-layout">
       <StreamView 
@@ -234,10 +251,12 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
         :liveBoxes="visibleBoxes"
         :windowWidth="windowWidth"
         :viewMode="viewMode"
+        :aiEnabled="aiEnabled"
         @triggerCameraAction="triggerCameraAction"
         @triggerServoAction="triggerServoAction"
         @saveServoConfig="handleSaveServoConfig"
         @setViewMode="handleSetViewMode"
+        @setAiEnabled="handleSetAiEnabled"
       />
 
       <aside class="col-lg-2 sidebar-section d-flex flex-column bg-slate-900 border-start border-slate-700">

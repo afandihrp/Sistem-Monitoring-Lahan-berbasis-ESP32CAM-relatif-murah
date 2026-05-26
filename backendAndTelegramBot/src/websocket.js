@@ -15,6 +15,7 @@ const CAMERA_API_KEY = 'momo_gemoy_api_key_123';
 const devices = new Map();
 let globalActiveDeviceId = null;
 let wssInstance = null;
+let globalAiEnabled = true;
 
 /**
  * Helper to call local Python AI for real-time stream detection (JSON only)
@@ -199,6 +200,9 @@ function initWebSocket(server) {
       // Send current AI server connection status immediately
       ws.send(JSON.stringify({ type: 'ai_status', isConnected: aiClient.isConnected }));
 
+      // Send current AI enabled status immediately
+      ws.send(JSON.stringify({ type: 'ai_enabled_updated', enabled: globalAiEnabled }));
+
       // Send current active stream to the new Kiosk immediately to synchronize
       if (globalActiveDeviceId) {
         ws.send(JSON.stringify({ type: 'active_stream_updated', deviceId: globalActiveDeviceId }));
@@ -312,6 +316,16 @@ function initWebSocket(server) {
                 boxes: (activeDevice && activeDevice.latestBoxes) ? activeDevice.latestBoxes : []
               }));
             }
+          } else if (data.type === 'set_ai_enabled' && !isCamera) {
+            globalAiEnabled = data.enabled;
+            console.log(`[AI Status] Global AI state updated to: ${globalAiEnabled ? 'ENABLED' : 'DISABLED'}`);
+            // Broadcast AI state change to ALL kiosks so their toggles sync
+            const aiStatusPayload = JSON.stringify({ type: 'ai_enabled_updated', enabled: globalAiEnabled });
+            wss.clients.forEach((client) => {
+              if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                client.send(aiStatusPayload);
+              }
+            });
           } else if (data.type === 'set_active_stream' && !isCamera) {
             // Centralized Active Stream Update
             if (globalActiveDeviceId !== data.deviceId) {
@@ -470,33 +484,52 @@ function initWebSocket(server) {
     if (!hasSingleViewKiosk) return;
 
     devices.forEach((device, deviceId) => {
-      if (deviceId === globalActiveDeviceId && device.status === 'Online' && device.latestFrame && !device.isAiProcessing) {
+      if (deviceId === globalActiveDeviceId && device.status === 'Online' && device.latestFrame) {
         const frameToProcess = device.latestFrame;
         device.latestFrame = null; // Clear so we don't repeat the same frame
-        device.isAiProcessing = true;
         
-        detectStreamAI(frameToProcess).then(result => {
-          device.isAiProcessing = false;
-          if (result && result.status === 'success') {
-            device.latestBoxes = result.koordinat_kotak;
-            
-            const boxPayload = JSON.stringify({
-              type: 'stream_boxes',
-              deviceId: deviceId,
-              boxes: result.koordinat_kotak
-            });
-            
-            wss.clients.forEach(client => {
-              if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-                if (client.viewMode !== 'multiple' && deviceId === globalActiveDeviceId) {
-                  client.send(boxPayload);
-                }
+        if (!globalAiEnabled) {
+          device.latestBoxes = [];
+          const boxPayload = JSON.stringify({
+            type: 'stream_boxes',
+            deviceId: deviceId,
+            boxes: []
+          });
+          wss.clients.forEach(client => {
+            if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+              if (client.viewMode !== 'multiple' && deviceId === globalActiveDeviceId) {
+                client.send(boxPayload);
               }
-            });
-          }
-        }).catch(err => {
-          device.isAiProcessing = false;
-        });
+            }
+          });
+          return;
+        }
+
+        if (!device.isAiProcessing) {
+          device.isAiProcessing = true;
+          detectStreamAI(frameToProcess).then(result => {
+            device.isAiProcessing = false;
+            if (result && result.status === 'success') {
+              device.latestBoxes = result.koordinat_kotak;
+              
+              const boxPayload = JSON.stringify({
+                type: 'stream_boxes',
+                deviceId: deviceId,
+                boxes: result.koordinat_kotak
+              });
+              
+              wss.clients.forEach(client => {
+                if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                  if (client.viewMode !== 'multiple' && deviceId === globalActiveDeviceId) {
+                    client.send(boxPayload);
+                  }
+                }
+              });
+            }
+          }).catch(err => {
+            device.isAiProcessing = false;
+          });
+        }
       }
     });
   }, 200);
@@ -532,7 +565,18 @@ function initWebSocket(server) {
       });
 
       // Run AI on the merged stitched binary view
-      if (!isStitchedAiProcessing) {
+      if (!globalAiEnabled) {
+        const boxPayload = JSON.stringify({
+          type: 'stream_boxes',
+          deviceId: 'multiple',
+          boxes: []
+        });
+        activeKiosks.forEach(client => {
+          if (client.viewMode === 'multiple') {
+            client.send(boxPayload);
+          }
+        });
+      } else if (!isStitchedAiProcessing) {
         isStitchedAiProcessing = true;
         detectStreamAI(stitchedBuffer).then(result => {
           isStitchedAiProcessing = false;

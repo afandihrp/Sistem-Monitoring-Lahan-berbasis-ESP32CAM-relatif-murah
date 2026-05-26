@@ -22,10 +22,14 @@ const props = defineProps({
   viewMode: {
     type: String,
     default: 'single'
+  },
+  aiEnabled: {
+    type: Boolean,
+    default: true
   }
 })
 
-const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'setViewMode'])
+const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'setViewMode', 'setAiEnabled'])
 const servoValue = ref(90)
 const showConfig = ref(false)
 const overlayCanvas = ref(null)
@@ -189,17 +193,22 @@ const handleSaveConfig = (config) => {
             </div>
           </div>
 
-          <!-- View Mode Toggle (Only visible and controllable on mobile screens) -->
+          <!-- View Mode Toggle & AI Control (Only visible and controllable on mobile screens) -->
           <div v-if="windowWidth <= 1000" class="col-md-6 d-flex flex-column gap-2">
-            <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">View Mode</label>
+            <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Display & AI Controls</label>
             <div class="d-flex gap-2">
-              <button @click="emit('setViewMode', 'single')" 
-                      :class="['btn flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2', viewMode === 'single' ? 'btn-primary' : 'btn-outline-primary']">
-                <i class="bi bi-camera-fill"></i> Single View
+              <!-- Single Toggle View Mode Button -->
+              <button @click="emit('setViewMode', viewMode === 'single' ? 'multiple' : 'single')" 
+                      class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
+                <i :class="viewMode === 'single' ? 'bi bi-grid-3x3-gap-fill' : 'bi bi-camera-fill'"></i>
+                {{ viewMode === 'single' ? 'Multiple View' : 'Single View' }}
               </button>
-              <button @click="emit('setViewMode', 'multiple')" 
-                      :class="['btn flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2', viewMode === 'multiple' ? 'btn-primary' : 'btn-outline-primary']">
-                <i class="bi bi-grid-3x3-gap-fill"></i> Multiple View
+
+              <!-- Repurposed AI Disable/Enable Button -->
+              <button @click="emit('setAiEnabled', !aiEnabled)" 
+                      :class="['btn flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2', aiEnabled ? 'btn-outline-warning' : 'btn-warning']">
+                <i :class="aiEnabled ? 'bi bi-eye-slash-fill' : 'bi bi-eye-fill'"></i>
+                {{ aiEnabled ? 'Disable AI' : 'Enable AI' }}
               </button>
             </div>
           </div>

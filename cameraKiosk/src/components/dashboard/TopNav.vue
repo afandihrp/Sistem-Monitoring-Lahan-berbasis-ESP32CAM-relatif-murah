@@ -15,6 +15,10 @@ defineProps({
   aiDetecting: {
     type: Boolean,
     required: true
+  },
+  aiEnabled: {
+    type: Boolean,
+    default: true
   }
 })
 </script>
@@ -38,8 +42,12 @@ defineProps({
             <i :class="wsStatus === 'Online' ? 'bi-broadcast text-success' : 'bi-broadcast-pin text-danger'"></i>
             <span class="d-none d-sm-inline">WS:</span> {{ wsStatus }}
           </span>
-          <!-- Three-State AI Connection and Detection Label -->
-          <span v-if="!aiConnected" class="fw-bold d-flex align-items-center gap-1 text-danger" style="font-size: 0.65rem; margin-top: 1px;">
+          <!-- Four-State AI Connection and Detection Label -->
+          <span v-if="!aiEnabled" class="fw-bold d-flex align-items-center gap-1 text-slate-400" style="font-size: 0.65rem; margin-top: 1px;">
+            <i class="bi bi-eye-slash-fill text-slate-400"></i>
+            AI: DISABLED
+          </span>
+          <span v-else-if="!aiConnected" class="fw-bold d-flex align-items-center gap-1 text-danger" style="font-size: 0.65rem; margin-top: 1px;">
             <i class="bi bi-cloud-slash text-danger"></i>
             AI: OFFLINE
           </span>
