@@ -10,6 +10,7 @@ const { sendMotionAlert } = require('./services/telegram');
 
 const CONFIG_FILE = path.join(__dirname, '../../data/servoConfig.json');
 const SYSTEM_SETTINGS_FILE = path.join(__dirname, '../../data/systemSettings.json');
+const CAMERA_CONFIG_FILE = path.join(__dirname, '../../data/cameraConfig.json');
 
 // Hardcoded API key for ESP32-CAM security
 const CAMERA_API_KEY = 'momo_gemoy_api_key_123';
@@ -223,6 +224,17 @@ function initWebSocket(server) {
           }
         } catch(e) { console.error('Error sending config to camera:', e); }
       }
+
+      if (fs.existsSync(CAMERA_CONFIG_FILE)) {
+        try {
+          const allCamConfigs = JSON.parse(fs.readFileSync(CAMERA_CONFIG_FILE));
+          const camConfig = allCamConfigs[macAddress];
+          if (camConfig) {
+            ws.send(JSON.stringify({ type: 'camera_config_update', config: camConfig }));
+            console.log(`Sent camera sensor config on boot to camera ${macAddress}`);
+          }
+        } catch(e) { console.error('Error sending camera config on boot to camera:', e); }
+      }
     } else {
       console.log('Kiosk connected.');
       // Send current view mode immediately to synchronize
@@ -430,6 +442,36 @@ function initWebSocket(server) {
             if (cameraDevice && cameraDevice.ws && cameraDevice.ws.readyState === 1) {
                cameraDevice.ws.send(JSON.stringify({ type: 'servo_config_update', config: data.config }));
                console.log(`Pushed updated servo config to camera ${data.mac}`);
+            }
+          } else if (data.type === 'get_camera_config' && !isCamera) {
+            if (fs.existsSync(CAMERA_CONFIG_FILE)) {
+              try {
+                const allConfigs = JSON.parse(fs.readFileSync(CAMERA_CONFIG_FILE));
+                const config = allConfigs[data.mac] || null;
+                ws.send(JSON.stringify({ type: 'camera_config_response', mac: data.mac, config }));
+              } catch (e) { console.error('Error reading camera config:', e); }
+            } else {
+              ws.send(JSON.stringify({ type: 'camera_config_response', mac: data.mac, config: null }));
+            }
+          } else if (data.type === 'save_camera_config' && !isCamera) {
+            let allConfigs = {};
+            if (fs.existsSync(CAMERA_CONFIG_FILE)) {
+              try { 
+                const rawData = fs.readFileSync(CAMERA_CONFIG_FILE);
+                allConfigs = JSON.parse(rawData); 
+              } catch (e) {}
+            }
+            allConfigs[data.mac] = { ...data.config, lastUpdated: new Date().toISOString() };
+            fs.writeFileSync(CAMERA_CONFIG_FILE, JSON.stringify(allConfigs, null, 2));
+            console.log(`Camera config saved via WS for MAC: ${data.mac}`);
+            ws.send(JSON.stringify({ type: 'save_camera_config_success', mac: data.mac }));
+            
+            // Push updated config directly to the specific camera device via WebSocket
+            const deviceArray = Array.from(devices.values());
+            const cameraDevice = deviceArray.find(d => d.mac === data.mac);
+            if (cameraDevice && cameraDevice.ws && cameraDevice.ws.readyState === 1) {
+               cameraDevice.ws.send(JSON.stringify({ type: 'camera_config_update', config: data.config }));
+               console.log(`Pushed updated camera config to camera ${data.mac}`);
             }
           }
         } catch (e) {

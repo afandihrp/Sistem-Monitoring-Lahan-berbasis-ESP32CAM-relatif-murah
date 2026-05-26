@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import ServoConfiguratorModal from './ServoConfiguratorModal.vue'
+import CameraConfiguratorModal from './CameraConfiguratorModal.vue'
 
 const props = defineProps({
   currentStream: {
@@ -29,9 +30,10 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'setViewMode', 'setAiEnabled'])
+const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'saveCameraConfig', 'setViewMode', 'setAiEnabled'])
 const servoValue = ref(90)
 const showConfig = ref(false)
+const showCameraConfig = ref(false)
 const overlayCanvas = ref(null)
 const streamImg = ref(null)
 
@@ -125,6 +127,14 @@ const handleSaveConfig = (config) => {
   })
   showConfig.value = false
 }
+
+const handleSaveCameraConfig = (config) => {
+  emit('saveCameraConfig', {
+    mac: props.currentStream.mac,
+    config
+  })
+  showCameraConfig.value = false
+}
 </script>
 
 <template>
@@ -178,8 +188,14 @@ const handleSaveConfig = (config) => {
         <div class="row g-2 align-items-end">
           <!-- Camera Switch (Always visible on mobile panel) -->
           <div class="col-md-6 d-flex flex-column gap-2">
-            <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">
-              Camera Switch <span class="text-info font-monospace ms-1">[{{ currentStream.ip || 'N/A' }}]</span>
+            <label class="text-secondary small fw-bold text-uppercase d-flex align-items-center gap-2" style="font-size: 0.65rem;">
+              Camera Switch <span class="text-info font-monospace">[{{ currentStream.ip || 'N/A' }}]</span>
+              <button v-if="currentStream.status === 'Online' && currentStream.mac && currentStream.mac !== 'Unknown MAC'"
+                      @click="showCameraConfig = true" 
+                      class="btn btn-sm btn-link p-0 text-slate-500 hover-info" 
+                      title="Camera Sensor Configuration">
+                <i class="bi bi-sliders" style="font-size: 0.75rem;"></i>
+              </button>
             </label>
             <div class="d-flex gap-2">
               <button @click="emit('triggerCameraAction', 'left')" 
@@ -249,6 +265,14 @@ const handleSaveConfig = (config) => {
       :mac="currentStream.mac" 
       @close="showConfig = false" 
       @save="handleSaveConfig" 
+    />
+
+    <!-- Camera Configuration Modal -->
+    <CameraConfiguratorModal 
+      v-if="showCameraConfig" 
+      :mac="currentStream.mac" 
+      @close="showCameraConfig = false" 
+      @save="handleSaveCameraConfig" 
     />
   </div>
 </template>

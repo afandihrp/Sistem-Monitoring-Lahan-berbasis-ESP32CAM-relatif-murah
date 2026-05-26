@@ -137,6 +137,10 @@ const connectWS = () => {
         window.dispatchEvent(new CustomEvent('servo_config_received', { detail: data }));
       } else if (data.type === 'save_servo_config_success') {
         alert('Servo Configuration Saved Successfully via WebSocket!');
+      } else if (data.type === 'camera_config_response') {
+        window.dispatchEvent(new CustomEvent('camera_config_received', { detail: data }));
+      } else if (data.type === 'save_camera_config_success') {
+        alert('Camera Sensor Configuration Saved Successfully via WebSocket!');
       }
     } catch (e) {
       console.error('Failed to parse WebSocket message:', e)
@@ -151,13 +155,22 @@ const handleRequestServoConfig = (event) => {
   }
 };
 
+const handleRequestCameraConfig = (event) => {
+  const { mac } = event.detail;
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'get_camera_config', mac }));
+  }
+};
+
 onMounted(() => {
   connectWS()
   window.addEventListener('request_servo_config', handleRequestServoConfig);
+  window.addEventListener('request_camera_config', handleRequestCameraConfig);
 })
 
 onUnmounted(() => {
   window.removeEventListener('request_servo_config', handleRequestServoConfig);
+  window.removeEventListener('request_camera_config', handleRequestCameraConfig);
 })
 
 const events = ref([])
@@ -221,6 +234,18 @@ const handleSaveServoConfig = (data) => {
   }
 }
 
+const handleSaveCameraConfig = (data) => {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ 
+      type: 'save_camera_config', 
+      mac: data.mac, 
+      config: data.config 
+    }));
+  } else {
+    console.error('WebSocket not connected. Cannot save camera config.')
+  }
+}
+
 // Mobile Pagination Logic
 const currentEventPage = ref(1)
 const eventsPerPage = 10
@@ -255,6 +280,7 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
         @triggerCameraAction="triggerCameraAction"
         @triggerServoAction="triggerServoAction"
         @saveServoConfig="handleSaveServoConfig"
+        @saveCameraConfig="handleSaveCameraConfig"
         @setViewMode="handleSetViewMode"
         @setAiEnabled="handleSetAiEnabled"
       />
