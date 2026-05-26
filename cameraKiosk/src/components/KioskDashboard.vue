@@ -46,8 +46,6 @@ const connectWS = () => {
   ws.onopen = () => {
     console.log('Connected to WebSocket server')
     wsStatus.value = 'Online'
-    ws.send(JSON.stringify({ type: 'set_view_mode', mode: viewMode.value }))
-    ws.send(JSON.stringify({ type: 'set_ai_enabled', enabled: aiEnabled.value }))
   }
 
   ws.onclose = () => {
@@ -87,6 +85,8 @@ const connectWS = () => {
         aiConnected.value = data.isConnected
       } else if (data.type === 'ai_enabled_updated') {
         aiEnabled.value = data.enabled
+      } else if (data.type === 'view_mode_updated') {
+        viewMode.value = data.mode
       } else if (data.type === 'device_list') {
         devices.value = data.devices
         if (pendingActiveStreamId) {

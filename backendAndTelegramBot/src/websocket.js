@@ -16,6 +16,7 @@ const devices = new Map();
 let globalActiveDeviceId = null;
 let wssInstance = null;
 let globalAiEnabled = true;
+let globalViewMode = 'single';
 
 /**
  * Helper to call local Python AI for real-time stream detection (JSON only)
@@ -187,7 +188,9 @@ function initWebSocket(server) {
       }
     } else {
       console.log('Kiosk connected.');
-      ws.viewMode = 'single'; // Default to single active camera view
+      // Send current view mode immediately to synchronize
+      ws.send(JSON.stringify({ type: 'view_mode_updated', mode: globalViewMode }));
+
       // Send current device list to the new Kiosk immediately
       broadcastDeviceList(wss);
       
@@ -255,7 +258,7 @@ function initWebSocket(server) {
         // Broadcast binary camera frames ONLY for the active camera to kiosks in single view mode
         wss.clients.forEach((client) => {
           if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-            if (client.viewMode !== 'multiple' && deviceId === globalActiveDeviceId) {
+            if (globalViewMode !== 'multiple' && deviceId === globalActiveDeviceId) {
               client.send(message, { binary: true });
             }
           }
@@ -306,15 +309,26 @@ function initWebSocket(server) {
             // agar gambar yang dilampirkan selalu foto dari event ini, bukan foto lama
 
           } else if (data.type === 'set_view_mode' && !isCamera) {
-            ws.viewMode = data.mode;
-            console.log(`[ViewMode] Kiosk set view mode to: ${ws.viewMode}`);
-            if (ws.viewMode === 'single') {
+            globalViewMode = data.mode;
+            console.log(`[ViewMode] Global view mode updated to: ${globalViewMode}`);
+            const viewModePayload = JSON.stringify({ type: 'view_mode_updated', mode: globalViewMode });
+            wss.clients.forEach((client) => {
+              if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                client.send(viewModePayload);
+              }
+            });
+            if (globalViewMode === 'single') {
               const activeDevice = devices.get(globalActiveDeviceId);
-              ws.send(JSON.stringify({
+              const boxPayload = JSON.stringify({
                 type: 'stream_boxes',
                 deviceId: globalActiveDeviceId,
                 boxes: (activeDevice && activeDevice.latestBoxes) ? activeDevice.latestBoxes : []
-              }));
+              });
+              wss.clients.forEach((client) => {
+                if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                  client.send(boxPayload);
+                }
+              });
             }
           } else if (data.type === 'set_ai_enabled' && !isCamera) {
             globalAiEnabled = data.enabled;
@@ -478,8 +492,10 @@ function initWebSocket(server) {
 
   // Central Polling Task: Run AI on active single stream only when needed
   const aiPollInterval = setInterval(() => {
+    if (globalViewMode === 'multiple') return; // Exit if in multiple view mode
+
     const hasSingleViewKiosk = wssInstance && Array.from(wssInstance.clients).some(client => 
-      client.readyState === 1 && !client.path.startsWith('/camera') && client.viewMode !== 'multiple'
+      client.readyState === 1 && !client.path.startsWith('/camera')
     );
     if (!hasSingleViewKiosk) return;
 
@@ -497,9 +513,7 @@ function initWebSocket(server) {
           });
           wss.clients.forEach(client => {
             if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-              if (client.viewMode !== 'multiple' && deviceId === globalActiveDeviceId) {
-                client.send(boxPayload);
-              }
+              client.send(boxPayload);
             }
           });
           return;
@@ -520,9 +534,7 @@ function initWebSocket(server) {
               
               wss.clients.forEach(client => {
                 if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-                  if (client.viewMode !== 'multiple' && deviceId === globalActiveDeviceId) {
-                    client.send(boxPayload);
-                  }
+                  client.send(boxPayload);
                 }
               });
             }
@@ -547,8 +559,7 @@ function initWebSocket(server) {
         client.readyState === 1 && !client.path.startsWith('/camera')
       );
 
-      const hasMultipleViewKiosk = activeKiosks.some(client => client.viewMode === 'multiple');
-      if (!hasMultipleViewKiosk) return;
+      if (globalViewMode !== 'multiple') return;
 
       // Get all online cameras with a valid frame
       const onlineDevices = Array.from(devices.values()).filter(d => d.status === 'Online' && d.latestFrame);
@@ -559,9 +570,7 @@ function initWebSocket(server) {
 
       // Send the merged binary stream to all multi-view kiosks
       activeKiosks.forEach(client => {
-        if (client.viewMode === 'multiple') {
-          client.send(stitchedBuffer, { binary: true });
-        }
+        client.send(stitchedBuffer, { binary: true });
       });
 
       // Run AI on the merged stitched binary view
@@ -572,9 +581,7 @@ function initWebSocket(server) {
           boxes: []
         });
         activeKiosks.forEach(client => {
-          if (client.viewMode === 'multiple') {
-            client.send(boxPayload);
-          }
+          client.send(boxPayload);
         });
       } else if (!isStitchedAiProcessing) {
         isStitchedAiProcessing = true;
@@ -588,9 +595,7 @@ function initWebSocket(server) {
             });
             
             activeKiosks.forEach(client => {
-              if (client.viewMode === 'multiple') {
-                client.send(boxPayload);
-              }
+              client.send(boxPayload);
             });
           }
         }).catch(err => {
