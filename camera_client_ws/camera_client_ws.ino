@@ -72,31 +72,63 @@ volatile int pendingServoAngle = -1;
 // Global camera config agar bisa dipakai ulang saat reinit
 camera_config_t app_cam_config;
 
-// Terapkan pengaturan sensor setelah setiap init/reinit
-void applySensorSettings() {
+// Camera Configurator Parameters (defaults matching backend startup)
+String cam_resolution = "HVGA";
+int cam_quality = 12;
+int cam_brightness = 0;
+int cam_contrast = 0;
+int cam_saturation = 0;
+bool cam_awb = true;
+bool cam_aec = true;
+bool cam_agc = true;
+bool cam_hmirror = false;
+bool cam_vflip = false;
+String cam_specialEffect = "None";
+
+void applyCameraConfig() {
   sensor_t * s = esp_camera_sensor_get();
   if (!s) return;
-  
-  // Set default resolution to HVGA (Downscale from FHD pre-allocation)
-  s->set_framesize(s, FRAMESIZE_HVGA);
 
-  if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1);
-    s->set_brightness(s, 2);
-    s->set_saturation(s, -2);
-  } else if (s->id.PID == OV2640_PID) {
-    // Reset AWB, AEC, AGC agar warna dan eksposur stabil setelah reinit
-    s->set_whitebal(s, 1);       // Enable auto white balance
-    s->set_awb_gain(s, 1);      // Enable AWB gain
-    s->set_wb_mode(s, 0);       // 0=Auto WB
-    s->set_exposure_ctrl(s, 1); // Enable auto exposure
-    s->set_aec2(s, 1);          // Enable AEC DSP
-    s->set_gain_ctrl(s, 1);     // Enable auto gain
-    s->set_bpc(s, 1);           // Black pixel correction
-    s->set_wpc(s, 1);           // White pixel correction
-    s->set_lenc(s, 1);          // Lens correction
-  }
+  // 1. Resolution
+  framesize_t framesize = FRAMESIZE_HVGA;
+  if (cam_resolution == "UXGA") framesize = FRAMESIZE_UXGA;
+  else if (cam_resolution == "SVGA") framesize = FRAMESIZE_SVGA;
+  else if (cam_resolution == "VGA") framesize = FRAMESIZE_VGA;
+  else if (cam_resolution == "HVGA") framesize = FRAMESIZE_HVGA;
+  else if (cam_resolution == "QVGA") framesize = FRAMESIZE_QVGA;
+  s->set_framesize(s, framesize);
+
+  // 2. Quality
+  s->set_quality(s, cam_quality);
+
+  // 3. Image Tuning
+  s->set_brightness(s, cam_brightness);
+  s->set_contrast(s, cam_contrast);
+  s->set_saturation(s, cam_saturation);
+
+  // 4. AWB, AEC, AGC
+  s->set_whitebal(s, cam_awb ? 1 : 0);
+  s->set_awb_gain(s, cam_awb ? 1 : 0);
+  s->set_exposure_ctrl(s, cam_aec ? 1 : 0);
+  s->set_gain_ctrl(s, cam_agc ? 1 : 0);
+
+  // 5. Mirror & Flip
+  s->set_hmirror(s, cam_hmirror ? 1 : 0);
+  s->set_vflip(s, cam_vflip ? 1 : 0);
+
+  // 6. Special Effect
+  int effectVal = 0;
+  if (cam_specialEffect == "Negative") effectVal = 1;
+  else if (cam_specialEffect == "Grayscale") effectVal = 2;
+  else if (cam_specialEffect == "Red Tint") effectVal = 3;
+  else if (cam_specialEffect == "Green Tint") effectVal = 4;
+  else if (cam_specialEffect == "Blue Tint") effectVal = 5;
+  else if (cam_specialEffect == "Sepia") effectVal = 6;
+  s->set_special_effect(s, effectVal);
+
+  Serial.println("[CAM] Camera configurations successfully applied to sensor.");
 }
+
 
 // Map angle (0-180) to Duty Cycle (13-bit: 0-8191)
 // Standard Servo: 500us (0 deg) to 2400us (180 deg) at 20ms period (50Hz)
@@ -168,7 +200,98 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
            Serial.printf("[WSc] Servo config updated via WS: L=%d, M=%d, R=%d, D=%d\n", SERVO_POS_LEFT, SERVO_POS_MIDDLE, SERVO_POS_RIGHT, SERVO_POS_DEFAULT);
            // Set the servo to the new default immediately (ledcWrite is fast and non-blocking)
            setServoAngle(SERVO_POS_DEFAULT);
-        }
+        } else if (cmd.indexOf("\"camera_config_update\"") >= 0) {
+           int resIdx = cmd.indexOf("\"resolution\":\"");
+           if (resIdx != -1) {
+             int start = resIdx + 14;
+             int end = cmd.indexOf("\"", start);
+             if (end != -1) cam_resolution = cmd.substring(start, end);
+           }
+
+           int qualIdx = cmd.indexOf("\"quality\":");
+           if (qualIdx != -1) {
+             int start = qualIdx + 10;
+             int end = cmd.indexOf(",", start);
+             if (end == -1) end = cmd.indexOf("}", start);
+             if (end != -1) cam_quality = cmd.substring(start, end).toInt();
+           }
+
+           int brightIdx = cmd.indexOf("\"brightness\":");
+           if (brightIdx != -1) {
+             int start = brightIdx + 13;
+             int end = cmd.indexOf(",", start);
+             if (end == -1) end = cmd.indexOf("}", start);
+             if (end != -1) cam_brightness = cmd.substring(start, end).toInt();
+           }
+
+           int contrastIdx = cmd.indexOf("\"contrast\":");
+           if (contrastIdx != -1) {
+             int start = contrastIdx + 11;
+             int end = cmd.indexOf(",", start);
+             if (end == -1) end = cmd.indexOf("}", start);
+             if (end != -1) cam_contrast = cmd.substring(start, end).toInt();
+           }
+
+           int satIdx = cmd.indexOf("\"saturation\":");
+           if (satIdx != -1) {
+             int start = satIdx + 13;
+             int end = cmd.indexOf(",", start);
+             if (end == -1) end = cmd.indexOf("}", start);
+             if (end != -1) cam_saturation = cmd.substring(start, end).toInt();
+           }
+
+           int awbIdx = cmd.indexOf("\"awb\":");
+           if (awbIdx != -1) {
+             int start = awbIdx + 6;
+             int end = cmd.indexOf(",", start);
+             if (end == -1) end = cmd.indexOf("}", start);
+             if (end != -1) cam_awb = (cmd.substring(start, end).indexOf("true") != -1);
+           }
+
+           int aecIdx = cmd.indexOf("\"aec\":");
+           if (aecIdx != -1) {
+             int start = aecIdx + 6;
+             int end = cmd.indexOf(",", start);
+             if (end == -1) end = cmd.indexOf("}", start);
+             if (end != -1) cam_aec = (cmd.substring(start, end).indexOf("true") != -1);
+           }
+
+           int agcIdx = cmd.indexOf("\"agc\":");
+           if (agcIdx != -1) {
+             int start = agcIdx + 6;
+             int end = cmd.indexOf(",", start);
+             if (end == -1) end = cmd.indexOf("}", start);
+             if (end != -1) cam_agc = (cmd.substring(start, end).indexOf("true") != -1);
+           }
+
+           int hmirrorIdx = cmd.indexOf("\"hmirror\":");
+           if (hmirrorIdx != -1) {
+             int start = hmirrorIdx + 10;
+             int end = cmd.indexOf(",", start);
+             if (end == -1) end = cmd.indexOf("}", start);
+             if (end != -1) cam_hmirror = (cmd.substring(start, end).indexOf("true") != -1);
+           }
+
+           int vflipIdx = cmd.indexOf("\"vflip\":");
+           if (vflipIdx != -1) {
+             int start = vflipIdx + 8;
+             int end = cmd.indexOf(",", start);
+             if (end == -1) end = cmd.indexOf("}", start);
+             if (end != -1) cam_vflip = (cmd.substring(start, end).indexOf("true") != -1);
+           }
+
+           int effectIdx = cmd.indexOf("\"specialEffect\":\"");
+           if (effectIdx != -1) {
+             int start = effectIdx + 17;
+             int end = cmd.indexOf("\"", start);
+             if (end != -1) cam_specialEffect = cmd.substring(start, end);
+           }
+
+           Serial.printf("[WSc] Camera config updated: Res=%s, Qual=%d, Bright=%d, Contrast=%d, Sat=%d, AWB=%d, AEC=%d, AGC=%d, Mirror=%d, Flip=%d, Effect=%s\n",
+                         cam_resolution.c_str(), cam_quality, cam_brightness, cam_contrast, cam_saturation, cam_awb, cam_aec, cam_agc, cam_hmirror, cam_vflip, cam_specialEffect.c_str());
+
+           applyCameraConfig();
+         }
       }
       break;
     case WStype_BIN:
@@ -238,7 +361,7 @@ void setup() {
   }
   
   // Apply sensor settings (this will downscale to HVGA for streaming)
-  applySensorSettings();
+  applyCameraConfig();
   Serial.println("Camera ready: Pre-allocated FHD, Streaming at HVGA.");
 
 
@@ -295,6 +418,9 @@ void captureAndUpload(String label) {
     s->set_framesize(s, FRAMESIZE_UXGA); // OV2640 physical limit is UXGA (1600x1200)
   }
 
+  // Override quality to high quality (10) for capture, independent of streaming setting
+  s->set_quality(s, 2);
+
   delay(500); // Tunggu sensor stabil
 
   // Nyalakan flash SEBELUM flush frames agar AEC kamera bisa menyesuaikan
@@ -302,7 +428,7 @@ void captureAndUpload(String label) {
   digitalWrite(FLASH_GPIO_NUM, HIGH);
 
   // Buang 5 frame — cukup untuk AEC konvergen
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 2; i++) {
     camera_fb_t * discard = esp_camera_fb_get();
     if (discard) {
       esp_camera_fb_return(discard);
@@ -318,7 +444,7 @@ void captureAndUpload(String label) {
 
   if (!fb) {
     Serial.println("[ERR] Failed to get FHD frame!");
-    s->set_framesize(s, FRAMESIZE_HVGA); // Restore streaming mode
+    applyCameraConfig(); // Restore configured streaming mode
     return;
   }
   Serial.printf("[4] FHD frame captured: %d bytes\n", fb->len);
@@ -343,9 +469,9 @@ void captureAndUpload(String label) {
   http.end();
   esp_camera_fb_return(fb);
 
-  // === STEP 4: Kembali ke mode streaming HVGA ===
-  Serial.println("[7] Restoring HVGA streaming mode...");
-  s->set_framesize(s, FRAMESIZE_HVGA);
+  // === STEP 4: Kembali ke mode streaming yang terkonfigurasi ===
+  Serial.println("[7] Restoring configured streaming mode...");
+  applyCameraConfig();
   Serial.println("=== captureAndUpload END ===");
 }
 
