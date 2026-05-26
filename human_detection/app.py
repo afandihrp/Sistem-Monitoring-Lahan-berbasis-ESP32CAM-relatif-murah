@@ -13,7 +13,7 @@ from annotator import annotate_image
 detector = PersonDetector()
 
 async def handle_client(websocket, path=None):
-    print(f"[INFO] Client connected: {websocket.remote_address}")
+    print(f"[INFO] Terhubung ke server, mulai mendengarkan stream...")
     try:
         async for message in websocket:
             if isinstance(message, bytes):
@@ -110,17 +110,19 @@ async def handle_client(websocket, path=None):
                 }))
 
     except websockets.exceptions.ConnectionClosed:
-        print(f"[INFO] Client disconnected: {websocket.remote_address}")
+        print(f"[INFO] Koneksi terputus dari server.")
 
 async def main():
-    print(f"\n[INFO] Menjalankan server WebSockets di {config.HOST}:{config.PORT}...")
-    async with websockets.serve(
-        handle_client, 
-        config.HOST, 
-        config.PORT, 
-        max_size=config.MAX_WS_SIZE
-    ):
-        await asyncio.Future()  # Jalankan selamanya
+    uri = f"ws://{config.BACKEND_HOST}:{config.BACKEND_PORT}"
+    print(f"\n[INFO] Menghubungkan ke Node.js backend di {uri}...")
+    while True:
+        try:
+            async with websockets.connect(uri, max_size=config.MAX_WS_SIZE) as websocket:
+                print("[INFO] Terhubung ke Node.js backend successfully.")
+                await handle_client(websocket)
+        except Exception as e:
+            print(f"[WARNING] Koneksi terputus/gagal: {e}. Menghubungkan kembali dalam 3 detik...")
+            await asyncio.sleep(3)
 
 if __name__ == '__main__':
     try:

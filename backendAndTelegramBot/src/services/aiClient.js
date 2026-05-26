@@ -1,97 +1,81 @@
-const WebSocket = require('ws');
+const { WebSocketServer, WebSocket } = require('ws');
 
 class AIClient {
   constructor() {
-    // this.url = 'ws://127.0.0.1:5000';
-    // this.url = 'ws://projectta.local:5000';
-    this.url = 'ws://momoy.local:5000';
+    this.port = 5000;
+    this.wss = new WebSocketServer({ port: this.port });
     this.ws = null;
     this.pendingRequests = new Map();
-    this.reconnectTimer = null;
     this.requestIdCounter = 0;
     this.isConnected = false;
     this.statusListeners = [];
-    this.connect();
+    this.initServer();
   }
 
-  connect() {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+  initServer() {
+    console.log(`[AI Server] Starting WebSocket Server on port ${this.port}...`);
 
-    console.log(`[AI Client] Connecting to Python AI server at ${this.url}...`);
-    this.ws = new WebSocket(this.url);
-
-    this.ws.on('open', () => {
-      console.log('[AI Client] Connected to Python AI server successfully.');
+    this.wss.on('connection', (ws) => {
+      console.log('[AI Server] Python AI client connected successfully.');
+      this.ws = ws;
       this.isConnected = true;
       this.notifyStatusChange();
-    });
 
-    this.ws.on('message', (data, isBinary) => {
-      try {
-        let response;
-        if (!isBinary) {
-          // Standard text message (JSON string)
-          response = JSON.parse(data.toString());
-        } else {
-          // Binary message (for annotate = true)
-          const buffer = data;
-          const requestId = buffer.readUInt32BE(0);
-          const jsonLen = buffer.readUInt32BE(4);
-          const jsonString = buffer.toString('utf8', 8, 8 + jsonLen);
-          response = JSON.parse(jsonString);
-          response.requestId = requestId;
-          
-          // Convert the remaining bytes of the buffer (which is the JPEG image) to base64
-          // to maintain complete backward compatibility with the rest of the backend
-          const imgBuffer = buffer.subarray(8 + jsonLen);
-          response.annotated_image = imgBuffer.toString('base64');
-          response.status = 'success';
-        }
-
-        const { requestId } = response;
-        if (requestId !== undefined && this.pendingRequests.has(requestId)) {
-          const { resolve, reject, timeout } = this.pendingRequests.get(requestId);
-          clearTimeout(timeout);
-          this.pendingRequests.delete(requestId);
-
-          if (response.status === 'success') {
-            resolve(response);
+      ws.on('message', (data, isBinary) => {
+        try {
+          let response;
+          if (!isBinary) {
+            // Standard text message (JSON string)
+            response = JSON.parse(data.toString());
           } else {
-            reject(new Error(response.message || 'AI Server Error'));
+            // Binary message (for annotate = true)
+            const buffer = data;
+            const requestId = buffer.readUInt32BE(0);
+            const jsonLen = buffer.readUInt32BE(4);
+            const jsonString = buffer.toString('utf8', 8, 8 + jsonLen);
+            response = JSON.parse(jsonString);
+            response.requestId = requestId;
+            
+            // Convert the remaining bytes of the buffer (which is the JPEG image) to base64
+            // to maintain complete backward compatibility with the rest of the backend
+            const imgBuffer = buffer.subarray(8 + jsonLen);
+            response.annotated_image = imgBuffer.toString('base64');
+            response.status = 'success';
           }
-        }
-      } catch (err) {
-        console.error('[AI Client] Error parsing incoming message:', err);
-      }
-    });
 
-    this.ws.on('close', () => {
-      if (this.isConnected) {
-        console.warn('[AI Client] Connection to Python AI server closed.');
+          const { requestId } = response;
+          if (requestId !== undefined && this.pendingRequests.has(requestId)) {
+            const { resolve, reject, timeout } = this.pendingRequests.get(requestId);
+            clearTimeout(timeout);
+            this.pendingRequests.delete(requestId);
+
+            if (response.status === 'success') {
+              resolve(response);
+            } else {
+              reject(new Error(response.message || 'AI Server Error'));
+            }
+          }
+        } catch (err) {
+          console.error('[AI Server] Error parsing incoming message:', err);
+        }
+      });
+
+      ws.on('close', () => {
+        console.warn('[AI Server] Python AI client disconnected.');
+        this.ws = null;
         this.isConnected = false;
         this.notifyStatusChange();
-      } else {
-        this.isConnected = false;
-      }
-      this.rejectAllPending(new Error('AI Server Connection Closed'));
-      this.scheduleReconnect();
+        this.rejectAllPending(new Error('AI Server Connection Closed'));
+      });
+
+      ws.on('error', (err) => {
+        console.error('[AI Server] Python AI client socket error:', err.message);
+      });
     });
 
-    this.ws.on('error', (err) => {
-      console.error('[AI Client] WebSocket error:', err.message);
-      // 'close' event will trigger reconnect
+    this.wss.on('error', (err) => {
+      console.error('[AI Server] WebSocket Server error:', err.message);
     });
-  }
-
-  scheduleReconnect() {
-    if (!this.reconnectTimer) {
-      this.reconnectTimer = setTimeout(() => {
-        this.connect();
-      }, 3000); // Reconnect every 3 seconds
-    }
   }
 
   rejectAllPending(error) {

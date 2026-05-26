@@ -9,7 +9,7 @@ NMS_THRESHOLD = 0.45
 # Performance and Hardware
 NUM_THREADS = 4
 
-# WebSocket Server Configuration
-HOST = "0.0.0.0"
-PORT = 5000
+# WebSocket Client Configuration (Target Backend)
+BACKEND_HOST = "127.0.0.1"
+BACKEND_PORT = 5000
 MAX_WS_SIZE = 20 * 1024 * 1024  # 20 MB

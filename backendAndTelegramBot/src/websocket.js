@@ -20,6 +20,9 @@ let wssInstance = null;
  * Helper to call local Python AI for real-time stream detection (JSON only)
  */
 function detectStreamAI(imageBuffer) {
+  if (!aiClient.isConnected) {
+    return Promise.resolve(null);
+  }
   return aiClient.sendRequest(imageBuffer, false, 5000)
     .catch((err) => {
       console.warn('[AI Client] Stream detection failed:', err.message);
@@ -499,51 +502,61 @@ function initWebSocket(server) {
   }, 200);
 
   // Central Stitching Task: Stitch JPEGs at 10 FPS (100ms) and run AI on combined view
+  let isStitchedProcessing = false;
   const stitchInterval = setInterval(async () => {
-    if (!wssInstance) return;
+    if (isStitchedProcessing) return;
+    isStitchedProcessing = true;
 
-    const activeKiosks = Array.from(wssInstance.clients).filter(client => 
-      client.readyState === 1 && !client.path.startsWith('/camera')
-    );
+    try {
+      if (!wssInstance) return;
 
-    const hasMultipleViewKiosk = activeKiosks.some(client => client.viewMode === 'multiple');
-    if (!hasMultipleViewKiosk) return;
+      const activeKiosks = Array.from(wssInstance.clients).filter(client => 
+        client.readyState === 1 && !client.path.startsWith('/camera')
+      );
 
-    // Get all online cameras with a valid frame
-    const onlineDevices = Array.from(devices.values()).filter(d => d.status === 'Online' && d.latestFrame);
-    if (onlineDevices.length === 0) return;
+      const hasMultipleViewKiosk = activeKiosks.some(client => client.viewMode === 'multiple');
+      if (!hasMultipleViewKiosk) return;
 
-    const stitchedBuffer = await stitchFrames(onlineDevices);
-    if (!stitchedBuffer) return;
+      // Get all online cameras with a valid frame
+      const onlineDevices = Array.from(devices.values()).filter(d => d.status === 'Online' && d.latestFrame);
+      if (onlineDevices.length === 0) return;
 
-    // Send the merged binary stream to all multi-view kiosks
-    activeKiosks.forEach(client => {
-      if (client.viewMode === 'multiple') {
-        client.send(stitchedBuffer, { binary: true });
-      }
-    });
+      const stitchedBuffer = await stitchFrames(onlineDevices);
+      if (!stitchedBuffer) return;
 
-    // Run AI on the merged stitched binary view
-    if (!isStitchedAiProcessing) {
-      isStitchedAiProcessing = true;
-      detectStreamAI(stitchedBuffer).then(result => {
-        isStitchedAiProcessing = false;
-        if (result && result.status === 'success') {
-          const boxPayload = JSON.stringify({
-            type: 'stream_boxes',
-            deviceId: 'multiple',
-            boxes: result.koordinat_kotak
-          });
-          
-          activeKiosks.forEach(client => {
-            if (client.viewMode === 'multiple') {
-              client.send(boxPayload);
-            }
-          });
+      // Send the merged binary stream to all multi-view kiosks
+      activeKiosks.forEach(client => {
+        if (client.viewMode === 'multiple') {
+          client.send(stitchedBuffer, { binary: true });
         }
-      }).catch(err => {
-        isStitchedAiProcessing = false;
       });
+
+      // Run AI on the merged stitched binary view
+      if (!isStitchedAiProcessing) {
+        isStitchedAiProcessing = true;
+        detectStreamAI(stitchedBuffer).then(result => {
+          isStitchedAiProcessing = false;
+          if (result && result.status === 'success') {
+            const boxPayload = JSON.stringify({
+              type: 'stream_boxes',
+              deviceId: 'multiple',
+              boxes: result.koordinat_kotak
+            });
+            
+            activeKiosks.forEach(client => {
+              if (client.viewMode === 'multiple') {
+                client.send(boxPayload);
+              }
+            });
+          }
+        }).catch(err => {
+          isStitchedAiProcessing = false;
+        });
+      }
+    } catch (err) {
+      console.error('[Stitch Interval] Error:', err.message);
+    } finally {
+      isStitchedProcessing = false;
     }
   }, 100);
   //-----------------------------------------------------
