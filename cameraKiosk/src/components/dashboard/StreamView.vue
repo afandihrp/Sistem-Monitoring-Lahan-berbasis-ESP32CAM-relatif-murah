@@ -138,7 +138,7 @@ const handleSaveConfig = (config) => {
           OFFLINE
         </span>
         
-        <div class="d-flex align-items-center gap-2 gap-sm-3">
+        <div v-if="viewMode !== 'multiple'" class="d-flex align-items-center gap-2 gap-sm-3">
           <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black;">
             <span class="d-none d-sm-inline">ESP32-CAM</span> [{{ currentStream.ip }}]
           </span>
@@ -172,9 +172,11 @@ const handleSaveConfig = (config) => {
       <div class="d-flex flex-column gap-4">
         <!-- Camera Grid Controls -->
         <div class="row g-2 align-items-end">
-          <!-- Camera Switch (Only visible when not in Multiple View) -->
-          <div v-if="viewMode !== 'multiple'" class="col-md-6 d-flex flex-column gap-2">
-            <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Camera Switch</label>
+          <!-- Camera Switch (Always visible on mobile panel) -->
+          <div class="col-md-6 d-flex flex-column gap-2">
+            <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">
+              Camera Switch <span class="text-info font-monospace ms-1">[{{ currentStream.ip || 'N/A' }}]</span>
+            </label>
             <div class="d-flex gap-2">
               <button @click="emit('triggerCameraAction', 'left')" 
                       class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
@@ -203,8 +205,8 @@ const handleSaveConfig = (config) => {
           </div>
         </div>
 
-        <!-- Servo Controls (PTZ Slider, Only visible when not in Multiple View) -->
-        <div v-if="viewMode !== 'multiple'" class="d-flex flex-column gap-2">
+        <!-- Servo Controls (PTZ Slider, Always visible on mobile panel) -->
+        <div class="d-flex flex-column gap-2">
           <div class="d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
               <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Servo (PTZ)</label>
