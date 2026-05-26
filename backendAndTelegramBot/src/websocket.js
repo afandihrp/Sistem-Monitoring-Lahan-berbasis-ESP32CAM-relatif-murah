@@ -66,21 +66,21 @@ async function stitchFrames(onlineDevices) {
 
   try {
     if (count === 2) {
-      // Stack 2 JPEGs vertically (Top / Bottom, output: 640x960)
+      // Stack 2 JPEGs horizontally (Left / Right, output: 1280x480)
       const img1 = await sharp(onlineDevices[0].latestFrame).resize(640, 480).toBuffer();
       const img2 = await sharp(onlineDevices[1].latestFrame).resize(640, 480).toBuffer();
 
       return await sharp({
         create: {
-          width: 640,
-          height: 960,
+          width: 1280,
+          height: 480,
           channels: 3,
           background: { r: 0, g: 0, b: 0 }
         }
       })
       .composite([
         { input: img1, top: 0, left: 0 },
-        { input: img2, top: 480, left: 0 }
+        { input: img2, top: 0, left: 640 }
       ])
       .jpeg()
       .toBuffer();
