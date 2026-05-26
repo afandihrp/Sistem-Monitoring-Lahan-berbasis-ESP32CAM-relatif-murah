@@ -9,6 +9,7 @@ const { logEvent, getLogs } = require('./services/logger');
 const { sendMotionAlert } = require('./services/telegram');
 
 const CONFIG_FILE = path.join(__dirname, '../../data/servoConfig.json');
+const SYSTEM_SETTINGS_FILE = path.join(__dirname, '../../data/systemSettings.json');
 
 // Hardcoded API key for ESP32-CAM security
 const CAMERA_API_KEY = 'momo_gemoy_api_key_123';
@@ -19,6 +20,42 @@ let globalActiveDeviceId = null;
 let wssInstance = null;
 let globalAiEnabled = true;
 let globalViewMode = 'single';
+
+function loadSystemSettings() {
+  try {
+    if (fs.existsSync(SYSTEM_SETTINGS_FILE)) {
+      const data = fs.readFileSync(SYSTEM_SETTINGS_FILE, 'utf8');
+      const settings = JSON.parse(data);
+      globalAiEnabled = settings.globalAiEnabled !== undefined ? settings.globalAiEnabled : true;
+      globalViewMode = settings.globalViewMode || 'single';
+      console.log(`[Settings] Loaded system settings: ViewMode = ${globalViewMode}, AI = ${globalAiEnabled ? 'ENABLED' : 'DISABLED'}`);
+    } else {
+      console.log('[Settings] No system settings file found, using defaults.');
+    }
+  } catch (err) {
+    console.error('[Settings] Failed to load system settings:', err.message);
+  }
+}
+
+function saveSystemSettings() {
+  try {
+    const parentDir = path.dirname(SYSTEM_SETTINGS_FILE);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+    const settings = {
+      globalAiEnabled,
+      globalViewMode
+    };
+    fs.writeFileSync(SYSTEM_SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
+    console.log('[Settings] Saved system settings successfully.');
+  } catch (err) {
+    console.error('[Settings] Failed to save system settings:', err.message);
+  }
+}
+
+// Load settings immediately on server start
+loadSystemSettings();
 
 /**
  * Helper to call local Python AI for real-time stream detection (JSON only)
@@ -311,6 +348,7 @@ function initWebSocket(server) {
           } else if (data.type === 'set_view_mode' && !isCamera) {
             globalViewMode = data.mode;
             console.log(`[ViewMode] Global view mode updated to: ${globalViewMode}`);
+            saveSystemSettings();
             const viewModePayload = JSON.stringify({ type: 'view_mode_updated', mode: globalViewMode });
             wss.clients.forEach((client) => {
               if (client.readyState === 1 && !client.path.startsWith('/camera')) {
@@ -333,6 +371,7 @@ function initWebSocket(server) {
           } else if (data.type === 'set_ai_enabled' && !isCamera) {
             globalAiEnabled = data.enabled;
             console.log(`[AI Status] Global AI state updated to: ${globalAiEnabled ? 'ENABLED' : 'DISABLED'}`);
+            saveSystemSettings();
             // Broadcast AI state change to ALL kiosks so their toggles sync
             const aiStatusPayload = JSON.stringify({ type: 'ai_enabled_updated', enabled: globalAiEnabled });
             wss.clients.forEach((client) => {
