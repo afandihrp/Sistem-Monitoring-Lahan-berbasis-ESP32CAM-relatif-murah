@@ -23,10 +23,36 @@ defineProps({
               <div class="fw-bold text-truncate" style="font-size: 0.85rem;">{{ device.mac || 'Unknown MAC' }}</div>
               <code class="text-info d-block text-truncate" style="font-size: 0.75rem;">{{ device.ip }}</code>
             </div>
-            <span :class="device.status === 'Online' ? 'bg-success' : 'bg-danger'" 
-                  class="badge rounded-pill ms-1" style="font-size: 0.75rem;">
-              {{ device.status }}
-            </span>
+            <!-- Dynamic signal status indicator (replaces Online/Offline text badge) -->
+            <div class="d-flex align-items-center ms-2" style="height: 24px;">
+              <!-- Online Device: Green Dynamic Signal Bars -->
+              <div v-if="device.status === 'Online'" class="d-flex align-items-end gap-1" style="height: 16px;" :title="`Signal Strength: ${device.signalBars || 0}/5`">
+                <div v-for="bar in 5" :key="bar" 
+                     :style="{ 
+                       width: '3px', 
+                       height: (bar * 20) + '%', 
+                       backgroundColor: (device.signalBars || 0) >= bar ? '#22c55e' : '#64748b',
+                       boxShadow: (device.signalBars || 0) >= bar ? '0 0 6px rgba(34, 197, 94, 0.6)' : 'none',
+                       borderRadius: '1px'
+                     }">
+                </div>
+              </div>
+              <!-- Offline Device: Muted Bars with a Red X Overlay indicating lost signal -->
+              <div v-else class="position-relative d-flex align-items-end gap-1" style="height: 16px;" title="Signal Lost (Offline)">
+                <div v-for="bar in 5" :key="bar" 
+                     :style="{ 
+                       width: '3px', 
+                       height: (bar * 20) + '%', 
+                       backgroundColor: '#64748b',
+                       opacity: 0.65,
+                       borderRadius: '1px'
+                     }">
+                </div>
+                <div class="position-absolute top-50 start-50 translate-middle d-flex align-items-center justify-content-center" style="width: 100%; height: 100%;">
+                  <i class="bi bi-x-lg" style="font-size: 1.1rem; color: #ff0000; -webkit-text-stroke: 1.2px #ff0000; font-weight: 900 !important; filter: drop-shadow(0 0 3px rgba(255, 0, 0, 0.9));"></i>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

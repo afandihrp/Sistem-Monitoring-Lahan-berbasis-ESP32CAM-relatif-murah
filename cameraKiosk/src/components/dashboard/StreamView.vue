@@ -142,19 +142,6 @@ const handleSaveConfig = (config) => {
           <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black;">
             <span class="d-none d-sm-inline">ESP32-CAM</span> [{{ currentStream.ip }}]
           </span>
-          <!-- Signal Icon -->
-          <div class="d-flex align-items-end gap-1 signal-bars" style="height: 18px;" :title="currentStream.status === 'Online' ? `Signal Strength: ${currentStream.signalBars || 0}/5` : 'No Signal'">
-            <div v-for="i in 5" :key="i" 
-                 :style="{ 
-                   width: '5px', 
-                   height: (i * 20) + '%', 
-                   backgroundColor: (currentStream.status === 'Online' && (currentStream.signalBars || 0) >= i) ? '#22c55e' : '#64748b',
-                   opacity: (currentStream.status === 'Online' && (currentStream.signalBars || 0) >= i) ? 0.9 : 0.4,
-                   boxShadow: (currentStream.status === 'Online' && (currentStream.signalBars || 0) >= i) ? '0 0 8px rgba(34, 197, 94, 0.8)' : 'none',
-                   borderRadius: '1.5px'
-                 }">
-            </div>
-          </div>
         </div>
       </div>
 
