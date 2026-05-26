@@ -21,7 +21,9 @@ const camConfig = ref({
   agc: true,
   hmirror: false,
   vflip: false,
-  specialEffect: 'None'
+  specialEffect: 'None',
+  xclk: 8000000,
+  flashOnCapture: true
 })
 
 const fetchCameraConfig = () => {
@@ -45,7 +47,9 @@ const handleConfigReceived = (event) => {
       agc: config.agc ?? true,
       hmirror: config.hmirror ?? false,
       vflip: config.vflip ?? false,
-      specialEffect: config.specialEffect ?? 'None'
+      specialEffect: config.specialEffect ?? 'None',
+      xclk: config.xclk ?? 8000000,
+      flashOnCapture: config.flashOnCapture ?? true
     };
     console.log('Loaded saved camera config via WS for:', mac);
   }
@@ -183,6 +187,27 @@ const saveConfig = () => {
               <span class="text-slate-400 small">V-Flip</span>
               <div class="form-check form-switch p-0 m-0">
                 <input class="form-check-input ms-0" type="checkbox" role="switch" v-model="camConfig.vflip">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hardware & Capture settings -->
+        <div class="p-3 bg-slate-800 rounded-2 border border-slate-700">
+          <label class="text-slate-300 small fw-bold mb-3 d-block text-uppercase">Hardware & Capture Settings</label>
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="text-slate-400 small mb-1">XCLK Frequency</label>
+              <select v-model.number="camConfig.xclk" class="form-select bg-slate-900 border-slate-700 text-white font-monospace small">
+                <option :value="8000000">8 MHz (Stable)</option>
+                <option :value="10000000">10 MHz</option>
+                <option :value="20000000">20 MHz (High FPS)</option>
+              </select>
+            </div>
+            <div class="col-6 d-flex flex-column justify-content-between p-2 px-3 bg-slate-900 rounded border border-slate-700 border-opacity-50">
+              <span class="text-slate-400 small">Flash on Capture</span>
+              <div class="form-check form-switch p-0 m-0 mt-2">
+                <input class="form-check-input ms-0" type="checkbox" role="switch" v-model="camConfig.flashOnCapture">
               </div>
             </div>
           </div>

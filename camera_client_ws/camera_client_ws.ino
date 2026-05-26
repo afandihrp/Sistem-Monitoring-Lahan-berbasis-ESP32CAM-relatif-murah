@@ -84,6 +84,8 @@ bool cam_agc = true;
 bool cam_hmirror = false;
 bool cam_vflip = false;
 String cam_specialEffect = "None";
+int cam_xclk = 8000000;
+bool cam_flashOnCapture = true;
 
 void applyCameraConfig() {
   sensor_t * s = esp_camera_sensor_get();
@@ -125,6 +127,9 @@ void applyCameraConfig() {
   else if (cam_specialEffect == "Blue Tint") effectVal = 5;
   else if (cam_specialEffect == "Sepia") effectVal = 6;
   s->set_special_effect(s, effectVal);
+
+  // 7. XCLK (set via LEDC timer, value in MHz)
+  s->set_xclk(s, LEDC_TIMER_0, cam_xclk / 1000000);
 
   Serial.println("[CAM] Camera configurations successfully applied to sensor.");
 }
@@ -287,8 +292,26 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
              if (end != -1) cam_specialEffect = cmd.substring(start, end);
            }
 
-           Serial.printf("[WSc] Camera config updated: Res=%s, Qual=%d, Bright=%d, Contrast=%d, Sat=%d, AWB=%d, AEC=%d, AGC=%d, Mirror=%d, Flip=%d, Effect=%s\n",
-                         cam_resolution.c_str(), cam_quality, cam_brightness, cam_contrast, cam_saturation, cam_awb, cam_aec, cam_agc, cam_hmirror, cam_vflip, cam_specialEffect.c_str());
+           int xclkIdx = cmd.indexOf("\"xclk\":");
+           if (xclkIdx != -1) {
+             int start = xclkIdx + 7;
+             int end = cmd.indexOf(",", start);
+             if (end == -1) end = cmd.indexOf("}", start);
+             if (end != -1) cam_xclk = cmd.substring(start, end).toInt();
+           }
+
+           int flashIdx = cmd.indexOf("\"flashOnCapture\":");
+           if (flashIdx != -1) {
+             int start = flashIdx + 17;
+             int end = cmd.indexOf(",", start);
+             if (end == -1) end = cmd.indexOf("}", start);
+             if (end != -1) cam_flashOnCapture = (cmd.substring(start, end).indexOf("true") != -1);
+           }
+
+           Serial.printf("[WSc] Camera config updated: Res=%s, Qual=%d, Bright=%d, Contrast=%d, Sat=%d, AWB=%d, AEC=%d, AGC=%d, Mirror=%d, Flip=%d, Effect=%s, XCLK=%d, Flash=%d\n",
+                         cam_resolution.c_str(), cam_quality, cam_brightness, cam_contrast, cam_saturation, cam_awb, cam_aec, cam_agc, cam_hmirror, cam_vflip, cam_specialEffect.c_str(), cam_xclk, cam_flashOnCapture);
+
+           // XCLK is changed at runtime via s->set_xclk() inside applyCameraConfig()
 
            applyCameraConfig();
          }
@@ -345,7 +368,7 @@ void setup() {
   app_cam_config.pin_sscb_scl  = SIOC_GPIO_NUM;
   app_cam_config.pin_pwdn      = PWDN_GPIO_NUM;
   app_cam_config.pin_reset     = RESET_GPIO_NUM;
-  app_cam_config.xclk_freq_hz  = 8000000; // 20MHz default for FHD bandwidth
+  app_cam_config.xclk_freq_hz  = 8000000; // Default 8MHz, will be overridden by backend config
   app_cam_config.pixel_format  = PIXFORMAT_JPEG;
   app_cam_config.grab_mode     = CAMERA_GRAB_LATEST;
   app_cam_config.fb_location   = CAMERA_FB_IN_PSRAM;
@@ -423,11 +446,15 @@ void captureAndUpload(String label) {
 
   delay(500); // Tunggu sensor stabil
 
-  // Nyalakan flash SEBELUM flush frames agar AEC kamera bisa menyesuaikan
-  Serial.println("[2] Flash ON — flushing frames for AEC adjustment...");
-  digitalWrite(FLASH_GPIO_NUM, HIGH);
+  // Conditionally enable flash based on camera config
+  if (cam_flashOnCapture) {
+    Serial.println("[2] Flash ON — flushing frames for AEC adjustment...");
+    digitalWrite(FLASH_GPIO_NUM, HIGH);
+  } else {
+    Serial.println("[2] Flash DISABLED by config — flushing frames...");
+  }
 
-  // Buang 5 frame — cukup untuk AEC konvergen
+  // Buang 2 frame — cukup untuk AEC konvergen
   for (int i = 0; i < 2; i++) {
     camera_fb_t * discard = esp_camera_fb_get();
     if (discard) {
@@ -436,11 +463,13 @@ void captureAndUpload(String label) {
     delay(150);
   }
 
-  // === STEP 2: Ambil frame FHD dengan flash menyala ===
-  Serial.println("[3] Capturing frame with flash...");
+  // === STEP 2: Ambil frame FHD ===
+  Serial.println("[3] Capturing frame...");
   camera_fb_t * fb = esp_camera_fb_get();
-  digitalWrite(FLASH_GPIO_NUM, LOW);  // Matikan flash setelah frame diambil
-  Serial.println("[3] Flash OFF.");
+  if (cam_flashOnCapture) {
+    digitalWrite(FLASH_GPIO_NUM, LOW);  // Matikan flash setelah frame diambil
+    Serial.println("[3] Flash OFF.");
+  }
 
   if (!fb) {
     Serial.println("[ERR] Failed to get FHD frame!");
