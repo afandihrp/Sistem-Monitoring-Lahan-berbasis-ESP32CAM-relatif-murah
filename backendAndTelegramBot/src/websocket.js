@@ -2,6 +2,8 @@ const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
+sharp.concurrency(2); // Prevents thread starvation on RPi 3
+sharp.cache(false);       // Conserves RAM on low-memory systems
 const { aiClient } = require('./services/aiClient');
 const { logEvent, getLogs } = require('./services/logger');
 const { sendMotionAlert } = require('./services/telegram');
@@ -68,47 +70,45 @@ async function stitchFrames(onlineDevices) {
 
   try {
     if (count === 2) {
-      // Stack 2 JPEGs horizontally (Left / Right, output: 1280x480)
-      const img1 = await sharp(onlineDevices[0].latestFrame).resize(640, 480).toBuffer();
-      const img2 = await sharp(onlineDevices[1].latestFrame).resize(640, 480).toBuffer();
-
+      // Stack 2 JPEGs horizontally (Left / Right, output: 960x320)
+      // Composite the raw camera JPEG buffers directly without redundant decode/resize cycles!
       return await sharp({
         create: {
-          width: 1280,
-          height: 480,
+          width: 960,
+          height: 320,
           channels: 3,
           background: { r: 0, g: 0, b: 0 }
         }
       })
       .composite([
-        { input: img1, top: 0, left: 0 },
-        { input: img2, top: 0, left: 640 }
+        { input: onlineDevices[0].latestFrame, top: 0, left: 0 },
+        { input: onlineDevices[1].latestFrame, top: 0, left: 480 }
       ])
-      .jpeg()
+      .jpeg({ quality: 75 })
       .toBuffer();
     } else {
-      // 3 or 4 JPEGs in a 2x2 grid (output: 1280x960)
+      // 3 or 4 JPEGs in a 2x2 grid (output: 960x640)
+      // Composite the raw camera JPEG buffers directly without redundant decode/resize cycles!
       const compositeList = [];
       for (let i = 0; i < Math.min(count, 4); i++) {
         const dev = onlineDevices[i];
         if (dev.latestFrame) {
-          const imgResized = await sharp(dev.latestFrame).resize(640, 480).toBuffer();
-          const top = i < 2 ? 0 : 480;
-          const left = i % 2 === 0 ? 0 : 640;
-          compositeList.push({ input: imgResized, top, left });
+          const top = i < 2 ? 0 : 320;
+          const left = i % 2 === 0 ? 0 : 480;
+          compositeList.push({ input: dev.latestFrame, top, left });
         }
       }
 
       return await sharp({
         create: {
-          width: 1280,
-          height: 960,
+          width: 960,
+          height: 640,
           channels: 3,
           background: { r: 0, g: 0, b: 0 }
         }
       })
       .composite(compositeList)
-      .jpeg()
+      .jpeg({ quality: 75 })
       .toBuffer();
     }
   } catch (err) {
