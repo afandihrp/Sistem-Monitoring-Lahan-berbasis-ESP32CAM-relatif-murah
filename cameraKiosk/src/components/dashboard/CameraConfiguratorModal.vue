@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   mac: {
@@ -24,6 +24,13 @@ const camConfig = ref({
   specialEffect: 'None',
   xclk: 8000000,
   flashOnCapture: true
+})
+
+const xclkMHz = computed({
+  get: () => Math.round(camConfig.value.xclk / 1000000),
+  set: (val) => {
+    camConfig.value.xclk = val * 1000000
+  }
 })
 
 const fetchCameraConfig = () => {
@@ -195,18 +202,18 @@ const saveConfig = () => {
         <!-- Hardware & Capture settings -->
         <div class="p-3 bg-slate-800 rounded-2 border border-slate-700">
           <label class="text-slate-300 small fw-bold mb-3 d-block text-uppercase">Hardware & Capture Settings</label>
-          <div class="row g-3">
-            <div class="col-6">
-              <label class="text-slate-400 small mb-1">XCLK Frequency</label>
-              <select v-model.number="camConfig.xclk" class="form-select bg-slate-900 border-slate-700 text-white font-monospace small">
-                <option :value="8000000">8 MHz (Stable)</option>
-                <option :value="10000000">10 MHz</option>
-                <option :value="20000000">20 MHz (High FPS)</option>
-              </select>
+          <div class="d-flex flex-column gap-3">
+            <div>
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="text-slate-400 small">XCLK Frequency</label>
+                <span class="text-info font-monospace small fw-bold">{{ xclkMHz }} MHz</span>
+              </div>
+              <input type="range" class="form-range custom-slider" min="1" max="21" step="1" v-model.number="xclkMHz">
             </div>
-            <div class="col-6 d-flex flex-column justify-content-between p-2 px-3 bg-slate-900 rounded border border-slate-700 border-opacity-50">
+
+            <div class="d-flex justify-content-between align-items-center p-2 px-3 bg-slate-900 rounded border border-slate-700 border-opacity-50">
               <span class="text-slate-400 small">Flash on Capture</span>
-              <div class="form-check form-switch p-0 m-0 mt-2">
+              <div class="form-check form-switch p-0 m-0">
                 <input class="form-check-input ms-0" type="checkbox" role="switch" v-model="camConfig.flashOnCapture">
               </div>
             </div>
