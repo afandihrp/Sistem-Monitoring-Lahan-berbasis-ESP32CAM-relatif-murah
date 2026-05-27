@@ -107,9 +107,30 @@ async function stitchFrames(onlineDevices) {
   if (count === 1) return onlineDevices[0].latestFrame;
 
   try {
+    // Resize all active frames to 480x320 with Letterbox/Contain in parallel to handle asymmetric resolutions
+    const resizedFrames = await Promise.all(
+      onlineDevices.slice(0, 4).map(async (dev) => {
+        if (!dev.latestFrame) return null;
+        try {
+          return await sharp(dev.latestFrame)
+            .resize(480, 320, {
+              fit: 'contain',
+              background: { r: 0, g: 0, b: 0 }
+            })
+            .toBuffer();
+        } catch (resizeErr) {
+          console.error(`[Stitching] Failed to resize frame for device ${dev.id}:`, resizeErr.message);
+          return null;
+        }
+      })
+    );
+
     if (count === 2) {
+      const frame0 = resizedFrames[0];
+      const frame1 = resizedFrames[1];
+      if (!frame0 || !frame1) return null;
+
       // Stack 2 JPEGs horizontally (Left / Right, output: 960x320)
-      // Composite the raw camera JPEG buffers directly without redundant decode/resize cycles!
       return await sharp({
         create: {
           width: 960,
@@ -119,21 +140,20 @@ async function stitchFrames(onlineDevices) {
         }
       })
       .composite([
-        { input: onlineDevices[0].latestFrame, top: 0, left: 0 },
-        { input: onlineDevices[1].latestFrame, top: 0, left: 480 }
+        { input: frame0, top: 0, left: 0 },
+        { input: frame1, top: 0, left: 480 }
       ])
       .jpeg({ quality: 75 })
       .toBuffer();
     } else {
       // 3 or 4 JPEGs in a 2x2 grid (output: 960x640)
-      // Composite the raw camera JPEG buffers directly without redundant decode/resize cycles!
       const compositeList = [];
-      for (let i = 0; i < Math.min(count, 4); i++) {
-        const dev = onlineDevices[i];
-        if (dev.latestFrame) {
+      for (let i = 0; i < Math.min(resizedFrames.length, 4); i++) {
+        const frameBuffer = resizedFrames[i];
+        if (frameBuffer) {
           const top = i < 2 ? 0 : 320;
           const left = i % 2 === 0 ? 0 : 480;
-          compositeList.push({ input: dev.latestFrame, top, left });
+          compositeList.push({ input: frameBuffer, top, left });
         }
       }
 
