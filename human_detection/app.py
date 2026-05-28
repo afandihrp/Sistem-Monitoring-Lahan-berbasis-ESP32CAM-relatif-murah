@@ -37,13 +37,13 @@ async def handle_client(websocket, path=None):
                         }))
                         continue
 
-                    # Downscale gambar jika terlalu besar (maksimal 640px pada sisi terpanjang)
-                    height, width = img.shape[:2]
-                    max_dim = 640
-                    if max(height, width) > max_dim:
-                        scale = max_dim / max(height, width)
-                        img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR)
-                        height, width = img.shape[:2]
+                    # Downscale gambar dinonaktifkan untuk menjaga resolusi asli
+                    # height, width = img.shape[:2]
+                    # max_dim = 640
+                    # if max(height, width) > max_dim:
+                    #     scale = max_dim / max(height, width)
+                    #     img = cv2.resize(img, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_LINEAR)
+                    #     height, width = img.shape[:2]
 
                     # Deteksi orang menggunakan subsystem detector
                     koordinat_kotak = detector.run_inference(img)

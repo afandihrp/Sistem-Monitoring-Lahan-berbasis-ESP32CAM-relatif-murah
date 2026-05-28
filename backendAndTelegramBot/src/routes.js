@@ -2,7 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { aiClient } = require('./services/aiClient');
-const { updateLatestLogImage, updateLatestLogWithAI } = require('./services/logger');
+const { logEvent, updateLatestLogImage, updateLatestLogWithAI } = require('./services/logger');
 const { sendMotionAlert, notifyCaptureResult } = require('./services/telegram');
 
 /**
@@ -65,7 +65,24 @@ function createRouter(wss) {
       if (sensor === 'capture') {
         // On-demand capture: save raw image immediately
         fs.writeFileSync(filepath, req.body);
-        notifyCaptureResult(filepath);
+
+        // Log capture event to log.json with "telegram capture" type
+        const { getDevices } = require('./websocket');
+        const devices = getDevices();
+        const deviceId = `cam_${ip.replace(/\./g, '_')}`;
+        const device = devices.get(deviceId);
+        const location = device ? device.name : ip;
+
+        logEvent({
+          type: 'telegram capture',
+          sensor: sensor,
+          location: location,
+          deviceId: deviceId,
+          imageUrl: imageUrl,
+          timestamp: new Date().toISOString()
+        });
+
+        notifyCaptureResult(filename);
         return res.send('Uploaded (Capture)');
       }
 
@@ -98,7 +115,7 @@ function createRouter(wss) {
       updateLatestLogWithAI(sensor, ip, imageUrl, humanPresence, aiDetails);
       
       // Send motion alert to Telegram
-      sendMotionAlert(`IP: ${ip}`, sensor, filepath);
+      sendMotionAlert(`IP: ${ip}`, sensor, filename);
 
       // Notify Web Clients
       const payload = JSON.stringify({

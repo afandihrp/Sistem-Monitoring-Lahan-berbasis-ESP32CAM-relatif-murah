@@ -60,7 +60,7 @@ bot.use(async (ctx, next) => {
 });
 
 // --- Helper: Cari file gambar terbaru di folder /data ---
-function getLatestImagePath() {
+function getLatestImageFilename() {
   try {
     if (!fs.existsSync(DATA_DIR)) return null;
 
@@ -68,12 +68,11 @@ function getLatestImagePath() {
       .filter(f => /\.(jpg|jpeg|png)$/i.test(f))
       .map(f => ({
         name: f,
-        fullPath: path.join(DATA_DIR, f),
         mtime: fs.statSync(path.join(DATA_DIR, f)).mtimeMs
       }))
       .sort((a, b) => b.mtime - a.mtime); // terbaru lebih dulu
 
-    return files.length > 0 ? files[0].fullPath : null;
+    return files.length > 0 ? files[0].name : null;
   } catch (err) {
     console.error('Error reading /data directory:', err);
     return null;
@@ -169,11 +168,11 @@ bot.command('devices', async (ctx) => {
 const pendingCaptures = [];
 
 // Dipanggil oleh routes.js setelah foto on-demand tersimpan ke disk
-function notifyCaptureResult(filepath) {
+function notifyCaptureResult(filename) {
   if (pendingCaptures.length > 0) {
     const { resolve, timer } = pendingCaptures.shift();
     clearTimeout(timer);
-    resolve(filepath);
+    resolve(filename);
   } else {
     console.log('notifyCaptureResult: no pending capture to resolve');
   }
@@ -190,7 +189,7 @@ async function requestCapture(ctx, deviceId) {
   const TIMEOUT_MS = 45000; // 45 detik: TLS handshake (~3s) + flush (~5s) + upload 1080p (~15s)
 
   try {
-    const filepath = await new Promise((resolve, reject) => {
+    const filename = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         // Hapus dari antrian jika timeout
         const idx = pendingCaptures.findIndex(p => p.resolve === resolve);
@@ -200,8 +199,11 @@ async function requestCapture(ctx, deviceId) {
       pendingCaptures.push({ resolve, timer });
     });
 
+    const filePath = path.join(DATA_DIR, filename);
+    const imageBuffer = fs.readFileSync(filePath);
+
     await ctx.replyWithPhoto(
-      { source: filepath },
+      { source: imageBuffer },
       { caption: `📸 *Capture On-Demand*\n🕐 ${new Date().toLocaleTimeString('id-ID')} (WIB)`, parse_mode: 'Markdown' }
     );
   } catch (err) {
@@ -355,8 +357,10 @@ bot.action(/^gi:(.+)$/, async (ctx) => {
       ? 'Tidak diketahui'
       : new Date(timestampMs).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
 
+    const imageBuffer = fs.readFileSync(filePath);
+
     await ctx.replyWithPhoto(
-      { source: filePath },
+      { source: imageBuffer },
       {
         caption: `🖼️ *${filename}*\n🕐 ${timeStr} (WIB)`,
         parse_mode: 'Markdown'
@@ -383,7 +387,7 @@ function initTelegramBot() {
 }
 
 // --- sendMotionAlert: Kirim peringatan teks + foto ke SEMUA registered chat ID ---
-async function sendMotionAlert(location, sensor, imagePath = null) {
+async function sendMotionAlert(location, sensor, filename = null) {
   console.log(`Attempting to send Telegram alert for ${location} (${sensor})...`);
   if (registeredChatIds.length === 0) {
     console.log('No chat IDs registered for Telegram alerts.');
@@ -391,16 +395,25 @@ async function sendMotionAlert(location, sensor, imagePath = null) {
   }
 
   const message = `🚨 *MOTION DETECTED!* \n\n📍 *Location:* ${location}\n🛡️ *Sensor:* ${sensor}\n⏰ *Time:* ${new Date().toLocaleTimeString()}`;
-  const targetImage = imagePath || getLatestImagePath();
+  const targetFilename = filename || getLatestImageFilename();
+
+  let imageBuffer = null;
+  if (targetFilename) {
+    try {
+      imageBuffer = fs.readFileSync(path.join(DATA_DIR, targetFilename));
+    } catch (readErr) {
+      console.error(`Failed to read image ${targetFilename} from disk:`, readErr.message);
+    }
+  }
 
   // Kirim ke semua registered chat ID
   for (const chatId of registeredChatIds) {
     try {
       await bot.telegram.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-      if (targetImage) {
+      if (imageBuffer) {
         await bot.telegram.sendPhoto(
           chatId,
-          { source: fs.createReadStream(targetImage) },
+          { source: imageBuffer },
           { caption: `📸 Foto dari sensor *${sensor}* — ${new Date().toLocaleTimeString('id-ID')}`, parse_mode: 'Markdown' }
         );
       }

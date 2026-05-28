@@ -107,70 +107,70 @@ async function stitchFrames(onlineDevices) {
   if (count === 1) return onlineDevices[0].latestFrame;
 
   try {
-    // Resize all active frames to 480x320 with Letterbox/Contain in parallel to handle asymmetric resolutions
-    const resizedFrames = await Promise.all(
-      onlineDevices.slice(0, 4).map(async (dev) => {
-        if (!dev.latestFrame) return null;
-        try {
+    // Filter out any devices that don't have a valid latestFrame
+    const validDevices = onlineDevices.filter(d => d.latestFrame);
+    if (validDevices.length === 0) return null;
+    if (validDevices.length === 1) return validDevices[0].latestFrame;
+
+    const actualCount = validDevices.length;
+
+    if (actualCount === 2) {
+      // Resize each of the 2 feeds directly to 960x1080 (half width, full height of 1080p canvas) with fit: fill
+      const uniformFrames = await Promise.all(
+        validDevices.slice(0, 2).map(async (dev) => {
           return await sharp(dev.latestFrame)
-            .resize(480, 320, {
-              fit: 'contain',
-              background: { r: 0, g: 0, b: 0 }
-            })
+            .resize(960, 1080, { fit: 'fill' })
             .toBuffer();
-        } catch (resizeErr) {
-          console.error(`[Stitching] Failed to resize frame for device ${dev.id}:`, resizeErr.message);
-          return null;
-        }
-      })
-    );
+        })
+      );
 
-    if (count === 2) {
-      const frame0 = resizedFrames[0];
-      const frame1 = resizedFrames[1];
-      if (!frame0 || !frame1) return null;
-
-      // Stack 2 JPEGs horizontally (Left / Right, output: 960x320)
+      // Composite directly into a 1920x1080 canvas
       return await sharp({
         create: {
-          width: 960,
-          height: 320,
+          width: 1920,
+          height: 1080,
           channels: 3,
           background: { r: 0, g: 0, b: 0 }
         }
       })
       .composite([
-        { input: frame0, top: 0, left: 0 },
-        { input: frame1, top: 0, left: 480 }
+        { input: uniformFrames[0], top: 0, left: 0 },
+        { input: uniformFrames[1], top: 0, left: 960 }
       ])
-      .jpeg({ quality: 75 })
+      .jpeg({ quality: 80 })
       .toBuffer();
     } else {
-      // 3 or 4 JPEGs in a 2x2 grid (output: 960x640)
+      // Resize up to 4 feeds directly to 960x540 (half width, half height of 1080p canvas) with fit: fill
+      const uniformFrames = await Promise.all(
+        validDevices.slice(0, 4).map(async (dev) => {
+          return await sharp(dev.latestFrame)
+            .resize(960, 540, { fit: 'fill' })
+            .toBuffer();
+        })
+      );
+
       const compositeList = [];
-      for (let i = 0; i < Math.min(resizedFrames.length, 4); i++) {
-        const frameBuffer = resizedFrames[i];
-        if (frameBuffer) {
-          const top = i < 2 ? 0 : 320;
-          const left = i % 2 === 0 ? 0 : 480;
-          compositeList.push({ input: frameBuffer, top, left });
-        }
+      for (let i = 0; i < uniformFrames.length; i++) {
+        const top = i < 2 ? 0 : 540;
+        const left = i % 2 === 0 ? 0 : 960;
+        compositeList.push({ input: uniformFrames[i], top, left });
       }
 
+      // Composite directly into a 1920x1080 canvas
       return await sharp({
         create: {
-          width: 960,
-          height: 640,
+          width: 1920,
+          height: 1080,
           channels: 3,
           background: { r: 0, g: 0, b: 0 }
         }
       })
       .composite(compositeList)
-      .jpeg({ quality: 75 })
+      .jpeg({ quality: 80 })
       .toBuffer();
     }
   } catch (err) {
-    console.error('[Stitching] Failed to stitch JPEG frames:', err.message);
+    console.error('[Stitching] Failed to stitch JPEGs directly into 1080p canvas:', err.message);
     return null;
   }
 }
@@ -602,10 +602,8 @@ function initWebSocket(server) {
 
     devices.forEach((device, deviceId) => {
       if (deviceId === globalActiveDeviceId && device.status === 'Online' && device.latestFrame) {
-        const frameToProcess = device.latestFrame;
-        device.latestFrame = null; // Clear so we don't repeat the same frame
-        
         if (!globalAiEnabled) {
+          device.latestFrame = null; // Clear so we don't repeat the same frame
           device.latestBoxes = [];
           const boxPayload = JSON.stringify({
             type: 'stream_boxes',
@@ -621,6 +619,8 @@ function initWebSocket(server) {
         }
 
         if (!device.isAiProcessing) {
+          const frameToProcess = device.latestFrame;
+          device.latestFrame = null; // Only clear when we actually start processing it!
           device.isAiProcessing = true;
           detectStreamAI(frameToProcess).then(result => {
             device.isAiProcessing = false;
