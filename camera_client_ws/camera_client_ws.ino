@@ -442,7 +442,7 @@ void captureAndUpload(String label) {
   }
 
   // Override quality to high quality (10) for capture, independent of streaming setting
-  s->set_quality(s, 2);
+  s->set_quality(s, 10);
 
   delay(500); // Tunggu sensor stabil
 
