@@ -1,9 +1,14 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import ServoConfiguratorModal from './ServoConfiguratorModal.vue'
 import CameraConfiguratorModal from './CameraConfiguratorModal.vue'
+import CameraFeed from './CameraFeed.vue'
 
 const props = defineProps({
+  devices: {
+    type: Array,
+    default: () => []
+  },
   currentStream: {
     type: Object,
     required: true
@@ -15,6 +20,14 @@ const props = defineProps({
   liveBoxes: {
     type: Array,
     default: () => []
+  },
+  cameraImages: {
+    type: Object,
+    default: () => ({})
+  },
+  cameraBoxes: {
+    type: Object,
+    default: () => ({})
   },
   windowWidth: {
     type: Number,
@@ -34,91 +47,13 @@ const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServ
 const servoValue = ref(90)
 const showConfig = ref(false)
 const showCameraConfig = ref(false)
-const overlayCanvas = ref(null)
-const streamImg = ref(null)
 
-const drawBoxes = () => {
-  const canvas = overlayCanvas.value
-  const img = streamImg.value
-  if (!canvas || !img) return
-
-  const ctx = canvas.getContext('2d')
-  
-  // Match canvas size to displayed image size
-  canvas.width = img.clientWidth
-  canvas.height = img.clientHeight
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-  if (!props.liveBoxes || props.liveBoxes.length === 0) return
-
-  // Calculate the exact displayed bounds of the image inside the <img> element (accounting for object-fit: contain)
-  const getDisplayImageRect = () => {
-    const naturalWidth = img.naturalWidth;
-    const naturalHeight = img.naturalHeight;
-    const clientWidth = img.clientWidth;
-    const clientHeight = img.clientHeight;
-
-    if (!naturalWidth || !naturalHeight || !clientWidth || !clientHeight) {
-      return { left: 0, top: 0, width: clientWidth, height: clientHeight };
-    }
-
-    const imageRatio = naturalWidth / naturalHeight;
-    const elementRatio = clientWidth / clientHeight;
-
-    let width, height, left, top;
-
-    if (elementRatio > imageRatio) {
-      // The element is wider than the image: height matches element, width is scaled
-      height = clientHeight;
-      width = height * imageRatio;
-      top = 0;
-      left = (clientWidth - width) / 2;
-    } else {
-      // The element is taller than the image: width matches element, height is scaled
-      width = clientWidth;
-      height = width / imageRatio;
-      left = 0;
-      top = (clientHeight - height) / 2;
-    }
-
-    return { left, top, width, height };
-  }
-
-  const rect = getDisplayImageRect();
-
-  props.liveBoxes.forEach(box => {
-    const [x1_norm, y1_norm, x2_norm, y2_norm] = box.posisi
-    const conf = box.confidence
-
-    // Scale and shift coordinates relative to the actual displayed camera feeds (excluding black bars)
-    const bx1 = rect.left + x1_norm * rect.width
-    const by1 = rect.top + y1_norm * rect.height
-    const bw = (x2_norm - x1_norm) * rect.width
-    const bh = (y2_norm - y1_norm) * rect.height
-
-    // Draw Box
-    ctx.strokeStyle = '#ff0000'
-    ctx.lineWidth = 3
-    ctx.strokeRect(bx1, by1, bw, bh)
-
-    // Draw Label
-    const label = `Person ${Math.round(conf * 100)}%`
-    ctx.font = 'bold 14px Arial'
-    const textMetrics = ctx.measureText(label)
-    const textHeight = 18
-    
-    ctx.fillStyle = '#ff0000'
-    ctx.fillRect(bx1, by1 - textHeight, textMetrics.width + 10, textHeight)
-    
-    ctx.fillStyle = '#ffffff'
-    ctx.fillText(label, bx1 + 5, by1 - 5)
-  })
-}
-
-watch(() => props.liveBoxes, drawBoxes, { deep: true })
-watch(() => props.liveImageSrc, drawBoxes)
-watch(() => props.windowWidth, drawBoxes)
+const gridClass = computed(() => {
+  const count = props.devices.length;
+  if (count <= 1) return 'grid-container devices-1';
+  if (count === 2) return 'grid-container devices-2';
+  return 'grid-container devices-3-4';
+})
 
 const handleSaveConfig = (config) => {
   emit('saveServoConfig', {
@@ -143,13 +78,17 @@ const handleSaveCameraConfig = (config) => {
     <section class="stream-section bg-black position-relative flex-grow-1">
       <!-- Header Stream (Absolute agar video bisa full edge-to-edge) -->
       <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-between align-items-center z-2 stream-header-grad">
-        <span v-if="currentStream.status === 'Online'" class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
+        <span v-if="currentStream.status === 'Online' && viewMode !== 'multiple'" class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
           <span class="spinner-grow spinner-grow-sm" style="width: 0.8rem; height: 0.8rem;" role="status"></span>
           LIVE FEED
         </span>
-        <span v-else class="badge rounded-pill bg-secondary text-white border border-secondary border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
+        <span v-else-if="viewMode !== 'multiple'" class="badge rounded-pill bg-secondary text-white border border-secondary border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
           <i class="bi bi-camera-video-off-fill fs-6"></i>
           OFFLINE
+        </span>
+        <span v-else class="badge rounded-pill bg-primary text-white border border-primary border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
+          <i class="bi bi-grid-3x3-gap-fill fs-6"></i>
+          MULTIPLE VIEW (GRID)
         </span>
         
         <div v-if="viewMode !== 'multiple'" class="d-flex align-items-center gap-2 gap-sm-3">
@@ -161,23 +100,62 @@ const handleSaveCameraConfig = (config) => {
 
       <!-- Video Container -->
       <div class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
-        <img :src="currentStream.status === 'Online' ? (liveImageSrc || `https://via.placeholder.com/1920x1080/000000/3b82f6?text=WAITING+FOR+STREAM`) : `https://via.placeholder.com/1920x1080/000000/000000?text=.`" 
-             class="w-100 h-100 object-fit-contain" 
-             ref="streamImg"
-             alt="Main Stream" />
-        
-        <!-- AI Overlay Canvas -->
-        <canvas ref="overlayCanvas" 
-                class="position-absolute pointer-events-none"
-                style="pointer-events: none; z-index: 10;">
-        </canvas>
+        <!-- SINGLE VIEW -->
+        <template v-if="viewMode !== 'multiple'">
+          <CameraFeed v-if="currentStream.status === 'Online'"
+            :deviceId="currentStream.id"
+            :imageSrc="liveImageSrc"
+            :boxes="liveBoxes"
+            :aiEnabled="aiEnabled"
+          />
+          <!-- Offline Overlay -->
+          <div v-if="currentStream.status !== 'Online'" 
+               class="position-absolute top-50 start-50 translate-middle d-flex flex-column align-items-center text-secondary opacity-50">
+            <i class="bi bi-camera-video-off" style="font-size: 6rem;"></i>
+            <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">Camera Offline</div>
+          </div>
+        </template>
 
-        <!-- Offline Overlay -->
-        <div v-if="currentStream.status !== 'Online'" 
-             class="position-absolute top-50 start-50 translate-middle d-flex flex-column align-items-center text-secondary opacity-50">
-          <i class="bi bi-camera-video-off" style="font-size: 6rem;"></i>
-          <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">Camera Offline</div>
-        </div>
+        <!-- MULTIPLE VIEW (GRID) -->
+        <template v-else>
+          <div :class="gridClass">
+            <div v-for="device in devices" :key="device.id" class="grid-item bg-black position-relative">
+              <!-- Grid Header -->
+              <div class="position-absolute top-0 start-0 w-100 p-2 d-flex justify-content-between align-items-center z-2 stream-header-grad">
+                <span v-if="device.status === 'Online'" class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-1 px-2 py-0.5" style="font-size: 0.65rem;">
+                  <span class="spinner-grow spinner-grow-sm" style="width: 0.5rem; height: 0.5rem;" role="status"></span>
+                  LIVE FEED
+                </span>
+                <span v-else class="badge rounded-pill bg-secondary text-white border border-secondary border-opacity-25 d-flex align-items-center gap-1 px-2 py-0.5" style="font-size: 0.65rem;">
+                  OFFLINE
+                </span>
+                <span class="text-white fw-bold font-monospace text-uppercase text-truncate px-2" style="text-shadow: 1px 1px 2px black; font-size: 0.75rem; max-width: 60%;">
+                  {{ device.name }}
+                </span>
+              </div>
+
+              <!-- Camera Feed Area -->
+              <div class="w-100 h-100 d-flex align-items-center justify-content-center position-relative">
+                <CameraFeed v-if="device.status === 'Online'"
+                  :deviceId="device.id"
+                  :imageSrc="cameraImages[device.id]"
+                  :boxes="cameraBoxes[device.id]"
+                  :aiEnabled="aiEnabled"
+                />
+                <div v-else class="text-secondary opacity-50 d-flex flex-column align-items-center">
+                  <i class="bi bi-camera-video-off" style="font-size: 2.5rem;"></i>
+                  <div class="fw-bold text-uppercase mt-1" style="letter-spacing: 2px; font-size: 0.6rem;">Offline</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Empty State -->
+            <div v-if="devices.length === 0" class="position-absolute top-50 start-50 translate-middle text-secondary opacity-50 d-flex flex-column align-items-center">
+              <i class="bi bi-camera-video-off" style="font-size: 6rem;"></i>
+              <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">No Cameras Available</div>
+            </div>
+          </div>
+        </template>
       </div>
     </section>
 
@@ -336,19 +314,44 @@ const handleSaveCameraConfig = (config) => {
 
 .bg-slate-800 { background-color: #1e292b; }
 .bg-slate-900 { background-color: #0f172a; }
-.custom-slider-pir::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 2px;
+
+/* --- MULTIPLE VIEW GRID --- */
+.grid-container {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  gap: 8px;
+  background-color: #020617;
 }
 
-.custom-slider-pir.left::-webkit-slider-runnable-track { background: #ef4444; }
-.custom-slider-pir.middle::-webkit-slider-runnable-track { background: #22c55e; }
-.custom-slider-pir.right::-webkit-slider-runnable-track { background: #3b82f6; }
+.grid-container.devices-1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+.grid-container.devices-2 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+@media (max-width: 768px) {
+  .grid-container.devices-2 {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+}
+.grid-container.devices-3-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
 
-.custom-slider-pir::-webkit-slider-thumb {
-  width: 18px;
-  height: 18px;
-  margin-top: -7px;
+.grid-item {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* --- DESKTOP --- */
@@ -376,22 +379,6 @@ const handleSaveCameraConfig = (config) => {
     top: 0px;
     z-index: 1020;
     border-bottom: 2px solid #1e293b;
-  }
-}
-
-@media (max-width: 480px) {
-  .stream-header-grad {
-    padding: 0.5rem !important;
-  }
-  .badge {
-    font-size: 0.7rem !important;
-    padding: 0.25rem 0.5rem !important;
-  }
-  .ip-label {
-    font-size: 0.7rem !important;
-  }
-  .signal-bars div {
-    width: 3px !important;
   }
 }
 </style>

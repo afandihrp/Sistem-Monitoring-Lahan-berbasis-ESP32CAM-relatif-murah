@@ -1,9 +1,7 @@
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
-const sharp = require('sharp');
-sharp.concurrency(2); // Prevents thread starvation on RPi 3
-sharp.cache(false);       // Conserves RAM on low-memory systems
+
 const { aiClient } = require('./services/aiClient');
 const { logEvent, getLogs } = require('./services/logger');
 const { sendMotionAlert } = require('./services/telegram');
@@ -21,6 +19,71 @@ let globalActiveDeviceId = null;
 let wssInstance = null;
 let globalAiEnabled = true;
 let globalViewMode = 'single';
+
+// Centralized sequential AI object detection queue
+const aiQueue = [];
+let isAiWorkerRunning = false;
+
+function enqueueAiRequest(deviceId, frameBuffer) {
+  // Frame-dropping: only keep the most recent frame for each camera in the queue to prevent lag
+  const existingIndex = aiQueue.findIndex(item => item.deviceId === deviceId);
+  if (existingIndex !== -1) {
+    aiQueue[existingIndex].frameBuffer = frameBuffer;
+  } else {
+    aiQueue.push({ deviceId, frameBuffer });
+  }
+  
+  triggerAiWorker();
+}
+
+function triggerAiWorker() {
+  if (isAiWorkerRunning || aiQueue.length === 0) return;
+  
+  isAiWorkerRunning = true;
+  const { deviceId, frameBuffer } = aiQueue.shift();
+  
+  const device = devices.get(deviceId);
+  if (!device || device.status !== 'Online' || !globalAiEnabled) {
+    isAiWorkerRunning = false;
+    setImmediate(triggerAiWorker);
+    return;
+  }
+  
+  detectStreamAI(frameBuffer).then(result => {
+    isAiWorkerRunning = false;
+    
+    if (result && result.status === 'success') {
+      device.latestBoxes = result.koordinat_kotak;
+      
+      const boxPayload = JSON.stringify({
+        type: 'stream_boxes',
+        deviceId: deviceId,
+        boxes: result.koordinat_kotak
+      });
+      
+      if (wssInstance) {
+        wssInstance.clients.forEach(client => {
+          if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+            client.send(boxPayload);
+          }
+        });
+      }
+    }
+    
+    setImmediate(triggerAiWorker);
+  }).catch(err => {
+    isAiWorkerRunning = false;
+    setImmediate(triggerAiWorker);
+  });
+}
+
+function serializeFrame(deviceId, frameBuffer) {
+  const deviceIdBuffer = Buffer.from(deviceId, 'utf8');
+  const header = Buffer.alloc(1 + deviceIdBuffer.length);
+  header.writeUInt8(deviceIdBuffer.length, 0);
+  deviceIdBuffer.copy(header, 1);
+  return Buffer.concat([header, frameBuffer]);
+}
 
 function loadSystemSettings() {
   try {
@@ -101,79 +164,7 @@ function broadcastDeviceList(wss) {
 /**
  * Stitch JPEG frames based on the number of online devices using sharp
  */
-async function stitchFrames(onlineDevices) {
-  const count = onlineDevices.length;
-  if (count === 0) return null;
-  if (count === 1) return onlineDevices[0].latestFrame;
-
-  try {
-    // Filter out any devices that don't have a valid latestFrame
-    const validDevices = onlineDevices.filter(d => d.latestFrame);
-    if (validDevices.length === 0) return null;
-    if (validDevices.length === 1) return validDevices[0].latestFrame;
-
-    const actualCount = validDevices.length;
-
-    if (actualCount === 2) {
-      // Resize each of the 2 feeds directly to 960x1080 (half width, full height of 1080p canvas) with fit: fill
-      const uniformFrames = await Promise.all(
-        validDevices.slice(0, 2).map(async (dev) => {
-          return await sharp(dev.latestFrame)
-            .resize(960, 1080, { fit: 'fill' })
-            .toBuffer();
-        })
-      );
-
-      // Composite directly into a 1920x1080 canvas
-      return await sharp({
-        create: {
-          width: 1920,
-          height: 1080,
-          channels: 3,
-          background: { r: 0, g: 0, b: 0 }
-        }
-      })
-      .composite([
-        { input: uniformFrames[0], top: 0, left: 0 },
-        { input: uniformFrames[1], top: 0, left: 960 }
-      ])
-      .jpeg({ quality: 80 })
-      .toBuffer();
-    } else {
-      // Resize up to 4 feeds directly to 960x540 (half width, half height of 1080p canvas) with fit: fill
-      const uniformFrames = await Promise.all(
-        validDevices.slice(0, 4).map(async (dev) => {
-          return await sharp(dev.latestFrame)
-            .resize(960, 540, { fit: 'fill' })
-            .toBuffer();
-        })
-      );
-
-      const compositeList = [];
-      for (let i = 0; i < uniformFrames.length; i++) {
-        const top = i < 2 ? 0 : 540;
-        const left = i % 2 === 0 ? 0 : 960;
-        compositeList.push({ input: uniformFrames[i], top, left });
-      }
-
-      // Composite directly into a 1920x1080 canvas
-      return await sharp({
-        create: {
-          width: 1920,
-          height: 1080,
-          channels: 3,
-          background: { r: 0, g: 0, b: 0 }
-        }
-      })
-      .composite(compositeList)
-      .jpeg({ quality: 80 })
-      .toBuffer();
-    }
-  } catch (err) {
-    console.error('[Stitching] Failed to stitch JPEGs directly into 1080p canvas:', err.message);
-    return null;
-  }
-}
+// stitchFrames removed
 
 function initWebSocket(server) {
   const wss = new WebSocketServer({ server });
@@ -293,42 +284,17 @@ function initWebSocket(server) {
         if (device) {
           device.latestFrame = message; // Keep updating to the absolute newest frame
           
-          // Only run AI stream processing for the globally active camera stream
-          if (deviceId === globalActiveDeviceId) {
-            // --- EXPERIMENTAL MAXED-OUT MODE ---
-            // if (!device.isAiProcessing) {
-            //   device.isAiProcessing = true;
-            //   device.latestFrame = null; // Clear frame to prevent repeat
-              
-            //   detectStreamAI(message).then(result => {
-            //     device.isAiProcessing = false;
-            //     if (result && result.status === 'success') {
-            //       const boxPayload = JSON.stringify({
-            //         type: 'stream_boxes',
-            //         deviceId: deviceId,
-            //         boxes: result.koordinat_kotak
-            //       });
-                  
-            //       // Broadcast to ALL kiosks
-            //       wss.clients.forEach((client) => {
-            //         if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-            //           client.send(boxPayload);
-            //         }
-            //       });
-            //     }
-            //   }).catch(err => {
-            //     device.isAiProcessing = false;
-            //   });
-            // }
-            // ------------------------------------
+          if (globalAiEnabled) {
+            enqueueAiRequest(deviceId, message);
           }
         }
 
-        // Broadcast binary camera frames ONLY for the active camera to kiosks in single view mode
+        // Broadcast binary camera frames prefixed with the deviceId
         wss.clients.forEach((client) => {
           if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-            if (globalViewMode !== 'multiple' && deviceId === globalActiveDeviceId) {
-              client.send(message, { binary: true });
+            if (globalViewMode === 'multiple' || deviceId === globalActiveDeviceId) {
+              const prefixedMessage = serializeFrame(deviceId, message);
+              client.send(prefixedMessage, { binary: true });
             }
           }
         });
@@ -404,6 +370,24 @@ function initWebSocket(server) {
             globalAiEnabled = data.enabled;
             console.log(`[AI Status] Global AI state updated to: ${globalAiEnabled ? 'ENABLED' : 'DISABLED'}`);
             saveSystemSettings();
+            
+            if (!globalAiEnabled) {
+              aiQueue.length = 0; // Clear queue
+              devices.forEach((device, dId) => {
+                device.latestBoxes = [];
+                const boxPayload = JSON.stringify({
+                  type: 'stream_boxes',
+                  deviceId: dId,
+                  boxes: []
+                });
+                wss.clients.forEach((client) => {
+                  if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                    client.send(boxPayload);
+                  }
+                });
+              });
+            }
+
             // Broadcast AI state change to ALL kiosks so their toggles sync
             const aiStatusPayload = JSON.stringify({ type: 'ai_enabled_updated', enabled: globalAiEnabled });
             wss.clients.forEach((client) => {
@@ -589,128 +573,6 @@ function initWebSocket(server) {
     });
   }, 5000);
 
-  let isStitchedAiProcessing = false;
-
-  // Central Polling Task: Run AI on active single stream only when needed
-  const aiPollInterval = setInterval(() => {
-    if (globalViewMode === 'multiple') return; // Exit if in multiple view mode
-
-    const hasSingleViewKiosk = wssInstance && Array.from(wssInstance.clients).some(client => 
-      client.readyState === 1 && !client.path.startsWith('/camera')
-    );
-    if (!hasSingleViewKiosk) return;
-
-    devices.forEach((device, deviceId) => {
-      if (deviceId === globalActiveDeviceId && device.status === 'Online' && device.latestFrame) {
-        if (!globalAiEnabled) {
-          device.latestFrame = null; // Clear so we don't repeat the same frame
-          device.latestBoxes = [];
-          const boxPayload = JSON.stringify({
-            type: 'stream_boxes',
-            deviceId: deviceId,
-            boxes: []
-          });
-          wss.clients.forEach(client => {
-            if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-              client.send(boxPayload);
-            }
-          });
-          return;
-        }
-
-        if (!device.isAiProcessing) {
-          const frameToProcess = device.latestFrame;
-          device.latestFrame = null; // Only clear when we actually start processing it!
-          device.isAiProcessing = true;
-          detectStreamAI(frameToProcess).then(result => {
-            device.isAiProcessing = false;
-            if (result && result.status === 'success') {
-              device.latestBoxes = result.koordinat_kotak;
-              
-              const boxPayload = JSON.stringify({
-                type: 'stream_boxes',
-                deviceId: deviceId,
-                boxes: result.koordinat_kotak
-              });
-              
-              wss.clients.forEach(client => {
-                if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-                  client.send(boxPayload);
-                }
-              });
-            }
-          }).catch(err => {
-            device.isAiProcessing = false;
-          });
-        }
-      }
-    });
-  }, 200);
-
-  // Central Stitching Task: Stitch JPEGs at 10 FPS (100ms) and run AI on combined view
-  let isStitchedProcessing = false;
-  const stitchInterval = setInterval(async () => {
-    if (isStitchedProcessing) return;
-    isStitchedProcessing = true;
-
-    try {
-      if (!wssInstance) return;
-
-      const activeKiosks = Array.from(wssInstance.clients).filter(client => 
-        client.readyState === 1 && !client.path.startsWith('/camera')
-      );
-
-      if (globalViewMode !== 'multiple') return;
-
-      // Get all online cameras with a valid frame
-      const onlineDevices = Array.from(devices.values()).filter(d => d.status === 'Online' && d.latestFrame);
-      if (onlineDevices.length === 0) return;
-
-      const stitchedBuffer = await stitchFrames(onlineDevices);
-      if (!stitchedBuffer) return;
-
-      // Send the merged binary stream to all multi-view kiosks
-      activeKiosks.forEach(client => {
-        client.send(stitchedBuffer, { binary: true });
-      });
-
-      // Run AI on the merged stitched binary view
-      if (!globalAiEnabled) {
-        const boxPayload = JSON.stringify({
-          type: 'stream_boxes',
-          deviceId: 'multiple',
-          boxes: []
-        });
-        activeKiosks.forEach(client => {
-          client.send(boxPayload);
-        });
-      } else if (!isStitchedAiProcessing) {
-        isStitchedAiProcessing = true;
-        detectStreamAI(stitchedBuffer).then(result => {
-          isStitchedAiProcessing = false;
-          if (result && result.status === 'success') {
-            const boxPayload = JSON.stringify({
-              type: 'stream_boxes',
-              deviceId: 'multiple',
-              boxes: result.koordinat_kotak
-            });
-            
-            activeKiosks.forEach(client => {
-              client.send(boxPayload);
-            });
-          }
-        }).catch(err => {
-          isStitchedAiProcessing = false;
-        });
-      }
-    } catch (err) {
-      console.error('[Stitch Interval] Error:', err.message);
-    } finally {
-      isStitchedProcessing = false;
-    }
-  }, 100);
-  //-----------------------------------------------------
-
   aiClient.onStatusChange((isConnected) => {
     console.log(`[AI Client] Connection status changed. Connected: ${isConnected}`);
     const payload = JSON.stringify({ type: 'ai_status', isConnected });
@@ -723,8 +585,6 @@ function initWebSocket(server) {
 
   wss.on('close', function close() {
     clearInterval(interval);
-    clearInterval(aiPollInterval);
-    clearInterval(stitchInterval);
   });
 
   return wss;

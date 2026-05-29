@@ -19,23 +19,27 @@ let pendingActiveStreamId = null
 const devices = ref([])
 const liveImageSrc = ref('')
 const liveBoxes = ref([])
+const cameraImages = ref({})
+const cameraBoxes = ref({})
 const viewMode = ref('single')
 let lastObjectUrl = null
 
 const currentStreamIndex = ref(0)
 const currentStream = computed(() => devices.value[currentStreamIndex.value] || { name: 'No Active Stream', ip: 'N/A', status: 'Offline' })
-const aiDetecting = computed(() => liveBoxes.value.length > 0)
+const aiDetecting = computed(() => liveBoxes.value.length > 0 || Object.values(cameraBoxes.value).some(boxes => boxes && boxes.length > 0))
 const visibleBoxes = computed(() => (aiConnected.value && aiEnabled.value) ? liveBoxes.value : [])
 
 watch(aiConnected, (connected) => {
   if (!connected) {
     liveBoxes.value = []
+    cameraBoxes.value = {}
   }
 })
 
 watch(aiEnabled, (enabled) => {
   if (!enabled) {
     liveBoxes.value = []
+    cameraBoxes.value = {}
   }
 })
 
@@ -59,14 +63,40 @@ const connectWS = () => {
     wsStatus.value = 'Offline'
   }
 
-  ws.onmessage = (event) => {
+  ws.onmessage = async (event) => {
     if (event.data instanceof Blob) {
-      if (lastObjectUrl) {
-        URL.revokeObjectURL(lastObjectUrl)
+      try {
+        const arrayBuffer = await event.data.arrayBuffer();
+        const view = new DataView(arrayBuffer);
+        const idLen = view.getUint8(0);
+        
+        // Decode deviceId
+        const decoder = new TextDecoder('utf-8');
+        const deviceId = decoder.decode(new Uint8Array(arrayBuffer, 1, idLen));
+        
+        // Extract raw JPEG image Blob
+        const imageBlob = new Blob([new Uint8Array(arrayBuffer, 1 + idLen)], { type: 'image/jpeg' });
+        
+        // Revoke old URL if it exists
+        if (cameraImages.value[deviceId]) {
+          URL.revokeObjectURL(cameraImages.value[deviceId]);
+        }
+        
+        const newUrl = URL.createObjectURL(imageBlob);
+        cameraImages.value[deviceId] = newUrl;
+        
+        // Sync to liveImageSrc for single view compatibility
+        if (deviceId === currentStream.value.id) {
+          if (lastObjectUrl) {
+            URL.revokeObjectURL(lastObjectUrl);
+          }
+          lastObjectUrl = newUrl;
+          liveImageSrc.value = newUrl;
+        }
+      } catch (err) {
+        console.error('Failed to parse binary prefixed frame:', err);
       }
-      lastObjectUrl = URL.createObjectURL(event.data)
-      liveImageSrc.value = lastObjectUrl
-      return
+      return;
     }
 
     try {
@@ -76,6 +106,15 @@ const connectWS = () => {
         if (index !== -1) {
           if (currentStreamIndex.value !== index) {
             currentStreamIndex.value = index
+            // Sync image feed when switching streams in single view
+            if (cameraImages.value[data.deviceId]) {
+              liveImageSrc.value = cameraImages.value[data.deviceId];
+            }
+            if (cameraBoxes.value[data.deviceId]) {
+              liveBoxes.value = cameraBoxes.value[data.deviceId];
+            } else {
+              liveBoxes.value = [];
+            }
           }
           pendingActiveStreamId = null
         } else {
@@ -99,10 +138,10 @@ const connectWS = () => {
           }
         }
       } else if (data.type === 'stream_boxes') {
-        if (viewMode.value === 'multiple' && data.deviceId === 'multiple') {
-          liveBoxes.value = data.boxes
-        } else if (viewMode.value === 'single' && data.deviceId === currentStream.value.id) {
-          liveBoxes.value = data.boxes
+        const { deviceId, boxes } = data;
+        cameraBoxes.value[deviceId] = boxes;
+        if (deviceId === currentStream.value.id) {
+          liveBoxes.value = boxes;
         }
       } else if (data.type === 'motion_event') {
         events.value.unshift({
@@ -271,9 +310,12 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
 
     <main class="row g-0 flex-grow-1" id="main-layout">
       <StreamView 
+        :devices="devices"
         :currentStream="currentStream" 
         :liveImageSrc="liveImageSrc"
         :liveBoxes="visibleBoxes"
+        :cameraImages="cameraImages"
+        :cameraBoxes="cameraBoxes"
         :windowWidth="windowWidth"
         :viewMode="viewMode"
         :aiEnabled="aiEnabled"
@@ -297,7 +339,8 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
           @nextPage="nextPage"
           @prevPage="prevPage"
           @dateSelected="handleDateSelected"
-        />      </aside>
+        />
+      </aside>
     </main>
   </div>
 </template>
