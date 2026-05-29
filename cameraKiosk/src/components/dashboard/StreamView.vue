@@ -86,10 +86,6 @@ const handleSaveCameraConfig = (config) => {
           <i class="bi bi-camera-video-off-fill fs-6"></i>
           OFFLINE
         </span>
-        <span v-else class="badge rounded-pill bg-primary text-white border border-primary border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
-          <i class="bi bi-grid-3x3-gap-fill fs-6"></i>
-          MULTIPLE VIEW (GRID)
-        </span>
         
         <div v-if="viewMode !== 'multiple'" class="d-flex align-items-center gap-2 gap-sm-3">
           <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black;">
