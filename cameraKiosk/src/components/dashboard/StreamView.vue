@@ -88,7 +88,7 @@ const handleSaveCameraConfig = (config) => {
         </span>
         
         <div v-if="viewMode !== 'multiple'" class="d-flex align-items-center gap-2 gap-sm-3">
-          <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black;">
+          <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black; font-size: 0.8rem;">
             <span class="d-none d-sm-inline">ESP32-CAM</span> [{{ currentStream.ip }}]
           </span>
         </div>
