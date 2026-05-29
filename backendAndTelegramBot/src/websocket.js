@@ -201,7 +201,7 @@ function initWebSocket(server) {
       const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
       devices.set(deviceId, {
         id: deviceId,
-        name: macAddress !== 'Unknown MAC' ? `ESP32-CAM [${macAddress}]` : `ESP32-CAM (${remoteIp})`,
+        name: `ESP32-CAM [${remoteIp}]`,
         status: 'Online',
         ip: remoteIp,
         mac: macAddress,
