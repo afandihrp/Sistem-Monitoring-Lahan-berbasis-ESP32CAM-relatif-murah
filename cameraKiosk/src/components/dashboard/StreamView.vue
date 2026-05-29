@@ -126,7 +126,7 @@ const handleSaveCameraConfig = (config) => {
                   OFFLINE
                 </span>
                 <span class="text-white fw-bold font-monospace text-uppercase text-truncate px-2" style="text-shadow: 1px 1px 2px black; font-size: 0.75rem; max-width: 60%;">
-                  {{ device.name }}
+                  {{ device.ip }}
                 </span>
               </div>
 

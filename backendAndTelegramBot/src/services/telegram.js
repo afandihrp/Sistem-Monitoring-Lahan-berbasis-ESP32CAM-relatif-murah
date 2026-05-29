@@ -152,7 +152,7 @@ bot.command('devices', async (ctx) => {
     const lines = Array.from(devices.values()).map(device => {
       const statusEmoji = device.status === 'Online' ? '🟢' : '🔴';
       const signal = device.signalBars !== undefined ? ` | 📶 ${device.signalBars}/5` : '';
-      return `${statusEmoji} *${device.name}*\n   Status: ${device.status}${signal}\n   IP: \`${device.ip}\`\n   Terakhir aktif: ${device.lastSeen}`;
+      return `${statusEmoji} *${device.ip}*\n   Status: ${device.status}${signal}\n   Terakhir aktif: ${device.lastSeen}`;
     });
 
     const message = `📷 *Perangkat Terdaftar: ${devices.size}*\n\n${lines.join('\n\n')}`;

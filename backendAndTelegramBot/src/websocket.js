@@ -142,7 +142,6 @@ function heartbeat() {
 function broadcastDeviceList(wss) {
   const deviceList = Array.from(devices.values()).map(device => ({
     id: device.id,
-    name: device.name,
     status: device.status,
     ip: device.ip,
     mac: device.mac,
@@ -201,7 +200,6 @@ function initWebSocket(server) {
       const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
       devices.set(deviceId, {
         id: deviceId,
-        name: `ESP32-CAM [${remoteIp}]`,
         status: 'Online',
         ip: remoteIp,
         mac: macAddress,
@@ -312,7 +310,7 @@ function initWebSocket(server) {
           } else if (data.type === 'motion' && isCamera) {
             const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
             const device = devices.get(deviceId);
-            const location = device ? device.name : remoteIp;
+            const location = device ? device.ip : remoteIp;
             
             console.log(`Motion detected by ${location}: ${data.sensor}`);
 

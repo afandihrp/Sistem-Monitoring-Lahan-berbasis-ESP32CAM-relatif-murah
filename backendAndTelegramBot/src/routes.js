@@ -71,7 +71,7 @@ function createRouter(wss) {
         const devices = getDevices();
         const deviceId = `cam_${ip.replace(/\./g, '_')}`;
         const device = devices.get(deviceId);
-        const location = device ? device.name : ip;
+        const location = device ? device.ip : ip;
 
         logEvent({
           type: 'telegram capture',
