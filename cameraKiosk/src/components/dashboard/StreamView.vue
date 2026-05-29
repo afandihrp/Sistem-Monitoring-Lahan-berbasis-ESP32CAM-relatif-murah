@@ -48,8 +48,10 @@ const servoValue = ref(90)
 const showConfig = ref(false)
 const showCameraConfig = ref(false)
 
+const onlineDevices = computed(() => props.devices.filter(d => d.status === 'Online'))
+
 const gridClass = computed(() => {
-  const count = props.devices.length;
+  const count = onlineDevices.value.length;
   if (count <= 1) return 'grid-container devices-1';
   if (count === 2) return 'grid-container devices-2';
   return 'grid-container devices-3-4';
@@ -115,15 +117,12 @@ const handleSaveCameraConfig = (config) => {
         <!-- MULTIPLE VIEW (GRID) -->
         <template v-else>
           <div :class="gridClass">
-            <div v-for="device in devices" :key="device.id" class="grid-item bg-black position-relative">
+            <div v-for="device in onlineDevices" :key="device.id" class="grid-item bg-black position-relative">
               <!-- Grid Header -->
               <div class="position-absolute top-0 start-0 w-100 p-2 d-flex justify-content-between align-items-center z-2 stream-header-grad">
-                <span v-if="device.status === 'Online'" class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-1 px-2 py-0.5" style="font-size: 0.65rem;">
+                <span class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-1 px-2 py-0.5" style="font-size: 0.65rem;">
                   <span class="spinner-grow spinner-grow-sm" style="width: 0.5rem; height: 0.5rem;" role="status"></span>
                   LIVE FEED
-                </span>
-                <span v-else class="badge rounded-pill bg-secondary text-white border border-secondary border-opacity-25 d-flex align-items-center gap-1 px-2 py-0.5" style="font-size: 0.65rem;">
-                  OFFLINE
                 </span>
                 <span class="text-white fw-bold font-monospace text-uppercase text-truncate px-2" style="text-shadow: 1px 1px 2px black; font-size: 0.75rem; max-width: 60%;">
                   {{ device.ip }}
@@ -132,23 +131,19 @@ const handleSaveCameraConfig = (config) => {
 
               <!-- Camera Feed Area -->
               <div class="w-100 h-100 d-flex align-items-center justify-content-center position-relative">
-                <CameraFeed v-if="device.status === 'Online'"
+                <CameraFeed
                   :deviceId="device.id"
                   :imageSrc="cameraImages[device.id]"
                   :boxes="cameraBoxes[device.id]"
                   :aiEnabled="aiEnabled"
                 />
-                <div v-else class="text-secondary opacity-50 d-flex flex-column align-items-center">
-                  <i class="bi bi-camera-video-off" style="font-size: 2.5rem;"></i>
-                  <div class="fw-bold text-uppercase mt-1" style="letter-spacing: 2px; font-size: 0.6rem;">Offline</div>
-                </div>
               </div>
             </div>
             
             <!-- Empty State -->
-            <div v-if="devices.length === 0" class="position-absolute top-50 start-50 translate-middle text-secondary opacity-50 d-flex flex-column align-items-center">
+            <div v-if="onlineDevices.length === 0" class="position-absolute top-50 start-50 translate-middle text-secondary opacity-50 d-flex flex-column align-items-center">
               <i class="bi bi-camera-video-off" style="font-size: 6rem;"></i>
-              <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">No Cameras Available</div>
+              <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">No Online Cameras</div>
             </div>
           </div>
         </template>
