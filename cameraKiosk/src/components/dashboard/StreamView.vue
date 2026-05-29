@@ -316,8 +316,8 @@ const handleSaveCameraConfig = (config) => {
   display: grid;
   width: 100%;
   height: 100%;
-  padding: 8px;
-  gap: 8px;
+  padding: 0;
+  gap: 0;
   background-color: #020617;
 }
 
@@ -344,7 +344,7 @@ const handleSaveCameraConfig = (config) => {
   position: relative;
   overflow: hidden;
   border: 1px solid #1e293b;
-  border-radius: 6px;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
