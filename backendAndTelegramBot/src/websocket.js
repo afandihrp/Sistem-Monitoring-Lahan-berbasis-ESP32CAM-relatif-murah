@@ -64,7 +64,10 @@ function triggerAiWorker() {
       if (wssInstance) {
         wssInstance.clients.forEach(client => {
           if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-            client.send(boxPayload);
+            // Only broadcast bounding boxes in multiple view mode OR if the device is active in single view mode
+            if (globalViewMode === 'multiple' || deviceId === globalActiveDeviceId) {
+              client.send(boxPayload);
+            }
           }
         });
       }
@@ -145,7 +148,6 @@ function broadcastDeviceList(wss) {
     status: device.status,
     ip: device.ip,
     mac: device.mac,
-    type: device.type,
     signalBars: device.signalBars,
     lastSeen: device.lastSeen
   }));
