@@ -1,14 +1,20 @@
 const { Telegraf } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 
 const configPath = path.join(__dirname, '../../../data/config.json');
 const DATA_DIR = path.join(__dirname, '../../../data');
 
-const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+// Force IPv4 untuk menghindari masalah 'socket hang up' karena routing IPv6 yang rusak (sering terjadi di ISP tertentu)
+const agent = new https.Agent({ family: 4 });
+const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN, {
+  telegram: { agent }
+});
 
 // Array chat ID yang akan menerima notifikasi
 let registeredChatIds = [];
+const activePhotoUploads = new Map(); // Untuk menahan upload video sampai foto terkirim
 
 // Load existing config — backward compatible dengan format lama (single ID)
 try {
@@ -86,12 +92,14 @@ Welcome to Gateway_OS Bot! 🛡️
 Your surveillance gateway is online and ready.
 
 Available Commands:
-/start - Show this welcome message
-/listids - List all registered user IDs
-/deleteid <id> - Remove a registered user ID
-/devices - List all connected camera devices
-/capture - Trigger a new capture on cameras
-/getimage - Retrieve the latest captured image
+/start - Tampilkan pesan sambutan ini
+/register <password> - Mendaftarkan ID Anda agar menerima notifikasi
+/listids - Lihat daftar ID yang sudah terdaftar
+/deleteid <id> - Hapus ID dari daftar penerima notifikasi
+/devices - Lihat daftar kamera ESP32 yang terhubung
+/capture - Minta kamera mengambil foto secara manual saat ini juga
+/flash <0-255> - Atur kecerahan lampu sorot/flash (0 mati, 255 maksimal)
+/getimage DD MM YY - Ambil foto histori berdasarkan tanggal
   `;
   ctx.reply(welcomeMessage);
 });
@@ -179,38 +187,53 @@ function notifyCaptureResult(filename) {
 }
 
 // Helper: daftarkan promise + timeout, kirim capture request ke kamera
-async function requestCapture(ctx, deviceId) {
+async function requestCapture(ctx, deviceId, requestId = 'default', waitingMsgId = null) {
   const { sendCaptureRequest } = require('../websocket');
   const sent = sendCaptureRequest(deviceId);
   if (!sent) {
-    return ctx.reply('❌ Kamera tidak tersedia atau sedang offline.');
+    if (waitingMsgId) await ctx.telegram.editMessageText(ctx.chat.id, waitingMsgId, undefined, '❌ Kamera tidak tersedia atau sedang offline.').catch(()=>{});
+    return;
   }
 
-  const TIMEOUT_MS = 45000; // 45 detik: TLS handshake (~3s) + flush (~5s) + upload 1080p (~15s)
+  const TIMEOUT_MS = 45000; // 45 detik
 
   try {
     const filename = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        // Hapus dari antrian jika timeout
         const idx = pendingCaptures.findIndex(p => p.resolve === resolve);
         if (idx !== -1) pendingCaptures.splice(idx, 1);
         reject(new Error('timeout'));
       }, TIMEOUT_MS);
-      pendingCaptures.push({ resolve, timer });
+      pendingCaptures.push({ resolve, reject, timer, id: requestId });
     });
 
-    const filePath = path.join(DATA_DIR, filename);
-    const imageBuffer = fs.readFileSync(filePath);
+    if (waitingMsgId) await ctx.telegram.editMessageText(ctx.chat.id, waitingMsgId, undefined, '✅ Capture berhasil. Mengirim foto...').catch(()=>{});
 
-    await ctx.replyWithPhoto(
-      { source: imageBuffer },
-      { caption: `📸 *Capture On-Demand*\n🕐 ${new Date().toLocaleTimeString('id-ID')} (WIB)`, parse_mode: 'Markdown' }
-    );
+    const filePath = path.join(DATA_DIR, filename);
+    // Gunakan CURL alih-alih ctx.replyWithPhoto untuk menghindari bug socket hang up Telegraf di Node 26
+    const caption = `📸 *Capture On-Demand*\n🕐 ${new Date().toLocaleTimeString('id-ID')} (WIB)`;
+    const safeCaption = caption.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = ctx.chat.id;
+    const cmd = `curl -s -X POST "https://api.telegram.org/bot${token}/sendPhoto" -F chat_id="${chatId}" -F photo="@${filePath}" -F caption="${safeCaption}" -F parse_mode="Markdown"`;
+    
+    await new Promise((resolve, reject) => {
+      require('child_process').exec(cmd, (error, stdout) => {
+        if (error) return reject(error);
+        try {
+          const res = JSON.parse(stdout);
+          if (!res.ok) return reject(new Error(res.description));
+          resolve(res);
+        } catch(e) { reject(new Error("CURL error")); }
+      });
+    });
   } catch (err) {
     if (err.message === 'timeout') {
-      await ctx.reply('⏱️ Timeout! Kamera tidak merespons dalam 20 detik.\nPastikan kamera terhubung dan coba lagi.');
+      await ctx.reply('⏱️ Timeout! Kamera tidak merespons dalam 45 detik.\nPastikan kamera terhubung dan coba lagi.');
+    } else if (err.message === 'cancelled') {
+      // Jika dibatalkan user, tidak perlu throw
     } else {
-      throw err;
+      await ctx.reply(`❌ Gagal mengirim gambar: ${err.message}`);
     }
   }
 }
@@ -228,8 +251,12 @@ bot.command('capture', async (ctx) => {
 
     if (onlineDevices.length === 1) {
       // Langsung request ke satu-satunya kamera
-      await ctx.reply('📸 Mengirim perintah capture ke kamera... harap tunggu (~5-15 detik).');
-      await requestCapture(ctx, onlineDevices[0].id);
+      const { Markup } = require('telegraf');
+      const reqId = Date.now().toString();
+      const waitingMsg = await ctx.reply('📸 Mengirim perintah capture ke kamera... harap tunggu (~5-15 detik).', {
+        ...Markup.inlineKeyboard([Markup.button.callback('❌ Batalkan', `cancel_cap:${reqId}`)])
+      });
+      await requestCapture(ctx, onlineDevices[0].id, reqId, waitingMsg.message_id);
     } else {
       // Tampilkan pilihan kamera via inline keyboard
       const { Markup } = require('telegraf');
@@ -252,14 +279,44 @@ bot.action(/^cap:(.+)$/, async (ctx) => {
   try {
     await ctx.answerCbQuery('📸 Mengirim perintah ke kamera...');
     const deviceId = ctx.match[1];
-    await ctx.reply('📸 Mengirim perintah capture... harap tunggu (~5-15 detik).');
-    await requestCapture(ctx, deviceId);
+    const { Markup } = require('telegraf');
+    const reqId = Date.now().toString();
+    const waitingMsg = await ctx.reply('📸 Mengirim perintah capture... harap tunggu (~5-15 detik).', {
+      ...Markup.inlineKeyboard([Markup.button.callback('❌ Batalkan', `cancel_cap:${reqId}`)])
+    });
+    
+    // Hapus tombol list kamera sebelumnya
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+    
+    await requestCapture(ctx, deviceId, reqId, waitingMsg.message_id);
   } catch (err) {
     console.error('Error in capture callback:', err);
     await ctx.reply('❌ Gagal melakukan capture.');
   }
 });
 
+// --- Handler tombol Batal untuk /capture ---
+bot.action(/^cancel_cap:(.+)$/, async (ctx) => {
+  try {
+    const reqId = ctx.match[1];
+    const idx = pendingCaptures.findIndex(p => p.id === reqId);
+    
+    if (idx !== -1) {
+      const { reject, timer } = pendingCaptures[idx];
+      clearTimeout(timer);
+      pendingCaptures.splice(idx, 1);
+      reject(new Error('cancelled'));
+      
+      await ctx.editMessageText('❌ Capture dibatalkan oleh user.').catch(() => {});
+      await ctx.answerCbQuery('Dibatalkan');
+    } else {
+      await ctx.answerCbQuery('Proses sudah selesai atau kadaluarsa', { show_alert: true });
+      await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('Error cancelling capture:', err);
+  }
+});
 
 // --- /getimage DD MM YY: Filter log berdasarkan tanggal, tampilkan inline keyboard ---
 bot.command('getimage', async (ctx) => {
@@ -277,22 +334,27 @@ bot.command('getimage', async (ctx) => {
       return ctx.reply('❌ Tanggal tidak valid. Pastikan format: /getimage DD MM YY\nContoh: /getimage 16 05 26');
     }
 
-    // Bangun tahun 4 digit (YY: 26 → 2026)
-    const fullYear = yy + 2000;
+    // Bangun tahun 4 digit (YY: 26 → 2026, 2026 → 2026)
+    const fullYear = yy < 100 ? yy + 2000 : yy;
     const dateLabel = `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${fullYear}`;
 
     // Baca log.json
     const { getLogs } = require('./logger');
     const logs = getLogs();
 
-    // Filter log berdasarkan tanggal (UTC) yang sesuai, dan hanya yang punya imageUrl
+    // Filter log berdasarkan tanggal (GMT+7/WIB), dan hanya yang punya imageUrl
     const matched = logs.filter(entry => {
       if (!entry.imageUrl) return false;
+      // Konversi timestamp UTC ke waktu lokal WIB (GMT+7)
       const d = new Date(entry.timestamp);
+      // Tambahkan 7 jam (dalam milidetik) ke waktu UTC
+      const localTimeMs = d.getTime() + (7 * 60 * 60 * 1000);
+      const localDate = new Date(localTimeMs);
+      
       return (
-        d.getUTCDate()     === dd &&
-        d.getUTCMonth() + 1 === mm &&
-        d.getUTCFullYear() === fullYear
+        localDate.getUTCDate()     === dd &&
+        localDate.getUTCMonth() + 1 === mm &&
+        localDate.getUTCFullYear() === fullYear
       );
     });
 
@@ -309,8 +371,8 @@ bot.command('getimage', async (ctx) => {
     const { Markup } = require('telegraf');
     const buttons = displayed.map((entry, idx) => {
       const d = new Date(entry.timestamp);
-      // Label tombol: waktu UTC + sensor
-      const timeStr = d.toISOString().substr(11, 8); // HH:MM:SS
+      // Label tombol: waktu WIB (GMT+7) + sensor
+      const timeStr = d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta' }); // HH:MM:SS
       const label = `${timeStr} · ${entry.sensor}`;
       // Ekstrak nama file dari imageUrl untuk callback_data (maks 64 byte)
       const filename = entry.imageUrl.split('/').pop();
@@ -357,18 +419,51 @@ bot.action(/^gi:(.+)$/, async (ctx) => {
       ? 'Tidak diketahui'
       : new Date(timestampMs).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
 
-    const imageBuffer = fs.readFileSync(filePath);
-
-    await ctx.replyWithPhoto(
-      { source: imageBuffer },
-      {
-        caption: `🖼️ *${filename}*\n🕐 ${timeStr} (WIB)`,
-        parse_mode: 'Markdown'
-      }
-    );
+    const caption = `🖼️ *${filename}*\n🕐 ${timeStr} (WIB)`;
+    const safeCaption = caption.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = ctx.chat.id;
+    const cmd = `curl -s -X POST "https://api.telegram.org/bot${token}/sendPhoto" -F chat_id="${chatId}" -F photo="@${filePath}" -F caption="${safeCaption}" -F parse_mode="Markdown"`;
+    
+    await new Promise((resolve, reject) => {
+      require('child_process').exec(cmd, (error, stdout) => {
+        if (error) return reject(error);
+        resolve();
+      });
+    });
   } catch (err) {
     console.error('Error in getimage callback:', err);
     await ctx.reply('❌ Gagal mengirim gambar. Coba lagi nanti.');
+  }
+});
+
+// Command untuk mengatur intensitas flash kamera secara manual (0-255)
+bot.command('flash', async (ctx) => {
+  const chatId = ctx.chat.id;
+  if (!registeredChatIds.includes(chatId)) {
+    return ctx.reply('❌ Anda tidak terdaftar. Gunakan /register <password>');
+  }
+
+  const message = ctx.message.text.trim();
+  const parts = message.split(' ');
+  
+  if (parts.length < 2) {
+    return ctx.reply('ℹ️ Format salah. Gunakan: `/flash <0-255>`\nContoh: `/flash 50` untuk cahaya redup, `/flash 255` untuk maksimal.', { parse_mode: 'Markdown' });
+  }
+
+  const intensity = parseInt(parts[1]);
+  
+  if (isNaN(intensity) || intensity < 0 || intensity > 255) {
+    return ctx.reply('❌ Nilai intensitas harus berupa angka antara 0 hingga 255.');
+  }
+
+  try {
+    const { updateFlashIntensity } = require('../websocket');
+    updateFlashIntensity(intensity);
+    await ctx.reply(`✅ Intensitas flash berhasil diubah menjadi **${intensity}** untuk semua kamera.`, { parse_mode: 'Markdown' });
+  } catch (err) {
+    console.error('[Telegram] Failed to update flash:', err);
+    await ctx.reply(`❌ Terjadi kesalahan saat mengubah flash: ${err.message}`);
   }
 });
 
@@ -386,43 +481,159 @@ function initTelegramBot() {
   process.once('SIGTERM', () => bot.stop('SIGTERM'));
 }
 
+const photoResolvers = new Map();
+
+function registerExpectedPhoto(sensor) {
+  console.log(`[Telegram] Mendaftarkan antrean foto yang diharapkan untuk sensor ${sensor}...`);
+  const promise = new Promise((resolve) => {
+    photoResolvers.set(sensor, resolve);
+  });
+  activePhotoUploads.set(sensor, promise);
+  
+  // Timeout 15 detik jika foto gagal diupload oleh ESP32
+  setTimeout(() => {
+    if (photoResolvers.has(sensor)) {
+      console.log(`[Telegram] Timeout menunggu foto dari sensor ${sensor} (15s), membebaskan antrean video.`);
+      const resolve = photoResolvers.get(sensor);
+      resolve();
+      photoResolvers.delete(sensor);
+      activePhotoUploads.delete(sensor);
+    }
+  }, 15000);
+}
+
 // --- sendMotionAlert: Kirim peringatan teks + foto ke SEMUA registered chat ID ---
 async function sendMotionAlert(location, sensor, filename = null) {
-  console.log(`Attempting to send Telegram alert for ${location} (${sensor})...`);
+  const uploadPromise = (async () => {
+    console.log(`Attempting to send Telegram alert for ${location} (${sensor})...`);
+    if (registeredChatIds.length === 0) {
+      console.log('No chat IDs registered for Telegram alerts.');
+      return;
+    }
+
+    const message = `🚨 *MOTION DETECTED!* \n\n📍 *Location:* ${location}\n🛡️ *Sensor:* ${sensor}\n⏰ *Time:* ${new Date().toLocaleTimeString()}`;
+    const targetFilename = filename || getLatestImageFilename();
+
+    let imageBuffer = null;
+    if (targetFilename) {
+      try {
+        imageBuffer = fs.readFileSync(path.join(DATA_DIR, targetFilename));
+      } catch (readErr) {
+        console.error(`Failed to read image ${targetFilename} from disk:`, readErr.message);
+      }
+    }
+
+    // Kirim ke semua registered chat ID
+    for (const chatId of registeredChatIds) {
+      try {
+        await bot.telegram.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+        if (targetFilename) {
+          const imagePath = path.join(DATA_DIR, targetFilename);
+          if (fs.existsSync(imagePath)) {
+            const caption = `📸 Foto dari sensor *${sensor}* — ${new Date().toLocaleTimeString('id-ID')}`;
+            const safeCaption = caption.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+            const token = process.env.TELEGRAM_BOT_TOKEN;
+            const cmd = `curl -s -X POST "https://api.telegram.org/bot${token}/sendPhoto" -F chat_id="${chatId}" -F photo="@${imagePath}" -F caption="${safeCaption}" -F parse_mode="Markdown"`;
+            
+            await new Promise((resolve, reject) => {
+              require('child_process').exec(cmd, (error, stdout, stderr) => {
+                if (error) return reject(error);
+                try {
+                  const res = JSON.parse(stdout);
+                  if (!res.ok) return reject(new Error(res.description || "Unknown API Error"));
+                  resolve(res);
+                } catch(e) {
+                  reject(new Error("CURL response parsing failed"));
+                }
+              });
+            });
+            console.log(`[Telegram] Foto berhasil diunggah via CURL ke chat ID: ${chatId}`);
+          }
+        }
+        console.log(`Alert sent to chat ID: ${chatId}`);
+      } catch (err) {
+        console.error(`Failed to send alert to ${chatId}:`, err.message);
+      }
+    }
+  })();
+  
+  // Jika ini bukan dari antrean yg diharapkan (manual capture), maka set di map
+  if (!activePhotoUploads.has(sensor)) {
+    activePhotoUploads.set(sensor, uploadPromise);
+  }
+  
+  await uploadPromise;
+  
+  // Selesai upload foto, bebaskan lock agar video bisa lanjut
+  if (photoResolvers.has(sensor)) {
+    const resolve = photoResolvers.get(sensor);
+    resolve();
+    photoResolvers.delete(sensor);
+  }
+  activePhotoUploads.delete(sensor);
+}
+
+// --- sendMotionVideoAlert: Kirim peringatan teks + video ke SEMUA registered chat ID ---
+async function sendMotionVideoAlert(location, sensor, videoFilePath) {
+  if (activePhotoUploads.has(sensor)) {
+    console.log(`[Telegram] Menahan upload video untuk sensor ${sensor} sampai foto selesai terkirim...`);
+    await activePhotoUploads.get(sensor).catch(() => {});
+    console.log(`[Telegram] Foto terkonfirmasi terkirim, melanjutkan upload video untuk ${sensor}.`);
+  }
+
+  console.log(`Attempting to send Telegram video alert for ${location} (${sensor})...`);
   if (registeredChatIds.length === 0) {
     console.log('No chat IDs registered for Telegram alerts.');
     return;
   }
 
-  const message = `🚨 *MOTION DETECTED!* \n\n📍 *Location:* ${location}\n🛡️ *Sensor:* ${sensor}\n⏰ *Time:* ${new Date().toLocaleTimeString()}`;
-  const targetFilename = filename || getLatestImageFilename();
-
-  let imageBuffer = null;
-  if (targetFilename) {
+  let fileStats;
+  if (videoFilePath) {
     try {
-      imageBuffer = fs.readFileSync(path.join(DATA_DIR, targetFilename));
+      fileStats = fs.statSync(videoFilePath);
+      if (fileStats.size < 1000) {
+        console.error(`[Telegram] Video file ${videoFilePath} is too small (${fileStats.size} bytes), likely corrupted/empty.`);
+        return;
+      }
     } catch (readErr) {
-      console.error(`Failed to read image ${targetFilename} from disk:`, readErr.message);
+      console.error(`Failed to stat video ${videoFilePath}:`, readErr.message);
+      return;
     }
   }
 
   // Kirim ke semua registered chat ID
   for (const chatId of registeredChatIds) {
     try {
-      await bot.telegram.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-      if (imageBuffer) {
-        await bot.telegram.sendPhoto(
-          chatId,
-          { source: imageBuffer },
-          { caption: `📸 Foto dari sensor *${sensor}* — ${new Date().toLocaleTimeString('id-ID')}`, parse_mode: 'Markdown' }
-        );
+      if (videoFilePath && fileStats) {
+        const caption = `🎥 Rekaman 10 detik dari sensor *${sensor}* — ${new Date().toLocaleTimeString('id-ID')}`;
+        console.log(`[Telegram] Uploading video via CURL to bypass Node.js stream bugs...`);
+        
+        // Eksekusi CURL murni (karena Telegraf terbukti bug 'socket hang up' di Node 26)
+        const safeCaption = caption.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+        const token = process.env.TELEGRAM_BOT_TOKEN;
+        const cmd = `curl -s -X POST "https://api.telegram.org/bot${token}/sendVideo" -F chat_id="${chatId}" -F video="@${videoFilePath}" -F caption="${safeCaption}" -F parse_mode="Markdown"`;
+        
+        await new Promise((resolve, reject) => {
+          require('child_process').exec(cmd, (error, stdout, stderr) => {
+            if (error) {
+              return reject(error);
+            }
+            try {
+              const res = JSON.parse(stdout);
+              if (!res.ok) return reject(new Error(res.description || "Unknown API Error"));
+              resolve(res);
+            } catch (e) {
+              reject(new Error("Gagal parsing response CURL"));
+            }
+          });
+        });
+        console.log(`[Telegram] Video berhasil diunggah via CURL ke chat ID: ${chatId}`);
       }
-      console.log(`Alert sent to chat ID: ${chatId}`);
     } catch (err) {
-      console.error(`Failed to send alert to ${chatId}:`, err.message);
+      console.error(`Failed to send video alert to ${chatId}:`, err.message);
     }
   }
 }
 
-module.exports = { initTelegramBot, sendMotionAlert, notifyCaptureResult };
+module.exports = { initTelegramBot, sendMotionAlert, sendMotionVideoAlert, notifyCaptureResult, registerExpectedPhoto };
 

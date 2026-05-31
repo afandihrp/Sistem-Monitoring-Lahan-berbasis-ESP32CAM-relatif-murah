@@ -4,7 +4,8 @@ const path = require('path');
 
 const { aiClient } = require('./services/aiClient');
 const { logEvent, getLogs } = require('./services/logger');
-const { sendMotionAlert } = require('./services/telegram');
+const { sendMotionAlert, sendMotionVideoAlert } = require('./services/telegram');
+const { renderVideo } = require('./services/videoRenderer');
 
 const CONFIG_FILE = path.join(__dirname, '../../data/servoConfig.json');
 const SYSTEM_SETTINGS_FILE = path.join(__dirname, '../../data/systemSettings.json');
@@ -162,10 +163,7 @@ function broadcastDeviceList(wss) {
   });
 }
 
-/**
- * Stitch JPEG frames based on the number of online devices using sharp
- */
-// stitchFrames removed
+
 
 function initWebSocket(server) {
   const wss = new WebSocketServer({ server });
@@ -208,7 +206,11 @@ function initWebSocket(server) {
         type: 'Camera',
         signalBars: 0,
         lastSeen: new Date().toLocaleTimeString(),
-        ws: ws  // simpan referensi untuk on-demand capture
+        ws: ws,  // simpan referensi untuk on-demand capture
+        rollingBuffer: [], // Buffer untuk frame JPEG (Pre-roll)
+        recordingPostRoll: false,
+        postRollFramesNeeded: 0,
+        motionSensor: ''
       });
       broadcastDeviceList(wss);
 
@@ -284,6 +286,41 @@ function initWebSocket(server) {
         if (device) {
           device.latestFrame = message; // Keep updating to the absolute newest frame
           
+          // --- Video Recording Logic ---
+          device.rollingBuffer.push(message);
+          
+          if (device.recordingPostRoll) {
+            device.postRollFramesNeeded--;
+            
+            if (device.postRollFramesNeeded <= 0) {
+              device.recordingPostRoll = false;
+              console.log(`[VideoRecord] Selesai mengumpulkan frame post-roll untuk ${deviceId}. Memulai render...`);
+              
+              // TEPAT SAAT INI: Perintahkan ESP32 untuk berganti ke FHD dan mengambil foto!
+              console.log(`[Sync] Mengirim perintah take_photo ke kamera untuk sensor ${device.motionSensor}...`);
+              const { registerExpectedPhoto } = require('./services/telegram');
+              registerExpectedPhoto(device.motionSensor);
+              ws.send(JSON.stringify({ type: 'take_photo', sensor: device.motionSensor }));
+              
+              const framesToRender = [...device.rollingBuffer];
+              const outputFilename = `motion_video_${remoteIp.replace(/\./g, '_')}_${device.motionSensor}_${Date.now()}.mp4`;
+              
+              renderVideo(framesToRender, outputFilename)
+                .then(videoPath => {
+                  sendMotionVideoAlert(`IP: ${remoteIp}`, device.motionSensor, videoPath);
+                })
+                .catch(err => {
+                  console.error(`[VideoRecord] Gagal merender video: ${err.message}`);
+                });
+            }
+          } else {
+            // Jaga pre-roll buffer tetap maksimal 30 frame (~3 detik jika 10fps)
+            while (device.rollingBuffer.length > 30) {
+              device.rollingBuffer.shift();
+            }
+          }
+          // -----------------------------
+
           if (globalAiEnabled) {
             enqueueAiRequest(deviceId, message);
           }
@@ -340,9 +377,15 @@ function initWebSocket(server) {
               }
             });
 
-            // Telegram alert sekarang dikirim dari routes.js SETELAH foto tersimpan
-            // agar gambar yang dilampirkan selalu foto dari event ini, bukan foto lama
+            // Mulai perekaman post-roll (tambahkan ~70 frame setelah motion untuk mencapai total 10 detik)
+            if (device && !device.recordingPostRoll) {
+              console.log(`[VideoRecord] Motion trigger dari ${location}. Mengumpulkan post-roll frame...`);
+              device.recordingPostRoll = true;
+              device.postRollFramesNeeded = 70; // Target post-roll
+              device.motionSensor = data.sensor;
+            }
 
+            // Telegram alert sekarang dikirim dari videoRenderer SETELAH video siap.
           } else if (data.type === 'set_view_mode' && !isCamera) {
             globalViewMode = data.mode;
             console.log(`[ViewMode] Global view mode updated to: ${globalViewMode}`);
@@ -634,5 +677,43 @@ function switchActiveStream(direction) {
   }
   return globalActiveDeviceId;
 }
+function updateFlashIntensity(intensity) {
+  let allConfigs = {};
+  if (fs.existsSync(CAMERA_CONFIG_FILE)) {
+    try { 
+      const rawData = fs.readFileSync(CAMERA_CONFIG_FILE);
+      allConfigs = JSON.parse(rawData); 
+    } catch (e) {}
+  }
 
-module.exports = { initWebSocket, getDevices, sendCaptureRequest, switchActiveStream };
+  // Ensure currently connected cameras are in allConfigs
+  const deviceArray = Array.from(devices.values());
+  deviceArray.forEach(cameraDevice => {
+    if (cameraDevice.type === 'Camera' && cameraDevice.mac) {
+      if (!allConfigs[cameraDevice.mac]) {
+        allConfigs[cameraDevice.mac] = {};
+      }
+    }
+  });
+
+  // Update intensity for all known cameras
+  Object.keys(allConfigs).forEach(mac => {
+    allConfigs[mac] = { ...allConfigs[mac], flashIntensity: intensity, lastUpdated: new Date().toISOString() };
+  });
+
+  fs.writeFileSync(CAMERA_CONFIG_FILE, JSON.stringify(allConfigs, null, 2));
+  
+  // Push updated config directly to the specific camera device via WebSocket
+  deviceArray.forEach(cameraDevice => {
+    if (cameraDevice.ws && cameraDevice.ws.readyState === 1 && cameraDevice.type === 'Camera') {
+      // Send the updated config for this specific camera
+      const deviceConfig = allConfigs[cameraDevice.mac];
+      if (deviceConfig) {
+        cameraDevice.ws.send(JSON.stringify({ type: 'camera_config_update', config: deviceConfig }));
+      }
+    }
+  });
+  console.log(`[FlashControl] Pushed updated flash intensity (${intensity}) to all cameras`);
+}
+
+module.exports = { initWebSocket, getDevices, sendCaptureRequest, switchActiveStream, updateFlashIntensity };

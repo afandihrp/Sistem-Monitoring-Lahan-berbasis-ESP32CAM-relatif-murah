@@ -7,7 +7,7 @@ CONF_THRESHOLD = 0.25
 NMS_THRESHOLD = 0.45
 
 # Performance and Hardware
-NUM_THREADS = 2
+NUM_THREADS = 1
 
 # WebSocket Client Configuration (Target Backend)
 BACKEND_HOST = "gateway.local"

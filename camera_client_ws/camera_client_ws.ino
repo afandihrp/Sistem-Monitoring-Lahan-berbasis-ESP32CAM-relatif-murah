@@ -65,9 +65,13 @@ bool prev_state_right_pir = false;
 
 // Flag untuk on-demand capture via Telegram
 volatile bool pendingOnDemandCapture = false;
+String pendingCaptureLabel = "";
 
 // Flag untuk servo control
 volatile int pendingServoAngle = -1;
+
+unsigned long servoReturnTime = 0;
+bool isServoWaitingToReturn = false;
 
 // Global camera config agar bisa dipakai ulang saat reinit
 camera_config_t app_cam_config;
@@ -308,12 +312,34 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
              if (end != -1) cam_flashOnCapture = (cmd.substring(start, end).indexOf("true") != -1);
            }
 
+           int intensityIdx = cmd.indexOf("\"flashIntensity\":");
+           if (intensityIdx != -1) {
+             int start = intensityIdx + 17;
+             int end = cmd.indexOf(",", start);
+             if (end == -1) end = cmd.indexOf("}", start);
+             if (end != -1) {
+                int intensity = cmd.substring(start, end).toInt();
+                ledcWrite(FLASH_GPIO_NUM, intensity);
+                Serial.printf("[Flash] Intensity updated to %d\n", intensity);
+             }
+           }
+
            Serial.printf("[WSc] Camera config updated: Res=%s, Qual=%d, Bright=%d, Contrast=%d, Sat=%d, AWB=%d, AEC=%d, AGC=%d, Mirror=%d, Flip=%d, Effect=%s, XCLK=%d, Flash=%d\n",
                          cam_resolution.c_str(), cam_quality, cam_brightness, cam_contrast, cam_saturation, cam_awb, cam_aec, cam_agc, cam_hmirror, cam_vflip, cam_specialEffect.c_str(), cam_xclk, cam_flashOnCapture);
 
            // XCLK is changed at runtime via s->set_xclk() inside applyCameraConfig()
 
            applyCameraConfig();
+         } else if (cmd.indexOf("\"take_photo\"") >= 0) {
+            int sensorIdx = cmd.indexOf("\"sensor\":\"");
+            if (sensorIdx != -1) {
+              int start = sensorIdx + 10;
+              int end = cmd.indexOf("\"", start);
+              if (end != -1) {
+                pendingCaptureLabel = cmd.substring(start, end);
+                Serial.printf("[WSc] Received take_photo command for sensor: %s\n", pendingCaptureLabel.c_str());
+              }
+            }
          }
       }
       break;
@@ -343,11 +369,18 @@ void setup() {
   pinMode(middle_pir_pin, INPUT_PULLDOWN);
   pinMode(right_pir_pin, INPUT_PULLDOWN);
   pinMode(FLASH_GPIO_NUM, OUTPUT);
-  digitalWrite(FLASH_GPIO_NUM, LOW); // Flash mati saat startup
+  // Gunakan PWM (LEDC) untuk meredupkan flash.
+  // ESP32 Core 3.x menggunakan ledcAttach dan ledcWrite berdasarkan PIN.
+  ledcAttach(FLASH_GPIO_NUM, 5000, 8); // Frekuensi 5kHz, resolusi 8-bit (0-255)
+  ledcWrite(FLASH_GPIO_NUM, 0); // Default OFF sesuai permintaan user
 
   // Init Servo PWM (ESP32 Core 3.x API)
   ledcAttach(SERVO_PIN, SERVO_LEDC_FREQ, SERVO_LEDC_RES);
   setServoAngle(SERVO_POS_DEFAULT); // Start at center position
+
+  // Tambahkan delay 1 detik agar tegangan listrik (power supply) stabil kembali 
+  // setelah servo menarik arus besar. Ini mencegah error inisialisasi I2C kamera (Error 0x106).
+  delay(1000);
 
   // Isi pin config ke app_cam_config global (dipakai ulang saat deinit/reinit)
   app_cam_config.ledc_channel  = LEDC_CHANNEL_0;
@@ -467,8 +500,8 @@ void captureAndUpload(String label) {
   Serial.println("[3] Capturing frame...");
   camera_fb_t * fb = esp_camera_fb_get();
   if (cam_flashOnCapture) {
-    digitalWrite(FLASH_GPIO_NUM, LOW);  // Matikan flash setelah frame diambil
-    Serial.println("[3] Flash OFF.");
+    // digitalWrite(FLASH_GPIO_NUM, LOW);  // Dihapus karena flash sekarang nyala permanen
+    Serial.println("[3] Flash kept ON.");
   }
 
   if (!fb) {
@@ -516,11 +549,13 @@ void check_sensor(uint8_t pin, bool &prev_state, String label, uint8_t angle) {
     webSocket.sendTXT(msg);
     Serial.println("Motion detected: " + label);
 
-    // Capture dan upload foto high-res
-    captureAndUpload(label);
-    
-    // Move back to default position (middle)
-    setServoAngle(SERVO_POS_DEFAULT);
+    // HAPUS: captureAndUpload(label); agar stream video tidak terhenti/freeze.
+    // Sebagai gantinya, jadwalkan pengembalian servo ke tengah setelah 5 detik
+    // agar backend sempat merekam video ke arah tersebut.
+    extern unsigned long servoReturnTime;
+    extern bool isServoWaitingToReturn;
+    servoReturnTime = millis() + 5000;
+    isServoWaitingToReturn = true;
 
     prev_state = HIGH;
   } else if (current_state == LOW && prev_state == HIGH) {
@@ -546,12 +581,27 @@ void loop() {
     pendingOnDemandCapture = false;
     captureAndUpload("capture");
   }
+  
+  if (pendingCaptureLabel != "") {
+    String label = pendingCaptureLabel;
+    pendingCaptureLabel = "";
+    captureAndUpload(label);
+  }
 
   // Proses servo move
   if (pendingServoAngle != -1) {
     int angle = pendingServoAngle;
     pendingServoAngle = -1; // Reset
     setServoAngle(angle);
+    
+    // Batalkan auto-return jika digerakkan manual
+    isServoWaitingToReturn = false;
+  }
+
+  // Proses auto-return servo
+  if (isServoWaitingToReturn && millis() > servoReturnTime) {
+    setServoAngle(SERVO_POS_DEFAULT);
+    isServoWaitingToReturn = false;
   }
 
   check_pins();
