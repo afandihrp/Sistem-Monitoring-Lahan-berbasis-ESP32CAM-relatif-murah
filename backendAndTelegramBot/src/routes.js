@@ -82,6 +82,18 @@ function createRouter(wss) {
           timestamp: new Date().toISOString()
         });
 
+        // Broadcast updated logs to all Kiosks
+        const { getLogs } = require('./services/logger');
+        const payloadLogs = JSON.stringify({
+          type: 'historical_logs',
+          logs: getLogs()
+        });
+        wss.clients.forEach((client) => {
+          if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+            client.send(payloadLogs);
+          }
+        });
+
         notifyCaptureResult(filename);
         return res.send('Uploaded (Capture)');
       }
@@ -127,9 +139,17 @@ function createRouter(wss) {
         aiDetails: aiDetails
       });
 
+      // Broadcast updated historical logs
+      const { getLogs } = require('./services/logger');
+      const payloadLogs = JSON.stringify({
+        type: 'historical_logs',
+        logs: getLogs()
+      });
+
       wss.clients.forEach((client) => {
         if (client.readyState === 1 && !client.path.startsWith('/camera')) {
           client.send(payload);
+          client.send(payloadLogs);
         }
       });
 

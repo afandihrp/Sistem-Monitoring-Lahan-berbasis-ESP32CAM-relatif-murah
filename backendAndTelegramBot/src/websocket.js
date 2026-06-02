@@ -371,9 +371,16 @@ function initWebSocket(server) {
               timestamp: new Date().toISOString()
             });
             
+            // Broadcast updated historical logs
+            const payloadLogs = JSON.stringify({
+              type: 'historical_logs',
+              logs: getLogs()
+            });
+            
             wss.clients.forEach((client) => {
               if (client.readyState === 1 && !client.path.startsWith('/camera')) {
                 client.send(payload);
+                client.send(payloadLogs);
               }
             });
 

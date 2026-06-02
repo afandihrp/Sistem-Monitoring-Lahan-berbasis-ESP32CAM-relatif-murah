@@ -64,6 +64,22 @@ const getImageUrl = (url) => {
   // If it's a relative path, prepend the backend origin (assuming port 3000)
   return `https://${window.location.hostname}:3000${url}`;
 }
+
+const handleImageError = (e) => {
+  const img = e.target;
+  if (!img.dataset.retries) {
+    img.dataset.retries = '0';
+  }
+  const retries = parseInt(img.dataset.retries);
+  if (retries < 5) {
+    img.dataset.retries = (retries + 1).toString();
+    setTimeout(() => {
+      // Append a cache-buster query parameter to reload the image
+      const baseSrc = img.src.split('?')[0];
+      img.src = `${baseSrc}?retry=${retries + 1}&t=${Date.now()}`;
+    }, 1500);
+  }
+}
 </script>
 
 <template>
@@ -103,7 +119,7 @@ const getImageUrl = (url) => {
             <span class="text-truncate">{{ event.location }}</span>
           </div>
           <div v-if="event.imageUrl" class="mt-2 ps-3 pe-1 text-center">
-            <img :src="getImageUrl(event.imageUrl)" class="img-fluid rounded border border-slate-700" style="height: auto; max-height: 350px; width: auto;" alt="Motion Snapshot" loading="lazy" />
+            <img :src="getImageUrl(event.imageUrl)" @error="handleImageError" class="img-fluid rounded border border-slate-700" style="height: auto; max-height: 350px; width: auto;" alt="Motion Snapshot" loading="lazy" />
           </div>
         </div>
       </div>
