@@ -1,5 +1,9 @@
 <script setup>
+import { ref } from 'vue'
 import DateSorter from './DateSorter.vue'
+import PlaybackView from './PlaybackView.vue'
+
+const activeTab = ref('events')
 
 defineProps({
   events: {
@@ -84,11 +88,29 @@ const handleImageError = (e) => {
 
 <template>
   <div class="d-flex flex-column flex-grow-1 overflow-hidden event-panel">
-    <div class="bg-slate-800 px-3 py-2 border-bottom border-slate-700 d-flex justify-content-between align-items-center">
-      <h6 class="m-0 fw-bold d-flex align-items-center gap-2 small">
-        <i class="bi bi-calendar3 text-warning"></i> Events
-      </h6>
-      <span class="badge bg-slate-700 text-secondary border border-slate-600 extra-small">{{ events.length }} on {{ selectedDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) }}</span>
+    <!-- Tabbed Header Group -->
+    <div class="bg-slate-800 border-bottom border-slate-700 d-flex flex-column">
+      <!-- Tabs Selector -->
+      <div class="d-flex border-bottom border-slate-700 bg-slate-900">
+        <button 
+          @click="activeTab = 'events'" 
+          :class="activeTab === 'events' ? 'border-primary text-primary font-bold active-tab' : 'border-transparent text-slate-400'" 
+          class="flex-grow-1 py-2 px-3 text-center border-bottom-2 small transition-all btn-tab">
+          <i class="bi bi-list-task me-1"></i> Events Logs
+        </button>
+        <button 
+          @click="activeTab = 'playback'" 
+          :class="activeTab === 'playback' ? 'border-primary text-primary font-bold active-tab' : 'border-transparent text-slate-400'" 
+          class="flex-grow-1 py-2 px-3 text-center border-bottom-2 small transition-all btn-tab">
+          <i class="bi bi-play-btn me-1"></i> Playback
+        </button>
+      </div>
+
+      <!-- Info Sub-Header -->
+      <div class="px-3 py-1.5 d-flex justify-content-between align-items-center">
+        <span class="text-secondary extra-small font-bold text-uppercase tracking-wider">Trigger Logs</span>
+        <span class="badge bg-slate-700 text-secondary border border-slate-600 extra-small">{{ events.length }} on {{ selectedDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) }}</span>
+      </div>
     </div>
 
     <!-- Date Sorter Component (Mobile Only) -->
@@ -98,7 +120,8 @@ const handleImageError = (e) => {
       @dateSelected="(date) => emit('dateSelected', date)" 
     />
 
-    <div class="overflow-auto custom-scrollbar flex-grow-1 event-list-container" style="min-height: 300px;">
+    <!-- Event Logs Tab View -->
+    <div v-if="activeTab === 'events'" class="overflow-auto custom-scrollbar flex-grow-1 event-list-container" style="min-height: 300px;">
       <div v-if="events.length > 0">
         <div v-for="event in (windowWidth <= 1000 ? paginatedEvents : events)" :key="event.id" 
              class="px-3 py-2 border-bottom border-slate-700 last-child-border-0 transition-all hover-bg">
@@ -130,9 +153,14 @@ const handleImageError = (e) => {
         <div class="small fw-bold text-uppercase" style="letter-spacing: 2px;">No Events</div>
       </div>
     </div>
+
+    <!-- Playback Tab View -->
+    <div v-else class="flex-grow-1 overflow-hidden">
+      <PlaybackView :events="events" />
+    </div>
     
     <!-- Pagination Controls (Mobile only) -->
-    <div v-if="windowWidth <= 1000" class="bg-slate-800 p-2 border-top border-slate-700 d-flex justify-content-between align-items-center">
+    <div v-if="windowWidth <= 1000 && activeTab === 'events'" class="bg-slate-800 p-2 border-top border-slate-700 d-flex justify-content-between align-items-center">
       <button @click="emit('prevPage')" :disabled="currentEventPage === 1" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-chevron-left"></i> Prev
       </button>
@@ -172,5 +200,25 @@ const handleImageError = (e) => {
     padding-right: 1.25rem !important;
   }
   .custom-scrollbar { overflow-y: visible !important; }
+}
+
+.btn-tab {
+  background: transparent;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.btn-tab:hover {
+  color: #3b82f6 !important;
+}
+.border-bottom-2 {
+  border-bottom: 2px solid;
+}
+.active-tab {
+  border-color: #3b82f6 !important;
 }
 </style>
