@@ -310,7 +310,7 @@ function initWebSocket(server) {
                   sendMotionVideoAlert(`IP: ${remoteIp}`, device.motionSensor, videoPath);
                   
                   // Bind and save video to log.json
-                  const videoUrl = `/data/${outputFilename}`;
+                  const videoUrl = `/data/videos/${outputFilename}`;
                   updateLatestLogVideo(device.motionSensor, remoteIp, videoUrl);
 
                   // Broadcast updated logs to all Kiosks

@@ -58,8 +58,12 @@ function createRouter(wss) {
     
     const timestamp = Date.now();
     const filename = `motion_${ip.replace(/\./g, '_')}_${sensor}_${timestamp}.jpg`;
-    const filepath = path.join(__dirname, '../../data', filename);
-    const imageUrl = `/data/${filename}`;
+    const photosDir = path.join(__dirname, '../../data/photos');
+    if (!fs.existsSync(photosDir)) {
+      fs.mkdirSync(photosDir, { recursive: true });
+    }
+    const filepath = path.join(photosDir, filename);
+    const imageUrl = `/data/photos/${filename}`;
 
     try {
       if (sensor === 'capture') {

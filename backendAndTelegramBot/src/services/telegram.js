@@ -68,19 +68,20 @@ bot.use(async (ctx, next) => {
 // --- Helper: Cari file gambar terbaru di folder /data ---
 function getLatestImageFilename() {
   try {
-    if (!fs.existsSync(DATA_DIR)) return null;
+    const photosDir = path.join(DATA_DIR, 'photos');
+    if (!fs.existsSync(photosDir)) return null;
 
-    const files = fs.readdirSync(DATA_DIR)
+    const files = fs.readdirSync(photosDir)
       .filter(f => /\.(jpg|jpeg|png)$/i.test(f))
       .map(f => ({
         name: f,
-        mtime: fs.statSync(path.join(DATA_DIR, f)).mtimeMs
+        mtime: fs.statSync(path.join(photosDir, f)).mtimeMs
       }))
       .sort((a, b) => b.mtime - a.mtime); // terbaru lebih dulu
 
     return files.length > 0 ? files[0].name : null;
   } catch (err) {
-    console.error('Error reading /data directory:', err);
+    console.error('Error reading /data/photos directory:', err);
     return null;
   }
 }
@@ -209,7 +210,7 @@ async function requestCapture(ctx, deviceId, requestId = 'default', waitingMsgId
 
     if (waitingMsgId) await ctx.telegram.editMessageText(ctx.chat.id, waitingMsgId, undefined, '✅ Capture berhasil. Mengirim foto...').catch(()=>{});
 
-    const filePath = path.join(DATA_DIR, filename);
+    const filePath = path.join(DATA_DIR, 'photos', filename);
     // Gunakan CURL alih-alih ctx.replyWithPhoto untuk menghindari bug socket hang up Telegraf di Node 26
     const caption = `📸 *Capture On-Demand*\n🕐 ${new Date().toLocaleTimeString('id-ID')} (WIB)`;
     const safeCaption = caption.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
@@ -406,7 +407,7 @@ bot.action(/^gi:(.+)$/, async (ctx) => {
   try {
     await ctx.answerCbQuery(); // Hapus animasi loading pada tombol
     const filename = ctx.match[1];
-    const filePath = path.join(DATA_DIR, filename);
+    const filePath = path.join(DATA_DIR, 'photos', filename);
 
     if (!fs.existsSync(filePath)) {
       return ctx.reply(`❌ File tidak ditemukan di server: \`${filename}\``, { parse_mode: 'Markdown' });
@@ -517,7 +518,7 @@ async function sendMotionAlert(location, sensor, filename = null) {
     let imageBuffer = null;
     if (targetFilename) {
       try {
-        imageBuffer = fs.readFileSync(path.join(DATA_DIR, targetFilename));
+        imageBuffer = fs.readFileSync(path.join(DATA_DIR, 'photos', targetFilename));
       } catch (readErr) {
         console.error(`Failed to read image ${targetFilename} from disk:`, readErr.message);
       }
@@ -528,7 +529,7 @@ async function sendMotionAlert(location, sensor, filename = null) {
       try {
         await bot.telegram.sendMessage(chatId, message, { parse_mode: 'Markdown' });
         if (targetFilename) {
-          const imagePath = path.join(DATA_DIR, targetFilename);
+          const imagePath = path.join(DATA_DIR, 'photos', targetFilename);
           if (fs.existsSync(imagePath)) {
             const caption = `📸 Foto dari sensor *${sensor}* — ${new Date().toLocaleTimeString('id-ID')}`;
             const safeCaption = caption.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');

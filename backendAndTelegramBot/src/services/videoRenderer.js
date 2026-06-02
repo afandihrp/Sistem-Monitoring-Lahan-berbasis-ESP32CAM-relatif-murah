@@ -36,7 +36,11 @@ function renderVideo(frameBuffers, outputFilename) {
     });
 
     Promise.all(writePromises).then(() => {
-      const outputPath = path.join(__dirname, '../../../data', outputFilename);
+      const videosDir = path.join(__dirname, '../../../data/videos');
+      if (!fs.existsSync(videosDir)) {
+        fs.mkdirSync(videosDir, { recursive: true });
+      }
+      const outputPath = path.join(videosDir, outputFilename);
 
       // Command menggunakan Software Encoder (libx264) yang 100% kompatibel dan aman.
       // Ditambahkan flag faststart dan baseline profile agar Telegram tidak menolak format videonya.
