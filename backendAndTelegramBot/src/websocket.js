@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { aiClient } = require('./services/aiClient');
-const { logEvent, getLogs } = require('./services/logger');
+const { logEvent, getLogs, updateLatestLogVideo } = require('./services/logger');
 const { sendMotionAlert, sendMotionVideoAlert } = require('./services/telegram');
 const { renderVideo } = require('./services/videoRenderer');
 
@@ -308,6 +308,23 @@ function initWebSocket(server) {
               renderVideo(framesToRender, outputFilename)
                 .then(videoPath => {
                   sendMotionVideoAlert(`IP: ${remoteIp}`, device.motionSensor, videoPath);
+                  
+                  // Bind and save video to log.json
+                  const videoUrl = `/data/${outputFilename}`;
+                  updateLatestLogVideo(device.motionSensor, remoteIp, videoUrl);
+
+                  // Broadcast updated logs to all Kiosks
+                  if (wssInstance) {
+                    const payloadLogs = JSON.stringify({
+                      type: 'historical_logs',
+                      logs: getLogs()
+                    });
+                    wssInstance.clients.forEach((client) => {
+                      if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                        client.send(payloadLogs);
+                      }
+                    });
+                  }
                 })
                 .catch(err => {
                   console.error(`[VideoRecord] Gagal merender video: ${err.message}`);

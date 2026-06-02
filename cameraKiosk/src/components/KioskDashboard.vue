@@ -168,6 +168,7 @@ const connectWS = () => {
             location: log.location || 'Unknown',
             sensor: log.sensor,
             imageUrl: log.imageUrl || 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Motion+Detected',
+            videoUrl: log.videoUrl,
             humanPresence: log.humanPresence,
             aiDetails: log.aiDetails
           };

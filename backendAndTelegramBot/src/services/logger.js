@@ -80,11 +80,30 @@ function updateLatestLogImage(sensor, deviceIp, imageUrl) {
   }
 }
 
+function updateLatestLogVideo(sensor, deviceIp, videoUrl) {
+  try {
+    if (fs.existsSync(LOG_FILE_PATH)) {
+      const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf8'));
+      for (let i = logs.length - 1; i >= 0; i--) {
+        const log = logs[i];
+        if (log.sensor === sensor && log.deviceId === `cam_${deviceIp.replace(/\./g, '_')}`) {
+          log.videoUrl = videoUrl;
+          fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2), 'utf8');
+          break;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error updating log with video:', error);
+  }
+}
+
 module.exports = {
   logEvent,
   getLogs,
   updateLatestLogImage,
-  updateLatestLogWithAI
+  updateLatestLogWithAI,
+  updateLatestLogVideo
 };
 
 
