@@ -1,11 +1,11 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import DateSorter from './DateSorter.vue'
 import PlaybackView from './PlaybackView.vue'
 
 const activeTab = ref('events')
 
-defineProps({
+const props = defineProps({
   events: {
     type: Array,
     required: true
@@ -33,6 +33,12 @@ defineProps({
 })
 
 const emit = defineEmits(['nextPage', 'prevPage', 'dateSelected'])
+
+watch(() => props.windowWidth, (newWidth) => {
+  if (newWidth > 1000 && activeTab.value !== 'events') {
+    activeTab.value = 'events'
+  }
+})
 
 const formatEventTime = (timestamp) => {
   if (!timestamp) return 'N/A';
@@ -91,7 +97,7 @@ const handleImageError = (e) => {
     <!-- Tabbed Header Group -->
     <div class="bg-slate-800 border-bottom border-slate-700 d-flex flex-column">
       <!-- Tabs Selector -->
-      <div class="d-flex border-bottom border-slate-700 bg-slate-900">
+      <div v-if="windowWidth <= 1000" class="d-flex border-bottom border-slate-700 bg-slate-900">
         <button 
           @click="activeTab = 'events'" 
           :class="activeTab === 'events' ? 'border-primary text-primary font-bold active-tab' : 'border-transparent text-slate-400'" 

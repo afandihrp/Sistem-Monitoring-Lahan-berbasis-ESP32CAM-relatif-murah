@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 
 const props = defineProps({
   events: {
@@ -11,14 +11,51 @@ const props = defineProps({
 const isPlaying = ref(false)
 const playbackSpeed = ref('1x')
 const scrubTime = ref('12:00:00')
+const currentClip = ref(null)
 
-// Ref for the scrollable timeline container
+// Ref for the scrollable timeline container & HTML5 video element
 const timelineRef = ref(null)
+const videoPlayerRef = ref(null)
 
 const isDragging = ref(false)
 let startX = 0
 let scrollLeftStart = 0
 let hasMoved = false
+let isProgrammaticScroll = false
+
+// Format absolute video URL pointing to backend
+const getFullVideoUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http')) {
+    return url.replace('gateway.local', window.location.hostname)
+  }
+  return `https://${window.location.hostname}:3000${url}`
+}
+
+// Parse real recordings list from events prop
+const activeClips = computed(() => {
+  return props.events
+    .filter(e => e.videoUrl)
+    .map((e, index) => {
+      const date = new Date(e.timestamp)
+      const hrs = date.getHours()
+      const mins = date.getMinutes()
+      const secs = date.getSeconds()
+      
+      const decHour = hrs + mins / 60 + secs / 3600
+      const timeStr = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+      
+      return {
+        id: e.id || `clip_${index}`,
+        label: e.trigger || 'Motion Alert',
+        time: timeStr,
+        decHour: parseFloat(decHour.toFixed(4)),
+        duration: '10s',
+        videoUrl: getFullVideoUrl(e.videoUrl)
+      }
+    })
+    .sort((a, b) => a.decHour - b.decHour)
+})
 
 const startDrag = (e) => {
   if (e.button !== 0) return
@@ -26,6 +63,12 @@ const startDrag = (e) => {
   startX = e.pageX - timelineRef.value.offsetLeft
   scrollLeftStart = timelineRef.value.scrollLeft
   hasMoved = false
+
+  // Pause video during scrubbing drag
+  if (videoPlayerRef.value && isPlaying.value) {
+    videoPlayerRef.value.pause()
+    isPlaying.value = false
+  }
 }
 
 const onDrag = (e) => {
@@ -43,70 +86,175 @@ const endDrag = () => {
   isDragging.value = false
 }
 
-const handleClipClick = (e, decHour) => {
+const handleClipClick = (e, clip) => {
   if (hasMoved) {
     e.preventDefault()
     e.stopPropagation()
     return
   }
-  seekToClip(decHour)
+  selectClip(clip)
 }
 
-// Mock list of clip segments with highlighted timestamps (in hour decimal format, e.g. 10.25 = 10:15)
-const mockClips = ref([
-  { id: 1, label: 'Motion (Left)', time: '09:42:15', decHour: 9.70, duration: '10s' },
-  { id: 2, label: 'Motion (Middle)', time: '12:04:15', decHour: 12.07, duration: '10s' },
-  { id: 3, label: 'Motion (Right)', time: '15:10:30', decHour: 15.17, duration: '10s' },
-  { id: 4, label: 'On-Demand Rec', time: '17:35:00', decHour: 17.58, duration: '30s' }
-])
+const selectClip = (clip) => {
+  currentClip.value = clip
+  seekToClip(clip.decHour)
+  scrubTime.value = clip.time
 
-// Calculate time string based on timeline scroll position
+  if (videoPlayerRef.value) {
+    isPlaying.value = false
+    videoPlayerRef.value.load()
+    // Auto-play the loaded clip
+    setTimeout(() => {
+      videoPlayerRef.value.play().then(() => {
+        isPlaying.value = true
+      }).catch(err => {
+        console.warn('Auto-play was prevented:', err)
+      })
+    }, 100)
+  }
+}
+
+// Calculate time string and sync play frames based on timeline scroll position
 const handleScroll = (e) => {
+  if (isProgrammaticScroll) return
+  
   const el = e.target
-  const scrollPct = el.scrollLeft / (el.scrollWidth - el.clientWidth)
-  // Map scroll percentage to 24-hour day (0 to 24 hours)
-  const totalSeconds = Math.floor(scrollPct * 24 * 3600)
+  // Map scrollLeft directly to coordinates under the center red cursor (1px = 36 seconds)
+  const totalSeconds = Math.max(0, Math.min(24 * 3600, Math.floor(el.scrollLeft * 36)))
   
   const hrs = Math.floor(totalSeconds / 3600).toString().padStart(2, '0')
   const mins = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0')
   const secs = (totalSeconds % 60).toString().padStart(2, '0')
   
   scrubTime.value = `${hrs}:${mins}:${secs}`
+
+  // Check if timeline cursor matches/overlaps with a clip to live seek inside it
+  const currentDecHour = totalSeconds / 3600
+  const clipDurationDec = 10 / 3600 // 10 seconds duration
+
+  const matchingClip = activeClips.value.find(clip => {
+    return currentDecHour >= clip.decHour && currentDecHour <= (clip.decHour + clipDurationDec)
+  })
+
+  if (matchingClip) {
+    if (currentClip.value?.id !== matchingClip.id) {
+      currentClip.value = matchingClip
+    }
+    // Update player frame while dragging
+    if (videoPlayerRef.value && isDragging.value) {
+      const offsetSeconds = (currentDecHour - matchingClip.decHour) * 3600
+      videoPlayerRef.value.currentTime = Math.max(0, Math.min(10, offsetSeconds))
+    }
+  }
+}
+
+// Sync timeline scroll with the video playback timer
+const handleTimeUpdate = (e) => {
+  if (isDragging.value || !currentClip.value) return
+  
+  const video = e.target
+  const clip = currentClip.value
+  const currentDecHour = clip.decHour + (video.currentTime / 3600)
+  
+  if (timelineRef.value) {
+    const el = timelineRef.value
+    
+    isProgrammaticScroll = true
+    el.scrollLeft = currentDecHour * 100
+    
+    const totalSeconds = Math.floor(currentDecHour * 3600)
+    const hrs = Math.floor(totalSeconds / 3600).toString().padStart(2, '0')
+    const mins = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0')
+    const secs = (totalSeconds % 60).toString().padStart(2, '0')
+    scrubTime.value = `${hrs}:${mins}:${secs}`
+    
+    setTimeout(() => {
+      isProgrammaticScroll = false
+    }, 50)
+  }
+}
+
+const handleVideoEnded = () => {
+  isPlaying.value = false
+  currentClip.value = null
 }
 
 // Center the scrollbar initially to ~12:00:00
 onMounted(() => {
   if (timelineRef.value) {
-    const el = timelineRef.value
-    // Scroll to middle (12:00)
-    el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2
+    // Scroll to middle (12:00 -> 1200px)
+    timelineRef.value.scrollLeft = 1200
   }
 })
 
 const seekToClip = (decHour) => {
   if (timelineRef.value) {
     const el = timelineRef.value
-    const scrollRange = el.scrollWidth - el.clientWidth
     el.scrollTo({
-      left: (decHour / 24) * scrollRange,
+      left: decHour * 100,
       behavior: 'smooth'
     })
   }
 }
 
 const togglePlay = () => {
-  isPlaying.value = !isPlaying.value
+  if (!videoPlayerRef.value) return
+  if (isPlaying.value) {
+    videoPlayerRef.value.pause()
+    isPlaying.value = false
+  } else {
+    if (!currentClip.value && activeClips.value.length > 0) {
+      selectClip(activeClips.value[0])
+    } else {
+      videoPlayerRef.value.play().then(() => {
+        isPlaying.value = true
+      }).catch(err => {
+        console.warn('Playback play failed:', err)
+      })
+    }
+  }
 }
 
 const changeSpeed = () => {
-  const speeds = ['1x', '2x', '4x', '16x']
+  const speeds = ['1x', '2x', '4x', '8x']
   const nextIdx = (speeds.indexOf(playbackSpeed.value) + 1) % speeds.length
   playbackSpeed.value = speeds[nextIdx]
+  if (videoPlayerRef.value) {
+    videoPlayerRef.value.playbackRate = parseFloat(playbackSpeed.value)
+  }
 }
 
 const triggerScreenshot = () => {
-  alert('Screenshot saved to Kiosk Library!')
+  if (!videoPlayerRef.value) return
+  
+  const video = videoPlayerRef.value
+  const canvas = document.createElement('canvas')
+  canvas.width = video.videoWidth || 640
+  canvas.height = video.videoHeight || 360
+  
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+  
+  try {
+    const dataUrl = canvas.toDataURL('image/jpeg')
+    const link = document.createElement('a')
+    link.download = `cctv_screenshot_${Date.now()}.jpg`
+    link.href = dataUrl
+    link.click()
+  } catch (err) {
+    console.error('Failed to take video screenshot:', err)
+    alert('Failed to save screenshot. Please try again.')
+  }
 }
+
+// Watch clip changes to ensure video loads properly if elements are ref-bound
+watch(currentClip, (newClip) => {
+  if (newClip && videoPlayerRef.value) {
+    if (!isPlaying.value) {
+      videoPlayerRef.value.load()
+    }
+  }
+})
 </script>
 
 <template>
@@ -129,9 +277,18 @@ const triggerScreenshot = () => {
         </div>
       </div>
 
-      <!-- Playback screen visual content (mock image representation) -->
+      <!-- Playback screen visual content (HTML5 video player) -->
       <div class="w-100 h-100 d-flex align-items-center justify-content-center cctv-background position-relative">
-        <div class="text-center z-2 text-slate-400 p-4">
+        <video 
+          v-if="currentClip"
+          ref="videoPlayerRef"
+          :src="currentClip.videoUrl"
+          crossorigin="anonymous"
+          @timeupdate="handleTimeUpdate"
+          @ended="handleVideoEnded"
+          class="w-100 h-100 object-fit-contain z-2"
+        ></video>
+        <div v-else class="text-center z-2 text-slate-400 p-4">
           <i class="bi bi-camera-video fs-1 mb-2 text-info opacity-75"></i>
           <p class="small font-monospace mb-0">PLAYBACK RESOLVED</p>
           <span class="extra-small opacity-50 font-monospace">TIME: {{ scrubTime }}</span>
@@ -183,8 +340,8 @@ const triggerScreenshot = () => {
              @mousemove="onDrag"
              @mouseup="endDrag"
              @mouseleave="endDrag"
-             class="timeline-scroll-tape d-flex overflow-x-auto overflow-y-hidden custom-scrollbar px-5" 
-             :style="{ cursor: isDragging ? 'grabbing' : 'grab', 'user-select': 'none' }">
+             class="timeline-scroll-tape d-flex overflow-x-auto overflow-y-hidden custom-scrollbar" 
+             :style="{ cursor: isDragging ? 'grabbing' : 'grab', 'user-select': 'none', padding: '0 50%' }">
           <div class="timeline-ruler position-relative d-flex align-items-end pb-1" style="width: 2400px; height: 45px;">
             <!-- Render scale ticks & marks (00:00 to 24:00) -->
             <div v-for="hour in 25" :key="hour" 
@@ -197,10 +354,10 @@ const triggerScreenshot = () => {
             </div>
 
             <!-- Highlight strips on the timeline representing motion events -->
-            <div v-for="clip in mockClips" :key="clip.id"
+            <div v-for="clip in activeClips" :key="clip.id"
                  class="position-absolute motion-highlight-strip"
                  :style="{ left: (clip.decHour * 100) + 'px', width: '25px' }"
-                 @click="handleClipClick($event, clip.decHour)">
+                 @click="handleClipClick($event, clip)">
             </div>
           </div>
         </div>
@@ -212,10 +369,11 @@ const triggerScreenshot = () => {
       <h6 class="extra-small text-secondary text-uppercase fw-bold mb-2 tracking-wider">
         <i class="bi bi-clock-history"></i> Today's Recordings Index
       </h6>
-      <div class="d-flex flex-column gap-2">
-        <div v-for="clip in mockClips" :key="clip.id"
-             @click="seekToClip(clip.decHour)"
-             class="clip-card d-flex justify-content-between align-items-center p-2 rounded border border-slate-800 hover-bg transition-all pointer">
+      <div v-if="activeClips.length > 0" class="d-flex flex-column gap-2">
+        <div v-for="clip in activeClips" :key="clip.id"
+             @click="selectClip(clip)"
+             :class="['clip-card d-flex justify-content-between align-items-center p-2 rounded border transition-all pointer', 
+                      currentClip && currentClip.id === clip.id ? 'border-primary bg-primary bg-opacity-10' : 'border-slate-800 hover-bg']">
           <div class="d-flex align-items-center gap-2">
             <i class="bi bi-play-circle-fill text-warning"></i>
             <div class="d-flex flex-column">
@@ -225,6 +383,11 @@ const triggerScreenshot = () => {
           </div>
           <i class="bi bi-chevron-right text-secondary small"></i>
         </div>
+      </div>
+      <!-- Empty state -->
+      <div v-else class="h-75 d-flex flex-column align-items-center justify-content-center text-secondary opacity-25 py-4">
+        <i class="bi bi-camera-video-off fs-3 mb-2"></i>
+        <div class="extra-small text-uppercase tracking-wider">No recordings for this date</div>
       </div>
     </div>
   </div>
