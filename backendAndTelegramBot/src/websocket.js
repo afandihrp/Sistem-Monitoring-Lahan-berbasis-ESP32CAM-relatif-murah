@@ -56,6 +56,51 @@ function triggerAiWorker() {
     if (result && result.status === 'success') {
       device.latestBoxes = result.koordinat_kotak;
       
+      // Logika Perekaman AI
+      if (result.ada_orang) {
+        if (!device.isRecordingAi) {
+          console.log(`[AI Record] Person detected on ${deviceId}. Starting recording...`);
+          device.isRecordingAi = true;
+          device.aiSensorName = 'AI_Person_Detection';
+          device.lastTimePersonSeen = Date.now();
+
+          // Log event ke data/log.json
+          logEvent({
+            type: 'motion_event',
+            sensor: device.aiSensorName,
+            location: device.ip,
+            deviceId: deviceId,
+            timestamp: new Date().toISOString()
+          });
+
+          // Broadcast event ke Kiosks
+          const payload = JSON.stringify({
+            type: 'motion_event',
+            sensor: device.aiSensorName,
+            location: device.ip,
+            deviceId: deviceId,
+            timestamp: new Date().toISOString()
+          });
+          
+          const payloadLogs = JSON.stringify({
+            type: 'historical_logs',
+            logs: getLogs()
+          });
+
+          if (wssInstance) {
+            wssInstance.clients.forEach((client) => {
+              if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                client.send(payload);
+                client.send(payloadLogs);
+              }
+            });
+          }
+        } else {
+          // Perbarui timestamp deteksi terbaru untuk memperpanjang durasi rekam
+          device.lastTimePersonSeen = Date.now();
+        }
+      }
+      
       const boxPayload = JSON.stringify({
         type: 'stream_boxes',
         deviceId: deviceId,
@@ -210,7 +255,10 @@ function initWebSocket(server) {
         rollingBuffer: [], // Buffer untuk frame JPEG (Pre-roll)
         recordingPostRoll: false,
         postRollFramesNeeded: 0,
-        motionSensor: ''
+        motionSensor: '',
+        isRecordingAi: false,
+        lastTimePersonSeen: 0,
+        aiSensorName: ''
       });
       broadcastDeviceList(wss);
 
@@ -289,7 +337,52 @@ function initWebSocket(server) {
           // --- Video Recording Logic ---
           device.rollingBuffer.push(message);
           
-          if (device.recordingPostRoll) {
+          if (device.isRecordingAi) {
+            // Batasi jumlah frame dalam buffer agar menghemat RAM Raspberry Pi (Maks 300 frame / ~30 detik)
+            if (device.rollingBuffer.length > 300) {
+              device.rollingBuffer.shift();
+            }
+
+            // Jika orang tidak terlihat selama lebih dari 3 detik (ekstensi 3 detik)
+            if (Date.now() - device.lastTimePersonSeen > 3000) {
+              device.isRecordingAi = false;
+              console.log(`[AI Record] Selesai mengumpulkan frame (no person seen for 3s) untuk ${deviceId}. Memulai render...`);
+              
+              // Perintahkan ESP32 untuk berganti ke FHD dan mengambil foto
+              console.log(`[Sync] Mengirim perintah take_photo ke kamera untuk sensor ${device.aiSensorName}...`);
+              const { registerExpectedPhoto } = require('./services/telegram');
+              registerExpectedPhoto(device.aiSensorName);
+              ws.send(JSON.stringify({ type: 'take_photo', sensor: device.aiSensorName }));
+              
+              const framesToRender = [...device.rollingBuffer];
+              const outputFilename = `motion_video_${remoteIp.replace(/\./g, '_')}_${device.aiSensorName}_${Date.now()}.mp4`;
+              
+              renderVideo(framesToRender, outputFilename)
+                .then(videoPath => {
+                  sendMotionVideoAlert(`IP: ${remoteIp}`, device.aiSensorName, videoPath);
+                  
+                  // Bind and save video to log.json
+                  const videoUrl = `/data/videos/${outputFilename}`;
+                  updateLatestLogVideo(device.aiSensorName, remoteIp, videoUrl);
+
+                  // Broadcast updated logs to all Kiosks
+                  if (wssInstance) {
+                    const payloadLogs = JSON.stringify({
+                      type: 'historical_logs',
+                      logs: getLogs()
+                    });
+                    wssInstance.clients.forEach((client) => {
+                      if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                        client.send(payloadLogs);
+                      }
+                    });
+                  }
+                })
+                .catch(err => {
+                  console.error(`[AI Record] Gagal merender video: ${err.message}`);
+                });
+            }
+          } else if (device.recordingPostRoll) {
             device.postRollFramesNeeded--;
             
             if (device.postRollFramesNeeded <= 0) {
@@ -442,6 +535,13 @@ function initWebSocket(server) {
               aiQueue.length = 0; // Clear queue
               devices.forEach((device, dId) => {
                 device.latestBoxes = [];
+                device.isRecordingAi = false;
+                
+                // Pangkas buffer kembali ke 30 frame (pre-roll standard) agar memori RAM segera bersih
+                while (device.rollingBuffer.length > 30) {
+                  device.rollingBuffer.shift();
+                }
+
                 const boxPayload = JSON.stringify({
                   type: 'stream_boxes',
                   deviceId: dId,
