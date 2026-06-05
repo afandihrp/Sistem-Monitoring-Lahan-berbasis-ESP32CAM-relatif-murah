@@ -37,6 +37,60 @@ function enqueueAiRequest(deviceId, frameBuffer) {
   triggerAiWorker();
 }
 
+function stopAiRecording(deviceId) {
+  const device = devices.get(deviceId);
+  if (!device || !device.isRecordingAi) return;
+
+  console.log(`[AI Record] Selesai mengumpulkan frame (no person seen for 3s) untuk ${deviceId}. Memulai render...`);
+  device.isRecordingAi = false;
+  
+  if (device.aiStopTimer) {
+    clearTimeout(device.aiStopTimer);
+    device.aiStopTimer = null;
+  }
+
+  const remoteIp = device.ip;
+  const ws = device.ws;
+
+  if (ws && ws.readyState === 1) {
+    // Perintahkan ESP32 untuk berganti ke FHD dan mengambil foto
+    console.log(`[Sync] Mengirim perintah take_photo ke kamera untuk sensor ${device.aiSensorName}...`);
+    const { registerExpectedPhoto } = require('./services/telegram');
+    registerExpectedPhoto(device.aiSensorName);
+    ws.send(JSON.stringify({ type: 'take_photo', sensor: device.aiSensorName }));
+  } else {
+    console.warn(`[AI Record] Camera WS connection not open, skipping take_photo command.`);
+  }
+  
+  const framesToRender = [...device.rollingBuffer];
+  const outputFilename = `motion_video_${remoteIp.replace(/\./g, '_')}_${device.aiSensorName}_${Date.now()}.mp4`;
+  
+  renderVideo(framesToRender, outputFilename)
+    .then(videoPath => {
+      sendMotionVideoAlert(`IP: ${remoteIp}`, device.aiSensorName, videoPath);
+      
+      // Bind and save video to log.json
+      const videoUrl = `/data/videos/${outputFilename}`;
+      updateLatestLogVideo(device.aiSensorName, remoteIp, videoUrl);
+
+      // Broadcast updated logs to all Kiosks
+      if (wssInstance) {
+        const payloadLogs = JSON.stringify({
+          type: 'historical_logs',
+          logs: getLogs()
+        });
+        wssInstance.clients.forEach((client) => {
+          if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+            client.send(payloadLogs);
+          }
+        });
+      }
+    })
+    .catch(err => {
+      console.error(`[AI Record] Gagal merender video: ${err.message}`);
+    });
+}
+
 function triggerAiWorker() {
   if (isAiWorkerRunning || aiQueue.length === 0) return;
   
@@ -58,6 +112,12 @@ function triggerAiWorker() {
       
       // Logika Perekaman AI
       if (result.ada_orang) {
+        if (device.aiStopTimer) {
+          clearTimeout(device.aiStopTimer);
+          device.aiStopTimer = null;
+          console.log(`[AI Record] Person detected again. Cancelled stop recording timer for ${deviceId}.`);
+        }
+
         if (!device.isRecordingAi) {
           console.log(`[AI Record] Person detected on ${deviceId}. Starting recording...`);
           device.isRecordingAi = true;
@@ -98,6 +158,14 @@ function triggerAiWorker() {
         } else {
           // Perbarui timestamp deteksi terbaru untuk memperpanjang durasi rekam
           device.lastTimePersonSeen = Date.now();
+        }
+      } else {
+        if (device.isRecordingAi && !device.aiStopTimer) {
+          console.log(`[AI Record] No person detected on ${deviceId}. Scheduling stop in 3 seconds...`);
+          device.aiStopTimer = setTimeout(() => {
+            console.log(`[AI Record] 3 seconds elapsed with no person detected on ${deviceId}. Stopping recording.`);
+            stopAiRecording(deviceId);
+          }, 3000);
         }
       }
       
@@ -258,7 +326,8 @@ function initWebSocket(server) {
         motionSensor: '',
         isRecordingAi: false,
         lastTimePersonSeen: 0,
-        aiSensorName: ''
+        aiSensorName: '',
+        aiStopTimer: null
       });
       broadcastDeviceList(wss);
 
@@ -341,46 +410,6 @@ function initWebSocket(server) {
             // Batasi jumlah frame dalam buffer agar menghemat RAM Raspberry Pi (Maks 300 frame / ~30 detik)
             if (device.rollingBuffer.length > 300) {
               device.rollingBuffer.shift();
-            }
-
-            // Jika orang tidak terlihat selama lebih dari 3 detik (ekstensi 3 detik)
-            if (Date.now() - device.lastTimePersonSeen > 3000) {
-              device.isRecordingAi = false;
-              console.log(`[AI Record] Selesai mengumpulkan frame (no person seen for 3s) untuk ${deviceId}. Memulai render...`);
-              
-              // Perintahkan ESP32 untuk berganti ke FHD dan mengambil foto
-              console.log(`[Sync] Mengirim perintah take_photo ke kamera untuk sensor ${device.aiSensorName}...`);
-              const { registerExpectedPhoto } = require('./services/telegram');
-              registerExpectedPhoto(device.aiSensorName);
-              ws.send(JSON.stringify({ type: 'take_photo', sensor: device.aiSensorName }));
-              
-              const framesToRender = [...device.rollingBuffer];
-              const outputFilename = `motion_video_${remoteIp.replace(/\./g, '_')}_${device.aiSensorName}_${Date.now()}.mp4`;
-              
-              renderVideo(framesToRender, outputFilename)
-                .then(videoPath => {
-                  sendMotionVideoAlert(`IP: ${remoteIp}`, device.aiSensorName, videoPath);
-                  
-                  // Bind and save video to log.json
-                  const videoUrl = `/data/videos/${outputFilename}`;
-                  updateLatestLogVideo(device.aiSensorName, remoteIp, videoUrl);
-
-                  // Broadcast updated logs to all Kiosks
-                  if (wssInstance) {
-                    const payloadLogs = JSON.stringify({
-                      type: 'historical_logs',
-                      logs: getLogs()
-                    });
-                    wssInstance.clients.forEach((client) => {
-                      if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-                        client.send(payloadLogs);
-                      }
-                    });
-                  }
-                })
-                .catch(err => {
-                  console.error(`[AI Record] Gagal merender video: ${err.message}`);
-                });
             }
           } else if (device.recordingPostRoll) {
             device.postRollFramesNeeded--;
@@ -535,6 +564,10 @@ function initWebSocket(server) {
               aiQueue.length = 0; // Clear queue
               devices.forEach((device, dId) => {
                 device.latestBoxes = [];
+                if (device.aiStopTimer) {
+                  clearTimeout(device.aiStopTimer);
+                  device.aiStopTimer = null;
+                }
                 device.isRecordingAi = false;
                 
                 // Pangkas buffer kembali ke 30 frame (pre-roll standard) agar memori RAM segera bersih
@@ -660,6 +693,12 @@ function initWebSocket(server) {
           device.lastSeen = new Date().toLocaleTimeString();
           console.log(`Camera ${remoteIp} disconnected.`);
           
+          if (device.aiStopTimer) {
+            clearTimeout(device.aiStopTimer);
+            device.aiStopTimer = null;
+          }
+          device.isRecordingAi = false;
+
           // Dynamic Auto-Activation Switch if active camera went offline
           if (deviceId === globalActiveDeviceId) {
             const onlineDevice = Array.from(devices.values()).find(d => d.status === 'Online');
