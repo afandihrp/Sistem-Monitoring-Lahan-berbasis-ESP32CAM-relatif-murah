@@ -51,16 +51,6 @@ function stopAiRecording(deviceId) {
 
   const remoteIp = device.ip;
   const ws = device.ws;
-
-  if (ws && ws.readyState === 1) {
-    // Perintahkan ESP32 untuk berganti ke FHD dan mengambil foto
-    console.log(`[Sync] Mengirim perintah take_photo ke kamera untuk sensor ${device.aiSensorName}...`);
-    const { registerExpectedPhoto } = require('./services/telegram');
-    registerExpectedPhoto(device.aiSensorName);
-    ws.send(JSON.stringify({ type: 'take_photo', sensor: device.aiSensorName }));
-  } else {
-    console.warn(`[AI Record] Camera WS connection not open, skipping take_photo command.`);
-  }
   
   const framesToRender = [...device.rollingBuffer];
   const outputFilename = `motion_video_${remoteIp.replace(/\./g, '_')}_${device.aiSensorName}_${Date.now()}.mp4`;
@@ -108,10 +98,13 @@ function triggerAiWorker() {
     isAiWorkerRunning = false;
     
     if (result && result.status === 'success') {
-      device.latestBoxes = result.koordinat_kotak;
+      const boxCoordinates = result.koordinat_kotak;
+      const personDetected = result.ada_orang;
+
+      device.latestBoxes = boxCoordinates;
       
       // Logika Perekaman AI
-      if (result.ada_orang) {
+      if (personDetected) {
         if (device.aiStopTimer) {
           clearTimeout(device.aiStopTimer);
           device.aiStopTimer = null;
@@ -124,16 +117,10 @@ function triggerAiWorker() {
           device.aiSensorName = 'AI_Person_Detection';
           device.lastTimePersonSeen = Date.now();
 
-          // Log event ke data/log.json
-          logEvent({
-            type: 'motion_event',
-            sensor: device.aiSensorName,
-            location: device.ip,
-            deviceId: deviceId,
-            timestamp: new Date().toISOString()
-          });
+          // Start recording with the triggering scanned frame
+          device.rollingBuffer = [frameBuffer];
 
-          // Broadcast event ke Kiosks
+          // Broadcast motion_event IMMEDIATELY to trigger Kiosk alarm sound and UI entry placeholder
           const payload = JSON.stringify({
             type: 'motion_event',
             sensor: device.aiSensorName,
@@ -141,20 +128,101 @@ function triggerAiWorker() {
             deviceId: deviceId,
             timestamp: new Date().toISOString()
           });
-          
-          const payloadLogs = JSON.stringify({
-            type: 'historical_logs',
-            logs: getLogs()
-          });
 
           if (wssInstance) {
             wssInstance.clients.forEach((client) => {
               if (client.readyState === 1 && !client.path.startsWith('/camera')) {
                 client.send(payload);
-                client.send(payloadLogs);
               }
             });
           }
+
+          // Asynchronously process the trigger snapshot using the stream frameBuffer (No ESP32-CAM capture requested)
+          (async () => {
+            const timestamp = Date.now();
+            const sensor = device.aiSensorName;
+            const remoteIp = device.ip;
+            const filename = `motion_${remoteIp.replace(/\./g, '_')}_${sensor}_${timestamp}.jpg`;
+            const photosDir = path.join(__dirname, '../../data/photos');
+            if (!fs.existsSync(photosDir)) {
+              fs.mkdirSync(photosDir, { recursive: true });
+            }
+            const filepath = path.join(photosDir, filename);
+            const imageUrl = `/data/photos/${filename}`;
+
+            let imageToSave = frameBuffer;
+            let humanPresence = true;
+            let aiDetails = {
+              status: 'success',
+              message: 'Orang terdeteksi!',
+              person_detected: true,
+              person_count: result.jumlah_orang || (boxCoordinates ? boxCoordinates.length : 1),
+              box_coordinates: boxCoordinates
+            };
+
+            // Call Python AI to annotate the triggering stream frame
+            try {
+              console.log(`[AI Record] Requesting annotated snapshot from stream frame for ${deviceId}...`);
+              const aiResult = await aiClient.sendRequest(frameBuffer, true, 10000);
+              if (aiResult && aiResult.annotated_image) {
+                imageToSave = Buffer.from(aiResult.annotated_image, 'base64');
+                aiDetails = {
+                  status: aiResult.status,
+                  message: aiResult.pesan,
+                  person_detected: aiResult.ada_orang,
+                  person_count: aiResult.jumlah_orang,
+                  box_coordinates: aiResult.koordinat_kotak
+                };
+              }
+            } catch (aiErr) {
+              console.error('[AI Record] Failed to get annotated stream frame (using raw frame):', aiErr.message);
+            }
+
+            // Save the finalized image (either AI-annotated or raw stream fallback)
+            fs.writeFileSync(filepath, imageToSave);
+
+            // Log event ke data/log.json
+            logEvent({
+              type: 'motion_event',
+              sensor: sensor,
+              location: remoteIp,
+              deviceId: deviceId,
+              imageUrl: imageUrl,
+              humanPresence: humanPresence,
+              aiDetails: aiDetails,
+              timestamp: new Date().toISOString()
+            });
+
+            // Send motion alert to Telegram
+            sendMotionAlert(`IP: ${remoteIp}`, sensor, filename);
+
+            // Notify Web Clients with motion_image_update
+            const updatePayload = JSON.stringify({
+              type: 'motion_image_update',
+              sensor: sensor,
+              deviceId: deviceId,
+              imageUrl: imageUrl,
+              humanPresence: humanPresence,
+              aiDetails: aiDetails
+            });
+
+            // Broadcast updated historical logs
+            const payloadLogs = JSON.stringify({
+              type: 'historical_logs',
+              logs: getLogs()
+            });
+
+            if (wssInstance) {
+              wssInstance.clients.forEach((client) => {
+                if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                  client.send(updatePayload);
+                  client.send(payloadLogs);
+                }
+              });
+            }
+          })().catch(err => {
+            console.error('[AI Record] Error in background stream frame processing:', err);
+          });
         } else {
           // Perbarui timestamp deteksi terbaru untuk memperpanjang durasi rekam
           device.lastTimePersonSeen = Date.now();
@@ -172,7 +240,7 @@ function triggerAiWorker() {
       const boxPayload = JSON.stringify({
         type: 'stream_boxes',
         deviceId: deviceId,
-        boxes: result.koordinat_kotak
+        boxes: boxCoordinates
       });
       
       if (wssInstance) {
