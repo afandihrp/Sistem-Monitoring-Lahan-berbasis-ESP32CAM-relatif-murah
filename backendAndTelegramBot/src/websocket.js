@@ -57,6 +57,10 @@ function stopAiRecording(deviceId) {
   
   renderVideo(framesToRender, outputFilename)
     .then(videoPath => {
+      if (device.latestSnapshotFilename) {
+        sendMotionAlert(`IP: ${remoteIp}`, device.aiSensorName, device.latestSnapshotFilename);
+        device.latestSnapshotFilename = null;
+      }
       sendMotionVideoAlert(`IP: ${remoteIp}`, device.aiSensorName, videoPath);
       
       // Bind and save video to log.json
@@ -181,6 +185,9 @@ function triggerAiWorker() {
             // Save the finalized image (either AI-annotated or raw stream fallback)
             fs.writeFileSync(filepath, imageToSave);
 
+            // Save the snapshot filename to be sent later with the video
+            device.latestSnapshotFilename = filename;
+
             // Log event ke data/log.json
             logEvent({
               type: 'motion_event',
@@ -192,9 +199,6 @@ function triggerAiWorker() {
               aiDetails: aiDetails,
               timestamp: new Date().toISOString()
             });
-
-            // Send motion alert to Telegram
-            sendMotionAlert(`IP: ${remoteIp}`, sensor, filename);
 
             // Notify Web Clients with motion_image_update
             const updatePayload = JSON.stringify({
@@ -395,7 +399,8 @@ function initWebSocket(server) {
         isRecordingAi: false,
         lastTimePersonSeen: 0,
         aiSensorName: '',
-        aiStopTimer: null
+        aiStopTimer: null,
+        latestSnapshotFilename: null
       });
       broadcastDeviceList(wss);
 
