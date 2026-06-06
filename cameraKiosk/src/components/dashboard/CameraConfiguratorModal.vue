@@ -13,6 +13,17 @@ const emit = defineEmits(['close', 'save'])
 const camConfig = ref({
   resolution: 'HVGA',
   quality: 12,
+  scaleMode: 'static',
+  dynRes5: 'UXGA',
+  dynQual5: 10,
+  dynRes4: 'SVGA',
+  dynQual4: 12,
+  dynRes3: 'VGA',
+  dynQual3: 15,
+  dynRes2: 'HVGA',
+  dynQual2: 20,
+  dynRes1: 'QVGA',
+  dynQual1: 25,
   brightness: 0,
   contrast: 0,
   saturation: 0,
@@ -46,6 +57,17 @@ const handleConfigReceived = (event) => {
     camConfig.value = {
       resolution: config.resolution ?? 'HVGA',
       quality: config.quality ?? 12,
+      scaleMode: config.scaleMode ?? 'static',
+      dynRes5: config.dynRes5 ?? 'UXGA',
+      dynQual5: config.dynQual5 ?? 10,
+      dynRes4: config.dynRes4 ?? 'SVGA',
+      dynQual4: config.dynQual4 ?? 12,
+      dynRes3: config.dynRes3 ?? 'VGA',
+      dynQual3: config.dynQual3 ?? 15,
+      dynRes2: config.dynRes2 ?? 'HVGA',
+      dynQual2: config.dynQual2 ?? 20,
+      dynRes1: config.dynRes1 ?? 'QVGA',
+      dynQual1: config.dynQual1 ?? 25,
       brightness: config.brightness ?? 0,
       contrast: config.contrast ?? 0,
       saturation: config.saturation ?? 0,
@@ -71,6 +93,17 @@ onUnmounted(() => {
   window.removeEventListener('camera_config_received', handleConfigReceived);
 })
 
+const getSignalDbText = (bar) => {
+  const dbmMap = {
+    5: '-50 dBm (Excellent)',
+    4: '-60 dBm (Good)',
+    3: '-70 dBm (Fair)',
+    2: '-80 dBm (Weak)',
+    1: '-90 dBm (Very Weak)'
+  };
+  return dbmMap[bar];
+}
+
 const saveConfig = () => {
   emit('save', camConfig.value)
 }
@@ -95,7 +128,17 @@ const saveConfig = () => {
         <!-- Format & Quality -->
         <div class="p-3 bg-slate-800 rounded-2 border border-slate-700">
           <label class="text-slate-300 small fw-bold mb-3 d-block text-uppercase">Resolution & Quality</label>
-          <div class="row g-3">
+          
+          <div class="mb-3">
+            <label class="text-slate-400 small mb-1">Scale Mode</label>
+            <select v-model="camConfig.scaleMode" class="form-select bg-slate-900 border-slate-700 text-white small">
+              <option value="static">Static (Single Configuration)</option>
+              <option value="dynamic">Dynamic (Signal Strength Based)</option>
+            </select>
+          </div>
+
+          <!-- Static Mode Options -->
+          <div v-if="camConfig.scaleMode === 'static'" class="row g-3">
             <div class="col-6">
               <label class="text-slate-400 small mb-1">Resolution</label>
               <select v-model="camConfig.resolution" class="form-select bg-slate-900 border-slate-700 text-white font-monospace small">
@@ -111,6 +154,41 @@ const saveConfig = () => {
                 Quality <span>{{ camConfig.quality }}</span>
               </label>
               <input type="range" class="form-range custom-slider mt-2" min="0" max="63" v-model.number="camConfig.quality">
+            </div>
+          </div>
+
+          <!-- Dynamic Mode Options (Nested inside the same container box) -->
+          <div v-else class="d-flex flex-column gap-3 mt-3 pt-3 border-top border-slate-700 border-opacity-50">
+            <label class="text-slate-300 small fw-bold mb-0 text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.5px;">Bandwidth Scaling Options</label>
+            <div class="d-flex flex-column gap-3">
+              <div v-for="bar in [5, 4, 3, 2, 1]" :key="bar" class="p-3 bg-slate-900 rounded border border-slate-700">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <span class="small fw-bold text-slate-300 text-uppercase" style="letter-spacing: 0.5px;">
+                    <i class="bi bi-reception-4 text-success me-1" v-if="bar >= 4"></i>
+                    <i class="bi bi-reception-2 text-warning me-1" v-else-if="bar >= 2"></i>
+                    <i class="bi bi-reception-1 text-danger me-1" v-else></i>
+                    {{ getSignalDbText(bar) }}
+                  </span>
+                </div>
+                <div class="row g-3">
+                  <div class="col-6">
+                    <label class="text-slate-400 small mb-1">Resolution</label>
+                    <select v-model="camConfig['dynRes' + bar]" class="form-select bg-slate-900 border-slate-700 text-white font-monospace small">
+                      <option value="UXGA">UXGA (1600x1200)</option>
+                      <option value="SVGA">SVGA (800x600)</option>
+                      <option value="VGA">VGA (640x480)</option>
+                      <option value="HVGA">HVGA (480x320)</option>
+                      <option value="QVGA">QVGA (320x240)</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <label class="text-slate-400 small mb-1 d-flex justify-content-between">
+                      Quality <span>{{ camConfig['dynQual' + bar] }}</span>
+                    </label>
+                    <input type="range" class="form-range custom-slider mt-2" min="0" max="63" v-model.number="camConfig['dynQual' + bar]">
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
