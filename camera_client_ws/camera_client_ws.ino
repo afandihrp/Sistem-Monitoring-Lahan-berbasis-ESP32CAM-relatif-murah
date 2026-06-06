@@ -100,8 +100,13 @@ void applyCameraConfig() {
   if (cam_resolution == "UXGA") framesize = FRAMESIZE_UXGA;
   else if (cam_resolution == "SVGA") framesize = FRAMESIZE_SVGA;
   else if (cam_resolution == "VGA") framesize = FRAMESIZE_VGA;
+  else if (cam_resolution == "CIF") framesize = FRAMESIZE_CIF;
   else if (cam_resolution == "HVGA") framesize = FRAMESIZE_HVGA;
   else if (cam_resolution == "QVGA") framesize = FRAMESIZE_QVGA;
+  else if (cam_resolution == "HQVGA") framesize = FRAMESIZE_HQVGA;
+  else if (cam_resolution == "QCIF") framesize = FRAMESIZE_QCIF;
+  else if (cam_resolution == "QQVGA") framesize = FRAMESIZE_QQVGA;
+  else if (cam_resolution == "96X96") framesize = FRAMESIZE_96X96;
   s->set_framesize(s, framesize);
 
   // 2. Quality

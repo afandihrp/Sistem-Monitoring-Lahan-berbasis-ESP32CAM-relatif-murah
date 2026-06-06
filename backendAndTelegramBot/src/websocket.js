@@ -324,6 +324,37 @@ function detectStreamAI(imageBuffer) {
     });
 }
 
+function getEffectiveCameraConfig(config, device) {
+  const scaleMode = config.scaleMode || 'static';
+  const effectiveConfig = { ...config };
+
+  if (scaleMode === 'dynamic') {
+    const bars = device.signalBars || 5;
+    const defaultRes = {
+      5: 'UXGA',
+      4: 'SVGA',
+      3: 'VGA',
+      2: 'QQVGA',
+      1: '96X96'
+    };
+    const defaultQual = {
+      5: 10,
+      4: 12,
+      3: 15,
+      2: 20,
+      1: 25
+    };
+
+    const dynResKey = `dynRes${bars}`;
+    const dynQualKey = `dynQual${bars}`;
+
+    effectiveConfig.resolution = config[dynResKey] || defaultRes[bars] || 'HVGA';
+    effectiveConfig.quality = (config[dynQualKey] !== undefined) ? config[dynQualKey] : (defaultQual[bars] || 12);
+  }
+
+  return effectiveConfig;
+}
+
 function heartbeat() {
   this.isAlive = true;
 }
@@ -389,7 +420,7 @@ function initWebSocket(server) {
         ip: remoteIp,
         mac: macAddress,
         type: 'Camera',
-        signalBars: 0,
+        signalBars: 5,
         lastSeen: new Date().toLocaleTimeString(),
         ws: ws,  // simpan referensi untuk on-demand capture
         rollingBuffer: [], // Buffer untuk frame JPEG (Pre-roll)
@@ -400,7 +431,9 @@ function initWebSocket(server) {
         lastTimePersonSeen: 0,
         aiSensorName: '',
         aiStopTimer: null,
-        latestSnapshotFilename: null
+        latestSnapshotFilename: null,
+        currentResolution: null,
+        currentQuality: null
       });
       broadcastDeviceList(wss);
 
@@ -433,8 +466,12 @@ function initWebSocket(server) {
           const allCamConfigs = JSON.parse(fs.readFileSync(CAMERA_CONFIG_FILE));
           const camConfig = allCamConfigs[macAddress];
           if (camConfig) {
-            ws.send(JSON.stringify({ type: 'camera_config_update', config: camConfig }));
-            console.log(`Sent camera sensor config on boot to camera ${macAddress}`);
+            const device = devices.get(deviceId);
+            const configToSend = getEffectiveCameraConfig(camConfig, device);
+            ws.send(JSON.stringify({ type: 'camera_config_update', config: configToSend }));
+            device.currentResolution = configToSend.resolution;
+            device.currentQuality = configToSend.quality;
+            console.log(`Sent camera sensor config on boot to camera ${macAddress} (scaleMode: ${camConfig.scaleMode || 'static'}, Res: ${configToSend.resolution}, Qual: ${configToSend.quality})`);
           }
         } catch(e) { console.error('Error sending camera config on boot to camera:', e); }
       }
@@ -557,6 +594,25 @@ function initWebSocket(server) {
               device.signalBars = data.bars;
               device.lastSeen = new Date().toLocaleTimeString();
               broadcastDeviceList(wss);
+
+              // Apply dynamic scaling if configured
+              if (fs.existsSync(CAMERA_CONFIG_FILE)) {
+                try {
+                  const allCamConfigs = JSON.parse(fs.readFileSync(CAMERA_CONFIG_FILE));
+                  const camConfig = allCamConfigs[device.mac];
+                  if (camConfig && camConfig.scaleMode === 'dynamic') {
+                    const configToSend = getEffectiveCameraConfig(camConfig, device);
+                    if (device.currentResolution !== configToSend.resolution || device.currentQuality !== configToSend.quality) {
+                      device.ws.send(JSON.stringify({ type: 'camera_config_update', config: configToSend }));
+                      device.currentResolution = configToSend.resolution;
+                      device.currentQuality = configToSend.quality;
+                      console.log(`Dynamic resolution scaling updated camera ${device.mac} to Res=${configToSend.resolution}, Qual=${configToSend.quality} (Bars: ${data.bars})`);
+                    }
+                  }
+                } catch (e) {
+                  console.error('Error handling dynamic resolution scaling on signal update:', e);
+                }
+              }
             }
           } else if (data.type === 'motion' && isCamera) {
             const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
@@ -747,8 +803,11 @@ function initWebSocket(server) {
             const deviceArray = Array.from(devices.values());
             const cameraDevice = deviceArray.find(d => d.mac === data.mac);
             if (cameraDevice && cameraDevice.ws && cameraDevice.ws.readyState === 1) {
-               cameraDevice.ws.send(JSON.stringify({ type: 'camera_config_update', config: data.config }));
-               console.log(`Pushed updated camera config to camera ${data.mac}`);
+               const configToSend = getEffectiveCameraConfig(data.config, cameraDevice);
+               cameraDevice.ws.send(JSON.stringify({ type: 'camera_config_update', config: configToSend }));
+               cameraDevice.currentResolution = configToSend.resolution;
+               cameraDevice.currentQuality = configToSend.quality;
+               console.log(`Pushed updated camera config to camera ${data.mac} (Res: ${configToSend.resolution}, Qual: ${configToSend.quality})`);
             }
           }
         } catch (e) {
@@ -945,7 +1004,10 @@ function updateFlashIntensity(intensity) {
       // Send the updated config for this specific camera
       const deviceConfig = allConfigs[cameraDevice.mac];
       if (deviceConfig) {
-        cameraDevice.ws.send(JSON.stringify({ type: 'camera_config_update', config: deviceConfig }));
+        const configToSend = getEffectiveCameraConfig(deviceConfig, cameraDevice);
+        cameraDevice.ws.send(JSON.stringify({ type: 'camera_config_update', config: configToSend }));
+        cameraDevice.currentResolution = configToSend.resolution;
+        cameraDevice.currentQuality = configToSend.quality;
       }
     }
   });

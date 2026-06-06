@@ -20,9 +20,9 @@ const camConfig = ref({
   dynQual4: 12,
   dynRes3: 'VGA',
   dynQual3: 15,
-  dynRes2: 'HVGA',
+  dynRes2: 'QQVGA',
   dynQual2: 20,
-  dynRes1: 'QVGA',
+  dynRes1: '96X96',
   dynQual1: 25,
   brightness: 0,
   contrast: 0,
@@ -64,9 +64,9 @@ const handleConfigReceived = (event) => {
       dynQual4: config.dynQual4 ?? 12,
       dynRes3: config.dynRes3 ?? 'VGA',
       dynQual3: config.dynQual3 ?? 15,
-      dynRes2: config.dynRes2 ?? 'HVGA',
+      dynRes2: config.dynRes2 ?? 'QQVGA',
       dynQual2: config.dynQual2 ?? 20,
-      dynRes1: config.dynRes1 ?? 'QVGA',
+      dynRes1: config.dynRes1 ?? '96X96',
       dynQual1: config.dynQual1 ?? 25,
       brightness: config.brightness ?? 0,
       contrast: config.contrast ?? 0,
@@ -103,6 +103,19 @@ const getSignalDbText = (bar) => {
   };
   return dbmMap[bar];
 }
+
+const resolutionOptions = [
+  { value: 'UXGA', label: 'UXGA (1600x1200)' },
+  { value: 'SVGA', label: 'SVGA (800x600)' },
+  { value: 'VGA', label: 'VGA (640x480)' },
+  { value: 'CIF', label: 'CIF (400x296)' },
+  { value: 'HVGA', label: 'HVGA (480x320)' },
+  { value: 'QVGA', label: 'QVGA (320x240)' },
+  { value: 'HQVGA', label: 'HQVGA (240x176)' },
+  { value: 'QCIF', label: 'QCIF (176x144)' },
+  { value: 'QQVGA', label: 'QQVGA (160x120)' },
+  { value: '96X96', label: '96x96 (96x96)' }
+]
 
 const saveConfig = () => {
   emit('save', camConfig.value)
@@ -142,11 +155,9 @@ const saveConfig = () => {
             <div class="col-6">
               <label class="text-slate-400 small mb-1">Resolution</label>
               <select v-model="camConfig.resolution" class="form-select bg-slate-900 border-slate-700 text-white font-monospace small">
-                <option value="UXGA">UXGA (1600x1200)</option>
-                <option value="SVGA">SVGA (800x600)</option>
-                <option value="VGA">VGA (640x480)</option>
-                <option value="HVGA">HVGA (480x320)</option>
-                <option value="QVGA">QVGA (320x240)</option>
+                <option v-for="opt in resolutionOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
               </select>
             </div>
             <div class="col-6">
@@ -174,11 +185,9 @@ const saveConfig = () => {
                   <div class="col-6">
                     <label class="text-slate-400 small mb-1">Resolution</label>
                     <select v-model="camConfig['dynRes' + bar]" class="form-select bg-slate-900 border-slate-700 text-white font-monospace small">
-                      <option value="UXGA">UXGA (1600x1200)</option>
-                      <option value="SVGA">SVGA (800x600)</option>
-                      <option value="VGA">VGA (640x480)</option>
-                      <option value="HVGA">HVGA (480x320)</option>
-                      <option value="QVGA">QVGA (320x240)</option>
+                      <option v-for="opt in resolutionOptions" :key="opt.value" :value="opt.value">
+                        {{ opt.label }}
+                      </option>
                     </select>
                   </div>
                   <div class="col-6">
