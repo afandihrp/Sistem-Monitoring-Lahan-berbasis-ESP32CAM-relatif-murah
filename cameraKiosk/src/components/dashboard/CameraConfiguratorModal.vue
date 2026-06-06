@@ -12,18 +12,18 @@ const emit = defineEmits(['close', 'save'])
 
 const camConfig = ref({
   resolution: 'HVGA',
-  quality: 12,
+  quality: 22,
   scaleMode: 'static',
-  dynRes5: 'UXGA',
-  dynQual5: 10,
-  dynRes4: 'SVGA',
-  dynQual4: 12,
-  dynRes3: 'VGA',
-  dynQual3: 15,
-  dynRes2: 'QQVGA',
-  dynQual2: 20,
-  dynRes1: '96X96',
-  dynQual1: 25,
+  dynRes5: 'HVGA',
+  dynQual5: 22,
+  dynRes4: 'HVGA',
+  dynQual4: 22,
+  dynRes3: 'HVGA',
+  dynQual3: 22,
+  dynRes2: 'HVGA',
+  dynQual2: 22,
+  dynRes1: 'HVGA',
+  dynQual1: 22,
   brightness: 0,
   contrast: 0,
   saturation: 0,
@@ -56,18 +56,18 @@ const handleConfigReceived = (event) => {
   if (mac === props.mac && config) {
     camConfig.value = {
       resolution: config.resolution ?? 'HVGA',
-      quality: config.quality ?? 12,
+      quality: config.quality ?? 22,
       scaleMode: config.scaleMode ?? 'static',
-      dynRes5: config.dynRes5 ?? 'UXGA',
-      dynQual5: config.dynQual5 ?? 10,
-      dynRes4: config.dynRes4 ?? 'SVGA',
-      dynQual4: config.dynQual4 ?? 12,
-      dynRes3: config.dynRes3 ?? 'VGA',
-      dynQual3: config.dynQual3 ?? 15,
-      dynRes2: config.dynRes2 ?? 'QQVGA',
-      dynQual2: config.dynQual2 ?? 20,
-      dynRes1: config.dynRes1 ?? '96X96',
-      dynQual1: config.dynQual1 ?? 25,
+      dynRes5: config.dynRes5 ?? 'HVGA',
+      dynQual5: config.dynQual5 ?? 22,
+      dynRes4: config.dynRes4 ?? 'HVGA',
+      dynQual4: config.dynQual4 ?? 22,
+      dynRes3: config.dynRes3 ?? 'HVGA',
+      dynQual3: config.dynQual3 ?? 22,
+      dynRes2: config.dynRes2 ?? 'HVGA',
+      dynQual2: config.dynQual2 ?? 22,
+      dynRes1: config.dynRes1 ?? 'HVGA',
+      dynQual1: config.dynQual1 ?? 22,
       brightness: config.brightness ?? 0,
       contrast: config.contrast ?? 0,
       saturation: config.saturation ?? 0,
@@ -120,6 +120,21 @@ const resolutionOptions = [
 const saveConfig = () => {
   emit('save', camConfig.value)
 }
+
+const resetDials = () => {
+  camConfig.value.resolution = 'HVGA'
+  camConfig.value.quality = 22
+  camConfig.value.dynRes5 = 'HVGA'
+  camConfig.value.dynQual5 = 22
+  camConfig.value.dynRes4 = 'HVGA'
+  camConfig.value.dynQual4 = 22
+  camConfig.value.dynRes3 = 'HVGA'
+  camConfig.value.dynQual3 = 22
+  camConfig.value.dynRes2 = 'HVGA'
+  camConfig.value.dynQual2 = 22
+  camConfig.value.dynRes1 = 'HVGA'
+  camConfig.value.dynQual1 = 22
+}
 </script>
 
 <template>
@@ -140,7 +155,12 @@ const saveConfig = () => {
 
         <!-- Format & Quality -->
         <div class="p-3 bg-slate-800 rounded-2 border border-slate-700">
-          <label class="text-slate-300 small fw-bold mb-3 d-block text-uppercase">Resolution & Quality</label>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <label class="text-slate-300 small fw-bold mb-0 text-uppercase">Resolution & Quality</label>
+            <button @click="resetDials" class="btn btn-sm btn-outline-secondary py-0 px-2 text-uppercase font-monospace" style="font-size: 0.65rem; border-color: rgba(148, 163, 184, 0.3); color: #94a3b8;">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+            </button>
+          </div>
           
           <div class="mb-3">
             <label class="text-slate-400 small mb-1">Scale Mode</label>
