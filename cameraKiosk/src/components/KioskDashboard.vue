@@ -417,7 +417,7 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
   }
   .sidebar-section {
     width: 100% !important;
-    border-start: none !important;
+    border-left: none !important;
     border-top: 1px solid #1e293b;
     height: auto !important;
   }

@@ -142,7 +142,7 @@ const saveConfig = () => {
           @click="saveConfig" 
           :disabled="!aiEnabled"
           :class="['btn flex-grow-1 py-2 fw-bold text-uppercase', aiEnabled ? 'btn-warning text-dark' : 'btn-secondary text-slate-300 opacity-50']" 
-          style="font-size: 0.75rem; pointer-events: aiEnabled ? 'auto' : 'none';">
+          style="font-size: 0.75rem;">
           Save Config
         </button>
       </div>
