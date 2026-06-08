@@ -121,7 +121,8 @@ function createRouter(wss) {
         const { aiClient } = require('./services/aiClient');
         const isAiOnline = aiClient.isConnected && getGlobalAiEnabled() && getPirAiDetection();
 
-        if (getPirAiRecording()) {
+        const shouldRecord = !getGlobalAiEnabled() || getPirAiRecording();
+        if (shouldRecord) {
           device.isRecordingAi = true;
           device.aiSensorName = sensor;
           device.lastTimePersonSeen = Date.now();
