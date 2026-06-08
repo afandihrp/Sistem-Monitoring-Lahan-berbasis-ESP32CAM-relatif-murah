@@ -215,6 +215,8 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
     case WStype_DISCONNECTED:
       Serial.println("[WSc] Disconnected!");
       isConnected = false;
+      setTargetAngle(SERVO_POS_DEFAULT);
+      isServoWaitingToReturn = false;
       break;
     case WStype_CONNECTED:
       Serial.printf("[WSc] Connected to url: %s\n", payload);
@@ -230,6 +232,9 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
         if (cmd.indexOf("\"capture_request\"") >= 0) {
           Serial.println("[WSc] On-demand capture queued.");
           pendingOnDemandCapture = true;
+        } else if (cmd.indexOf("\"cancel_return\"") >= 0) {
+          isServoWaitingToReturn = false;
+          Serial.println("[WSc] Cancel return command received.");
         } else if (cmd.indexOf("\"servo_control\"") >= 0) {
           int valueIdx = cmd.indexOf("\"value\":") + 8;
           int endIdx = cmd.indexOf("}", valueIdx);
@@ -711,9 +716,9 @@ void loop() {
     if (current == target) {
       triggerCaptureAfterMove = false;
       captureAndUpload(captureLabelAfterMove);
-      // Immediately return to default angle after capture is complete
-      setTargetAngle(SERVO_POS_DEFAULT);
-      isServoWaitingToReturn = false;
+      // Mulai menghitung mundur pengembalian servo ke tengah setelah 15 detik (safety fallback jika backend putus)
+      servoReturnTime = millis() + 15000;
+      isServoWaitingToReturn = true;
     }
   }
 

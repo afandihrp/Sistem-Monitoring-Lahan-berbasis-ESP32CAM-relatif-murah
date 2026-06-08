@@ -42,9 +42,18 @@ function renderVideo(frameBuffers, outputFilename) {
       }
       const outputPath = path.join(videosDir, outputFilename);
 
+      const N = frameBuffers.length;
+      let inputFramerate = 10;
+      if (N > 300) {
+        inputFramerate = Math.round(N / 30);
+        if (inputFramerate < 10) inputFramerate = 10;
+        console.log(`[VideoRenderer] Frame count ${N} exceeds 300 (30s at 10fps). Speeding up input framerate to ${inputFramerate} fps.`);
+      }
+
       // Command menggunakan Software Encoder (libx264) yang 100% kompatibel dan aman.
       // Ditambahkan flag faststart dan baseline profile agar Telegram tidak menolak format videonya.
-      const ffmpegCmd = `nice -n 19 ffmpeg -y -framerate 10 -i ${sessionDir}/frame_%03d.jpg -c:v libx264 -preset ultrafast -crf 30 -profile:v baseline -level 3.0 -pix_fmt yuv420p -movflags +faststart ${outputPath}`;
+      // Menggunakan -r 10 untuk memaksa output video memiliki format frame rate standar 10 fps agar Telegram kompatibel.
+      const ffmpegCmd = `nice -n 19 ffmpeg -y -framerate ${inputFramerate} -i ${sessionDir}/frame_%03d.jpg -r 10 -c:v libx264 -preset ultrafast -crf 30 -profile:v baseline -level 3.0 -pix_fmt yuv420p -movflags +faststart ${outputPath}`;
 
       console.log(`[VideoRenderer] Memulai rendering video: ${ffmpegCmd}`);
 

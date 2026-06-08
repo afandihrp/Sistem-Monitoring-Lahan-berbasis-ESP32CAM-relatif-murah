@@ -105,21 +105,61 @@ function createRouter(wss) {
       // PIR motion: Attempt to call Python AI Object Detection first
       res.send('Uploaded');
 
-      // Clear the PIR active status on the camera device after a 2-second return-to-center cooldown
+      // Start the dynamic PIR video recording after the high-res upload completes
       const { getDevices } = require('./websocket');
       const devices = getDevices();
       const deviceId = `cam_${ip.replace(/\./g, '_')}`;
       const device = devices.get(deviceId);
       if (device) {
+        // Clear the 8-second pre-upload safety timeout
         if (device.pirActiveTimeout) {
           clearTimeout(device.pirActiveTimeout);
           device.pirActiveTimeout = null;
         }
-        device.pirActiveTimeout = setTimeout(() => {
-          device.isPirActive = false;
-          device.pirActiveTimeout = null;
-          console.log(`[AI Suppression] Re-enabling stream AI for ${deviceId} (returned to center).`);
-        }, 2000);
+
+        device.isRecordingAi = true;
+        device.aiSensorName = sensor;
+        device.lastTimePersonSeen = Date.now();
+        
+        // Trim rollingBuffer to keep only the pre-roll frames of the sweep movement
+        while (device.rollingBuffer.length > 30) {
+          device.rollingBuffer.shift();
+        }
+        
+        console.log(`[PIR Video] Start recording video stream for ${deviceId} after high-res photo upload.`);
+
+        // Tell camera to cancel its local return-to-center timer since the backend is now actively recording/monitoring
+        if (device.ws && device.ws.readyState === 1) {
+          device.ws.send(JSON.stringify({ type: 'cancel_return' }));
+          console.log(`[PIR Video] Sent cancel_return command to camera ${deviceId}`);
+        }
+
+        // Check if AI is online and enqueued checks are functional
+        const { getGlobalAiEnabled } = require('./websocket');
+        const { aiClient } = require('./services/aiClient');
+        const isAiOnline = aiClient.isConnected && getGlobalAiEnabled();
+
+        if (!isAiOnline) {
+          // AI is offline: record for a flat 10 seconds post-upload, then stop and return to center
+          console.log(`[PIR Video] AI is offline/disabled. Scheduling flat 10-second stop & return for ${deviceId}.`);
+          const { stopAiRecording } = require('./websocket');
+          device.pirActiveTimeout = setTimeout(() => {
+            if (device.isRecordingAi) {
+              stopAiRecording(deviceId);
+            }
+            device.pirActiveTimeout = null;
+          }, 10000);
+        } else {
+          // AI is online: use 90-second safety fallback timeout
+          console.log(`[PIR Video] AI is online. Scheduling 90-second safety fallback timeout for ${deviceId}.`);
+          const { stopAiRecording } = require('./websocket');
+          device.pirActiveTimeout = setTimeout(() => {
+            if (device.isRecordingAi) {
+              stopAiRecording(deviceId);
+            }
+            device.pirActiveTimeout = null;
+          }, 90000);
+        }
       }
 
       // Process the remaining logic asynchronously in the background

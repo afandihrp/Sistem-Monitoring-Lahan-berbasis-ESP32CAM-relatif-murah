@@ -49,23 +49,35 @@ function stopAiRecording(deviceId) {
     device.aiStopTimer = null;
   }
 
+  // Handle return-to-center and timeout clearance if the PIR sensor triggered this recording
+  const wasPirActive = device.isPirActive;
+  if (wasPirActive) {
+    device.isPirActive = false;
+    if (device.pirActiveTimeout) {
+      clearTimeout(device.pirActiveTimeout);
+      device.pirActiveTimeout = null;
+    }
+  }
+
   const remoteIp = device.ip;
-  const ws = device.ws;
-  
+  const sensorName = device.aiSensorName || 'AI_Person_Detection';
   const framesToRender = [...device.rollingBuffer];
-  const outputFilename = `motion_video_${remoteIp.replace(/\./g, '_')}_${device.aiSensorName}_${Date.now()}.mp4`;
-  
+  const outputFilename = `motion_video_${remoteIp.replace(/\./g, '_')}_${sensorName}_${Date.now()}.mp4`;
+
+  // Clear the rolling buffer back to empty for next pre-roll
+  device.rollingBuffer = [];
+
   renderVideo(framesToRender, outputFilename)
     .then(videoPath => {
       if (device.latestSnapshotFilename) {
-        sendMotionAlert(`IP: ${remoteIp}`, device.aiSensorName, device.latestSnapshotFilename);
+        sendMotionAlert(`IP: ${remoteIp}`, sensorName, device.latestSnapshotFilename);
         device.latestSnapshotFilename = null;
       }
-      sendMotionVideoAlert(`IP: ${remoteIp}`, device.aiSensorName, videoPath);
+      sendMotionVideoAlert(`IP: ${remoteIp}`, sensorName, videoPath);
       
       // Bind and save video to log.json
       const videoUrl = `/data/videos/${outputFilename}`;
-      updateLatestLogVideo(device.aiSensorName, remoteIp, videoUrl);
+      updateLatestLogVideo(sensorName, remoteIp, videoUrl);
 
       // Broadcast updated logs to all Kiosks
       if (wssInstance) {
@@ -79,9 +91,25 @@ function stopAiRecording(deviceId) {
           }
         });
       }
+
+      // Instruct camera to return to default position if PIR was active
+      if (wasPirActive) {
+        const defaultAngle = getDefaultAngle(device.mac);
+        if (device.ws && device.ws.readyState === 1) {
+          device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
+        }
+        console.log(`[PIR Video] Sent return-to-center command after video rendering completed.`);
+      }
     })
     .catch(err => {
       console.error(`[AI Record] Gagal merender video: ${err.message}`);
+      // Fallback return-to-center in case of rendering errors
+      if (wasPirActive) {
+        const defaultAngle = getDefaultAngle(device.mac);
+        if (device.ws && device.ws.readyState === 1) {
+          device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
+        }
+      }
     });
 }
 
@@ -115,121 +143,127 @@ function triggerAiWorker() {
           console.log(`[AI Record] Person detected again. Cancelled stop recording timer for ${deviceId}.`);
         }
 
-        if (!device.isRecordingAi) {
-          console.log(`[AI Record] Person detected on ${deviceId}. Starting recording...`);
-          device.isRecordingAi = true;
-          device.aiSensorName = 'AI_Person_Detection';
+        if (device.isPirActive) {
+          // Jika PIR aktif, kita hanya memperbarui hold timer tanpa memulai recording/notifikasi AI baru
           device.lastTimePersonSeen = Date.now();
+          console.log(`[AI Hold] Person detected on PIR-active camera ${deviceId}. Extending hold.`);
+        } else {
+          // Normal AI recording logic
+          if (!device.isRecordingAi) {
+            console.log(`[AI Record] Person detected on ${deviceId}. Starting recording...`);
+            device.isRecordingAi = true;
+            device.aiSensorName = 'AI_Person_Detection';
+            device.lastTimePersonSeen = Date.now();
 
-          // Start recording with the triggering scanned frame
-          device.rollingBuffer = [frameBuffer];
+            // Start recording with the triggering scanned frame
+            device.rollingBuffer = [frameBuffer];
 
-          // Broadcast motion_event IMMEDIATELY to trigger Kiosk alarm sound and UI entry placeholder
-          const payload = JSON.stringify({
-            type: 'motion_event',
-            sensor: device.aiSensorName,
-            location: device.ip,
-            deviceId: deviceId,
-            timestamp: new Date().toISOString()
-          });
-
-          if (wssInstance) {
-            wssInstance.clients.forEach((client) => {
-              if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-                client.send(payload);
-              }
-            });
-          }
-
-          // Asynchronously process the trigger snapshot using the stream frameBuffer (No ESP32-CAM capture requested)
-          (async () => {
-            const timestamp = Date.now();
-            const sensor = device.aiSensorName;
-            const remoteIp = device.ip;
-            const filename = `motion_${remoteIp.replace(/\./g, '_')}_${sensor}_${timestamp}.jpg`;
-            const photosDir = path.join(__dirname, '../../data/photos');
-            if (!fs.existsSync(photosDir)) {
-              fs.mkdirSync(photosDir, { recursive: true });
-            }
-            const filepath = path.join(photosDir, filename);
-            const imageUrl = `/data/photos/${filename}`;
-
-            let imageToSave = frameBuffer;
-            let humanPresence = true;
-            let aiDetails = {
-              status: 'success',
-              message: 'Orang terdeteksi!',
-              person_detected: true,
-              person_count: result.jumlah_orang || (boxCoordinates ? boxCoordinates.length : 1),
-              box_coordinates: boxCoordinates
-            };
-
-            // Call Python AI to annotate the triggering stream frame
-            try {
-              console.log(`[AI Record] Requesting annotated snapshot from stream frame for ${deviceId}...`);
-              const aiResult = await aiClient.sendRequest(frameBuffer, true, 10000);
-              if (aiResult && aiResult.annotated_image) {
-                imageToSave = Buffer.from(aiResult.annotated_image, 'base64');
-                aiDetails = {
-                  status: aiResult.status,
-                  message: aiResult.pesan,
-                  person_detected: aiResult.ada_orang,
-                  person_count: aiResult.jumlah_orang,
-                  box_coordinates: aiResult.koordinat_kotak
-                };
-              }
-            } catch (aiErr) {
-              console.error('[AI Record] Failed to get annotated stream frame (using raw frame):', aiErr.message);
-            }
-
-            // Save the finalized image (either AI-annotated or raw stream fallback)
-            fs.writeFileSync(filepath, imageToSave);
-
-            // Save the snapshot filename to be sent later with the video
-            device.latestSnapshotFilename = filename;
-
-            // Log event ke data/log.json
-            logEvent({
+            // Broadcast motion_event IMMEDIATELY to trigger Kiosk alarm sound and UI entry placeholder
+            const payload = JSON.stringify({
               type: 'motion_event',
-              sensor: sensor,
-              location: remoteIp,
+              sensor: device.aiSensorName,
+              location: device.ip,
               deviceId: deviceId,
-              imageUrl: imageUrl,
-              humanPresence: humanPresence,
-              aiDetails: aiDetails,
               timestamp: new Date().toISOString()
-            });
-
-            // Notify Web Clients with motion_image_update
-            const updatePayload = JSON.stringify({
-              type: 'motion_image_update',
-              sensor: sensor,
-              deviceId: deviceId,
-              imageUrl: imageUrl,
-              humanPresence: humanPresence,
-              aiDetails: aiDetails
-            });
-
-            // Broadcast updated historical logs
-            const payloadLogs = JSON.stringify({
-              type: 'historical_logs',
-              logs: getLogs()
             });
 
             if (wssInstance) {
               wssInstance.clients.forEach((client) => {
                 if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-                  client.send(updatePayload);
-                  client.send(payloadLogs);
+                  client.send(payload);
                 }
               });
             }
-          })().catch(err => {
-            console.error('[AI Record] Error in background stream frame processing:', err);
-          });
-        } else {
-          // Perbarui timestamp deteksi terbaru untuk memperpanjang durasi rekam
-          device.lastTimePersonSeen = Date.now();
+
+            // Asynchronously process the trigger snapshot using the stream frameBuffer (No ESP32-CAM capture requested)
+            (async () => {
+              const timestamp = Date.now();
+              const sensor = device.aiSensorName;
+              const remoteIp = device.ip;
+              const filename = `motion_${remoteIp.replace(/\./g, '_')}_${sensor}_${timestamp}.jpg`;
+              const photosDir = path.join(__dirname, '../../data/photos');
+              if (!fs.existsSync(photosDir)) {
+                fs.mkdirSync(photosDir, { recursive: true });
+              }
+              const filepath = path.join(photosDir, filename);
+              const imageUrl = `/data/photos/${filename}`;
+
+              let imageToSave = frameBuffer;
+              let humanPresence = true;
+              let aiDetails = {
+                status: 'success',
+                message: 'Orang terdeteksi!',
+                person_detected: true,
+                person_count: result.jumlah_orang || (boxCoordinates ? boxCoordinates.length : 1),
+                box_coordinates: boxCoordinates
+              };
+
+              // Call Python AI to annotate the triggering stream frame
+              try {
+                console.log(`[AI Record] Requesting annotated snapshot from stream frame for ${deviceId}...`);
+                const aiResult = await aiClient.sendRequest(frameBuffer, true, 10000);
+                if (aiResult && aiResult.annotated_image) {
+                  imageToSave = Buffer.from(aiResult.annotated_image, 'base64');
+                  aiDetails = {
+                    status: aiResult.status,
+                    message: aiResult.pesan,
+                    person_detected: aiResult.ada_orang,
+                    person_count: aiResult.jumlah_orang,
+                    box_coordinates: aiResult.koordinat_kotak
+                  };
+                }
+              } catch (aiErr) {
+                console.error('[AI Record] Failed to get annotated stream frame (using raw frame):', aiErr.message);
+              }
+
+              // Save the finalized image (either AI-annotated or raw stream fallback)
+              fs.writeFileSync(filepath, imageToSave);
+
+              // Save the snapshot filename to be sent later with the video
+              device.latestSnapshotFilename = filename;
+
+              // Log event ke data/log.json
+              logEvent({
+                type: 'motion_event',
+                sensor: sensor,
+                location: remoteIp,
+                deviceId: deviceId,
+                imageUrl: imageUrl,
+                humanPresence: humanPresence,
+                aiDetails: aiDetails,
+                timestamp: new Date().toISOString()
+              });
+
+              // Notify Web Clients with motion_image_update
+              const updatePayload = JSON.stringify({
+                type: 'motion_image_update',
+                sensor: sensor,
+                deviceId: deviceId,
+                imageUrl: imageUrl,
+                humanPresence: humanPresence,
+                aiDetails: aiDetails
+              });
+
+              // Broadcast updated historical logs
+              const payloadLogs = JSON.stringify({
+                type: 'historical_logs',
+                logs: getLogs()
+              });
+
+              if (wssInstance) {
+                wssInstance.clients.forEach((client) => {
+                  if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                    client.send(updatePayload);
+                    client.send(payloadLogs);
+                  }
+                });
+              }
+            })().catch(err => {
+              console.error('[AI Record] Error in background stream frame processing:', err);
+            });
+          } else {
+            device.lastTimePersonSeen = Date.now();
+          }
         }
       } else {
         if (device.isRecordingAi && !device.aiStopTimer) {
@@ -258,10 +292,11 @@ function triggerAiWorker() {
         });
       }
     }
-    
+
     setImmediate(triggerAiWorker);
   }).catch(err => {
     isAiWorkerRunning = false;
+    
     setImmediate(triggerAiWorker);
   });
 }
@@ -355,6 +390,21 @@ function getEffectiveCameraConfig(config, device) {
   return effectiveConfig;
 }
 
+function getDefaultAngle(mac) {
+  if (fs.existsSync(CONFIG_FILE)) {
+    try {
+      const allConfigs = JSON.parse(fs.readFileSync(CONFIG_FILE));
+      const config = allConfigs[mac];
+      if (config && config.defaultAngle !== undefined) {
+        return Number(config.defaultAngle);
+      }
+    } catch (e) {
+      console.error('Error reading default angle config:', e);
+    }
+  }
+  return 90; // Default fallback
+}
+
 function getSignalBars(rssi) {
   if (rssi >= -55) return 5;
   if (rssi >= -65) return 4;
@@ -435,8 +485,6 @@ function initWebSocket(server) {
         lastSeen: new Date().toLocaleTimeString(),
         ws: ws,  // simpan referensi untuk on-demand capture
         rollingBuffer: [], // Buffer untuk frame JPEG (Pre-roll)
-        recordingPostRoll: false,
-        postRollFramesNeeded: 0,
         motionSensor: '',
         isRecordingAi: false,
         lastTimePersonSeen: 0,
@@ -524,64 +572,21 @@ function initWebSocket(server) {
         if (device) {
           device.latestFrame = message; // Keep updating to the absolute newest frame
           
-          // --- Video Recording Logic ---
+          // Unified rolling buffer for both standard AI and PIR recordings
           device.rollingBuffer.push(message);
-          
           if (device.isRecordingAi) {
-            // Batasi jumlah frame dalam buffer agar menghemat RAM Raspberry Pi (Maks 300 frame / ~30 detik)
-            if (device.rollingBuffer.length > 300) {
+            // Cap at 900 frames (~90s at 10fps) to prevent RAM exhaust on Raspberry Pi
+            if (device.rollingBuffer.length > 900) {
               device.rollingBuffer.shift();
             }
-          } else if (device.recordingPostRoll) {
-            device.postRollFramesNeeded--;
-            
-            if (device.postRollFramesNeeded <= 0) {
-              device.recordingPostRoll = false;
-              console.log(`[VideoRecord] Selesai mengumpulkan frame post-roll untuk ${deviceId}. Memulai render...`);
-              
-              // TEPAT SAAT INI: Perintahkan ESP32 untuk berganti ke FHD dan mengambil foto!
-              console.log(`[Sync] Mengirim perintah take_photo ke kamera untuk sensor ${device.motionSensor}...`);
-              const { registerExpectedPhoto } = require('./services/telegram');
-              registerExpectedPhoto(device.motionSensor);
-              ws.send(JSON.stringify({ type: 'take_photo', sensor: device.motionSensor }));
-              
-              const framesToRender = [...device.rollingBuffer];
-              const outputFilename = `motion_video_${remoteIp.replace(/\./g, '_')}_${device.motionSensor}_${Date.now()}.mp4`;
-              
-              renderVideo(framesToRender, outputFilename)
-                .then(videoPath => {
-                  sendMotionVideoAlert(`IP: ${remoteIp}`, device.motionSensor, videoPath);
-                  
-                  // Bind and save video to log.json
-                  const videoUrl = `/data/videos/${outputFilename}`;
-                  updateLatestLogVideo(device.motionSensor, remoteIp, videoUrl);
-
-                  // Broadcast updated logs to all Kiosks
-                  if (wssInstance) {
-                    const payloadLogs = JSON.stringify({
-                      type: 'historical_logs',
-                      logs: getLogs()
-                    });
-                    wssInstance.clients.forEach((client) => {
-                      if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-                        client.send(payloadLogs);
-                      }
-                    });
-                  }
-                })
-                .catch(err => {
-                  console.error(`[VideoRecord] Gagal merender video: ${err.message}`);
-                });
-            }
           } else {
-            // Jaga pre-roll buffer tetap maksimal 30 frame (~3 detik jika 10fps)
+            // Normal rolling buffer pre-roll limit (30 frames)
             while (device.rollingBuffer.length > 30) {
               device.rollingBuffer.shift();
             }
           }
-          // -----------------------------
 
-          if (globalAiEnabled && !device.recordingPostRoll && !device.isPirActive) {
+          if (globalAiEnabled) {
             enqueueAiRequest(deviceId, message);
           }
         }
@@ -641,15 +646,27 @@ function initWebSocket(server) {
 
             if (device) {
               device.isPirActive = true;
+              device.lastTimePersonSeen = Date.now(); // Start hold timer from trigger timestamp
               if (device.pirActiveTimeout) {
                 clearTimeout(device.pirActiveTimeout);
               }
-              // Safety timeout of 12 seconds in case upload fails or camera disconnects
+              // Pre-upload safety timeout of 8 seconds (if upload fails to start)
               device.pirActiveTimeout = setTimeout(() => {
-                device.isPirActive = false;
+                if (device.isPirActive) {
+                  device.isPirActive = false;
+                  
+                  if (device.isRecordingAi) {
+                    stopAiRecording(deviceId);
+                  } else {
+                    const defaultAngle = getDefaultAngle(device.mac);
+                    if (device.ws && device.ws.readyState === 1) {
+                      device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
+                    }
+                  }
+                  console.log(`[AI Hold] Pre-upload safety timeout triggered (8s). Returned servo to center for ${deviceId}.`);
+                }
                 device.pirActiveTimeout = null;
-                console.log(`[AI Suppression] Safety timeout triggered. Resuming stream AI for ${deviceId}.`);
-              }, 12000);
+              }, 8000);
             }
 
             // Log event to data/log.json
@@ -682,14 +699,6 @@ function initWebSocket(server) {
                 client.send(payloadLogs);
               }
             });
-
-            // Mulai perekaman post-roll (tambahkan ~70 frame setelah motion untuk mencapai total 10 detik)
-            if (device && !device.recordingPostRoll) {
-              console.log(`[VideoRecord] Motion trigger dari ${location}. Mengumpulkan post-roll frame...`);
-              device.recordingPostRoll = true;
-              device.postRollFramesNeeded = 70; // Target post-roll
-              device.motionSensor = data.sensor;
-            }
 
             // Telegram alert sekarang dikirim dari videoRenderer SETELAH video siap.
           } else if (data.type === 'set_view_mode' && !isCamera) {
@@ -856,6 +865,15 @@ function initWebSocket(server) {
           device.lastSeen = new Date().toLocaleTimeString();
           console.log(`Camera ${remoteIp} disconnected.`);
           
+          if (device.isRecordingAi) {
+            stopAiRecording(deviceId);
+          }
+          if (device.pirActiveTimeout) {
+            clearTimeout(device.pirActiveTimeout);
+            device.pirActiveTimeout = null;
+          }
+          device.isPirActive = false;
+
           if (device.aiStopTimer) {
             clearTimeout(device.aiStopTimer);
             device.aiStopTimer = null;
@@ -900,6 +918,19 @@ function initWebSocket(server) {
           if (device) {
             device.status = 'Offline';
             device.lastSeen = new Date().toLocaleTimeString();
+            
+            if (device.isRecordingAi) {
+              stopAiRecording(deviceId);
+            }
+            if (device.pirActiveTimeout) {
+              clearTimeout(device.pirActiveTimeout);
+              device.pirActiveTimeout = null;
+            }
+            device.isPirActive = false;
+            if (device.aiStopTimer) {
+              clearTimeout(device.aiStopTimer);
+              device.aiStopTimer = null;
+            }
             
             // Dynamic Auto-Activation Switch if active camera went offline
             if (deviceId === globalActiveDeviceId) {
@@ -1045,4 +1076,8 @@ function updateFlashIntensity(intensity) {
   console.log(`[FlashControl] Pushed updated flash intensity (${intensity}) to all cameras`);
 }
 
-module.exports = { initWebSocket, getDevices, sendCaptureRequest, switchActiveStream, updateFlashIntensity };
+function getGlobalAiEnabled() {
+  return globalAiEnabled;
+}
+
+module.exports = { initWebSocket, getDevices, sendCaptureRequest, switchActiveStream, updateFlashIntensity, getGlobalAiEnabled, stopAiRecording, getDefaultAngle };
