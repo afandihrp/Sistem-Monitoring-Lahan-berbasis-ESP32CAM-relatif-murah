@@ -581,7 +581,7 @@ function initWebSocket(server) {
           }
           // -----------------------------
 
-          if (globalAiEnabled) {
+          if (globalAiEnabled && !device.recordingPostRoll && !device.isPirActive) {
             enqueueAiRequest(deviceId, message);
           }
         }
@@ -638,6 +638,19 @@ function initWebSocket(server) {
             const location = device ? device.ip : remoteIp;
             
             console.log(`Motion detected by ${location}: ${data.sensor}`);
+
+            if (device) {
+              device.isPirActive = true;
+              if (device.pirActiveTimeout) {
+                clearTimeout(device.pirActiveTimeout);
+              }
+              // Safety timeout of 12 seconds in case upload fails or camera disconnects
+              device.pirActiveTimeout = setTimeout(() => {
+                device.isPirActive = false;
+                device.pirActiveTimeout = null;
+                console.log(`[AI Suppression] Safety timeout triggered. Resuming stream AI for ${deviceId}.`);
+              }, 12000);
+            }
 
             // Log event to data/log.json
             logEvent({

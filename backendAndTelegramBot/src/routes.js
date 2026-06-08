@@ -105,6 +105,23 @@ function createRouter(wss) {
       // PIR motion: Attempt to call Python AI Object Detection first
       res.send('Uploaded');
 
+      // Clear the PIR active status on the camera device after a 2-second return-to-center cooldown
+      const { getDevices } = require('./websocket');
+      const devices = getDevices();
+      const deviceId = `cam_${ip.replace(/\./g, '_')}`;
+      const device = devices.get(deviceId);
+      if (device) {
+        if (device.pirActiveTimeout) {
+          clearTimeout(device.pirActiveTimeout);
+          device.pirActiveTimeout = null;
+        }
+        device.pirActiveTimeout = setTimeout(() => {
+          device.isPirActive = false;
+          device.pirActiveTimeout = null;
+          console.log(`[AI Suppression] Re-enabling stream AI for ${deviceId} (returned to center).`);
+        }, 2000);
+      }
+
       // Process the remaining logic asynchronously in the background
       (async () => {
         let imageToSave = req.body;
