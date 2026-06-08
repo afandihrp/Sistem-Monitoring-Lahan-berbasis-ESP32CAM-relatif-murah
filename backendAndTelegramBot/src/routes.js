@@ -117,48 +117,52 @@ function createRouter(wss) {
           device.pirActiveTimeout = null;
         }
 
-        device.isRecordingAi = true;
-        device.aiSensorName = sensor;
-        device.lastTimePersonSeen = Date.now();
-        
-        // Trim rollingBuffer to keep only the pre-roll frames of the sweep movement
-        while (device.rollingBuffer.length > 30) {
-          device.rollingBuffer.shift();
-        }
-        
-        console.log(`[PIR Video] Start recording video stream for ${deviceId} after high-res photo upload.`);
-
-        // Tell camera to cancel its local return-to-center timer since the backend is now actively recording/monitoring
-        if (device.ws && device.ws.readyState === 1) {
-          device.ws.send(JSON.stringify({ type: 'cancel_return' }));
-          console.log(`[PIR Video] Sent cancel_return command to camera ${deviceId}`);
-        }
-
-        // Check if AI is online and enqueued checks are functional
-        const { getGlobalAiEnabled } = require('./websocket');
+        const { getGlobalAiEnabled, getPirAiDetection, getPirAiRecording } = require('./websocket');
         const { aiClient } = require('./services/aiClient');
-        const isAiOnline = aiClient.isConnected && getGlobalAiEnabled();
+        const isAiOnline = aiClient.isConnected && getGlobalAiEnabled() && getPirAiDetection();
 
-        if (!isAiOnline) {
-          // AI is offline: record for a flat 10 seconds post-upload, then stop and return to center
-          console.log(`[PIR Video] AI is offline/disabled. Scheduling flat 10-second stop & return for ${deviceId}.`);
-          const { stopAiRecording } = require('./websocket');
-          device.pirActiveTimeout = setTimeout(() => {
-            if (device.isRecordingAi) {
-              stopAiRecording(deviceId);
-            }
-            device.pirActiveTimeout = null;
-          }, 10000);
+        if (getPirAiRecording()) {
+          device.isRecordingAi = true;
+          device.aiSensorName = sensor;
+          device.lastTimePersonSeen = Date.now();
+          
+          // Trim rollingBuffer to keep only the pre-roll frames of the sweep movement
+          while (device.rollingBuffer.length > 30) {
+            device.rollingBuffer.shift();
+          }
+          
+          console.log(`[PIR Video] Start recording video stream for ${deviceId} after high-res photo upload.`);
+
+          // Tell camera to cancel its local return-to-center timer since the backend is now actively recording/monitoring
+          if (device.ws && device.ws.readyState === 1) {
+            device.ws.send(JSON.stringify({ type: 'cancel_return' }));
+            console.log(`[PIR Video] Sent cancel_return command to camera ${deviceId}`);
+          }
+
+          if (!isAiOnline) {
+            // AI is offline: record for a flat 10 seconds post-upload, then stop and return to center
+            console.log(`[PIR Video] AI is offline/disabled. Scheduling flat 10-second stop & return for ${deviceId}.`);
+            const { stopAiRecording } = require('./websocket');
+            device.pirActiveTimeout = setTimeout(() => {
+              if (device.isRecordingAi) {
+                stopAiRecording(deviceId);
+              }
+              device.pirActiveTimeout = null;
+            }, 10000);
+          } else {
+            // AI is online: use 90-second safety fallback timeout
+            console.log(`[PIR Video] AI is online. Scheduling 90-second safety fallback timeout for ${deviceId}.`);
+            const { stopAiRecording } = require('./websocket');
+            device.pirActiveTimeout = setTimeout(() => {
+              if (device.isRecordingAi) {
+                stopAiRecording(deviceId);
+              }
+              device.pirActiveTimeout = null;
+            }, 90000);
+          }
         } else {
-          // AI is online: use 90-second safety fallback timeout
-          console.log(`[PIR Video] AI is online. Scheduling 90-second safety fallback timeout for ${deviceId}.`);
-          const { stopAiRecording } = require('./websocket');
-          device.pirActiveTimeout = setTimeout(() => {
-            if (device.isRecordingAi) {
-              stopAiRecording(deviceId);
-            }
-            device.pirActiveTimeout = null;
-          }, 90000);
+          device.isPirActive = false;
+          console.log(`[PIR Video] PIR recording is disabled. Skipping recording for ${deviceId}.`);
         }
       }
 
@@ -168,21 +172,27 @@ function createRouter(wss) {
         let humanPresence = false;
         let aiDetails = null;
 
-        try {
-          console.log(`[AI Object Detection] Analyzing picture from IP: ${ip}, Sensor: ${sensor}...`);
-          const aiResult = await checkPersonAI(req.body);
-          
-          if (aiResult && aiResult.imageBuffer) {
-            imageToSave = aiResult.imageBuffer;
-            if (aiResult.details) {
-              humanPresence = aiResult.details.person_detected === true;
-              aiDetails = aiResult.details;
-              console.log(`[AI Object Detection] Result: ${aiResult.details.message} (Human count: ${aiResult.details.person_count})`);
+        const { getPirAiDetection } = require('./websocket');
+
+        if (getPirAiDetection()) {
+          try {
+            console.log(`[AI Object Detection] Analyzing picture from IP: ${ip}, Sensor: ${sensor}...`);
+            const aiResult = await checkPersonAI(req.body);
+            
+            if (aiResult && aiResult.imageBuffer) {
+              imageToSave = aiResult.imageBuffer;
+              if (aiResult.details) {
+                humanPresence = aiResult.details.person_detected === true;
+                aiDetails = aiResult.details;
+                console.log(`[AI Object Detection] Result: ${aiResult.details.message} (Human count: ${aiResult.details.person_count})`);
+              }
             }
+          } catch (aiErr) {
+            console.error('[AI Object Detection] Failed to call local AI API (Falling back to raw image):', aiErr.message);
+            // Graceful fallback: imageToSave remains req.body, humanPresence is false
           }
-        } catch (aiErr) {
-          console.error('[AI Object Detection] Failed to call local AI API (Falling back to raw image):', aiErr.message);
-          // Graceful fallback: imageToSave remains req.body, humanPresence is false
+        } else {
+          console.log(`[AI Object Detection] PIR AI Detection is disabled. Skipping AI analysis for IP: ${ip}.`);
         }
 
         // Save the finalized image (either AI-outlined or raw fallback)

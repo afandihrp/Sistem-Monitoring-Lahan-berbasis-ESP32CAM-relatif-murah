@@ -41,10 +41,19 @@ const props = defineProps({
   aiEnabled: {
     type: Boolean,
     default: true
+  },
+  aiConfig: {
+    type: Object,
+    default: () => ({
+      pirAiDetection: true,
+      pirAiRecording: true,
+      objectTracking: true,
+      maxDuration: 30
+    })
   }
 })
 
-const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'saveCameraConfig', 'setViewMode', 'setAiEnabled'])
+const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'saveCameraConfig', 'setViewMode', 'setAiEnabled', 'saveAiConfig'])
 const servoValue = ref(90)
 const showConfig = ref(false)
 const showCameraConfig = ref(false)
@@ -73,6 +82,11 @@ const handleSaveCameraConfig = (config) => {
     config
   })
   showCameraConfig.value = false
+}
+
+const handleSaveAiConfig = (config) => {
+  emit('saveAiConfig', config)
+  showAiConfig.value = false
 }
 </script>
 
@@ -265,8 +279,9 @@ const handleSaveCameraConfig = (config) => {
     <AiConfiguratorModal 
       v-if="showAiConfig" 
       :aiEnabled="aiEnabled"
+      :initialConfig="aiConfig"
       @close="showAiConfig = false" 
-      @save="showAiConfig = false" 
+      @save="handleSaveAiConfig" 
     />
   </div>
 </template>

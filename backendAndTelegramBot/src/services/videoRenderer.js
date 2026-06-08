@@ -17,7 +17,7 @@ if (!fs.existsSync(TMP_DIR)) {
  * @param {String} outputFilename Nama file output mp4
  * @returns {Promise<String>} Path ke file video yang dihasilkan
  */
-function renderVideo(frameBuffers, outputFilename) {
+function renderVideo(frameBuffers, outputFilename, maxDuration = 30) {
   return new Promise((resolve, reject) => {
     if (!frameBuffers || frameBuffers.length === 0) {
       return reject(new Error('No frames provided for video rendering'));
@@ -44,10 +44,11 @@ function renderVideo(frameBuffers, outputFilename) {
 
       const N = frameBuffers.length;
       let inputFramerate = 10;
-      if (N > 300) {
-        inputFramerate = Math.round(N / 30);
+      const maxFrames = maxDuration * 10;
+      if (N > maxFrames) {
+        inputFramerate = Math.round(N / maxDuration);
         if (inputFramerate < 10) inputFramerate = 10;
-        console.log(`[VideoRenderer] Frame count ${N} exceeds 300 (30s at 10fps). Speeding up input framerate to ${inputFramerate} fps.`);
+        console.log(`[VideoRenderer] Frame count ${N} exceeds ${maxFrames} (${maxDuration}s at 10fps). Speeding up input framerate to ${inputFramerate} fps.`);
       }
 
       // Command menggunakan Software Encoder (libx264) yang 100% kompatibel dan aman.

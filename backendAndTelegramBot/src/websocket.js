@@ -21,6 +21,10 @@ let globalActiveDeviceId = null;
 let wssInstance = null;
 let globalAiEnabled = true;
 let globalViewMode = 'single';
+let globalPirAiDetection = true;
+let globalPirAiRecording = true;
+let globalObjectTracking = true;
+let globalMaxDuration = 30;
 
 // Centralized sequential AI object detection queue
 const aiQueue = [];
@@ -68,7 +72,7 @@ function stopAiRecording(deviceId) {
   // Clear the rolling buffer back to empty for next pre-roll
   device.rollingBuffer = [];
 
-  renderVideo(framesToRender, outputFilename)
+  renderVideo(framesToRender, outputFilename, globalMaxDuration)
     .then(videoPath => {
       if (device.latestSnapshotFilename) {
         sendMotionAlert(`IP: ${remoteIp}`, sensorName, device.latestSnapshotFilename);
@@ -142,8 +146,8 @@ function triggerAiWorker() {
           console.log(`[AI Record] Person detected again. Cancelled stop recording timer for ${deviceId}.`);
         }
 
-        // Object Follower: track human when recording is active and AI is online
-        if (device.isRecordingAi) {
+        // Object Follower: track human when recording is active, AI is online, and tracking is enabled
+        if (device.isRecordingAi && globalObjectTracking) {
           const now = Date.now();
           if (!device.lastServoAdjustTime) {
             device.lastServoAdjustTime = 0;
@@ -336,7 +340,11 @@ function loadSystemSettings() {
       const settings = JSON.parse(data);
       globalAiEnabled = settings.globalAiEnabled !== undefined ? settings.globalAiEnabled : true;
       globalViewMode = settings.globalViewMode || 'single';
-      console.log(`[Settings] Loaded system settings: ViewMode = ${globalViewMode}, AI = ${globalAiEnabled ? 'ENABLED' : 'DISABLED'}`);
+      globalPirAiDetection = settings.pirAiDetection !== undefined ? settings.pirAiDetection : true;
+      globalPirAiRecording = settings.pirAiRecording !== undefined ? settings.pirAiRecording : true;
+      globalObjectTracking = settings.objectTracking !== undefined ? settings.objectTracking : true;
+      globalMaxDuration = settings.maxDuration !== undefined ? settings.maxDuration : 30;
+      console.log(`[Settings] Loaded system settings: ViewMode = ${globalViewMode}, AI = ${globalAiEnabled ? 'ENABLED' : 'DISABLED'}, PIR AI Det = ${globalPirAiDetection}, PIR AI Rec = ${globalPirAiRecording}, Tracking = ${globalObjectTracking}, MaxDur = ${globalMaxDuration}s`);
     } else {
       console.log('[Settings] No system settings file found, using defaults.');
     }
@@ -353,7 +361,11 @@ function saveSystemSettings() {
     }
     const settings = {
       globalAiEnabled,
-      globalViewMode
+      globalViewMode,
+      pirAiDetection: globalPirAiDetection,
+      pirAiRecording: globalPirAiRecording,
+      objectTracking: globalObjectTracking,
+      maxDuration: globalMaxDuration
     };
     fs.writeFileSync(SYSTEM_SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
     console.log('[Settings] Saved system settings successfully.');
@@ -601,6 +613,17 @@ function initWebSocket(server) {
       if (globalActiveDeviceId) {
         ws.send(JSON.stringify({ type: 'active_stream_updated', deviceId: globalActiveDeviceId }));
       }
+
+      // Send current AI configurations immediately to synchronize
+      ws.send(JSON.stringify({ 
+        type: 'ai_config_response', 
+        config: {
+          pirAiDetection: globalPirAiDetection,
+          pirAiRecording: globalPirAiRecording,
+          objectTracking: globalObjectTracking,
+          maxDuration: globalMaxDuration
+        } 
+      }));
     }
     
     ws.on('message', (message, isBinary) => {
@@ -809,6 +832,37 @@ function initWebSocket(server) {
                 client.send(aiStatusPayload);
               }
             });
+          } else if (data.type === 'save_ai_config' && !isCamera) {
+            // Save AI Configuration to file
+            const config = data.config;
+            if (config) {
+              globalPirAiDetection = config.pirAiDetection !== undefined ? config.pirAiDetection : true;
+              globalPirAiRecording = config.pirAiRecording !== undefined ? config.pirAiRecording : true;
+              globalObjectTracking = config.objectTracking !== undefined ? config.objectTracking : true;
+              globalMaxDuration = config.maxDuration !== undefined ? config.maxDuration : 30;
+              saveSystemSettings();
+              
+              console.log(`[Settings] AI Config saved: Detection=${globalPirAiDetection}, Recording=${globalPirAiRecording}, Tracking=${globalObjectTracking}, MaxDur=${globalMaxDuration}s`);
+              
+              // Reply to the sender that save was successful
+              ws.send(JSON.stringify({ type: 'save_ai_config_success' }));
+              
+              // Broadcast updated config to ALL kiosks
+              const aiConfigPayload = JSON.stringify({
+                type: 'ai_config_response',
+                config: {
+                  pirAiDetection: globalPirAiDetection,
+                  pirAiRecording: globalPirAiRecording,
+                  objectTracking: globalObjectTracking,
+                  maxDuration: globalMaxDuration
+                }
+              });
+              wss.clients.forEach((client) => {
+                if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                  client.send(aiConfigPayload);
+                }
+              });
+            }
           } else if (data.type === 'set_active_stream' && !isCamera) {
             // Centralized Active Stream Update
             if (globalActiveDeviceId !== data.deviceId) {
@@ -1133,4 +1187,33 @@ function getGlobalAiEnabled() {
   return globalAiEnabled;
 }
 
-module.exports = { initWebSocket, getDevices, sendCaptureRequest, switchActiveStream, updateFlashIntensity, getGlobalAiEnabled, stopAiRecording, getDefaultAngle };
+function getPirAiDetection() {
+  return globalPirAiDetection;
+}
+
+function getPirAiRecording() {
+  return globalPirAiRecording;
+}
+
+function getObjectTracking() {
+  return globalObjectTracking;
+}
+
+function getMaxDuration() {
+  return globalMaxDuration;
+}
+
+module.exports = { 
+  initWebSocket, 
+  getDevices, 
+  sendCaptureRequest, 
+  switchActiveStream, 
+  updateFlashIntensity, 
+  getGlobalAiEnabled, 
+  stopAiRecording, 
+  getDefaultAngle,
+  getPirAiDetection,
+  getPirAiRecording,
+  getObjectTracking,
+  getMaxDuration
+};

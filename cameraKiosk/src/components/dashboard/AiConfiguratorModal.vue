@@ -5,15 +5,24 @@ const props = defineProps({
   aiEnabled: {
     type: Boolean,
     default: true
+  },
+  initialConfig: {
+    type: Object,
+    default: () => ({
+      pirAiDetection: true,
+      pirAiRecording: true,
+      objectTracking: true,
+      maxDuration: 30
+    })
   }
 })
 
 const emit = defineEmits(['close', 'save'])
 
-const pirAiDetection = ref(true)
-const pirAiRecording = ref(true)
-const objectTracking = ref(true)
-const maxDuration = ref(30) // Default to 30s
+const pirAiDetection = ref(props.initialConfig.pirAiDetection)
+const pirAiRecording = ref(props.initialConfig.pirAiRecording)
+const objectTracking = ref(props.initialConfig.objectTracking)
+const maxDuration = ref(props.initialConfig.maxDuration)
 
 // Watch detection toggle to automatically turn off recording if detection is disabled
 watch(pirAiDetection, (newVal) => {

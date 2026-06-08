@@ -13,6 +13,12 @@ setInterval(() => {
 const wsStatus = ref('Offline')
 const aiConnected = ref(false)
 const aiEnabled = ref(true)
+const aiConfig = ref({
+  pirAiDetection: true,
+  pirAiRecording: true,
+  objectTracking: true,
+  maxDuration: 30
+})
 let ws = null
 let pendingActiveStreamId = null
 
@@ -124,6 +130,10 @@ const connectWS = () => {
         aiConnected.value = data.isConnected
       } else if (data.type === 'ai_enabled_updated') {
         aiEnabled.value = data.enabled
+      } else if (data.type === 'ai_config_response') {
+        aiConfig.value = data.config
+      } else if (data.type === 'save_ai_config_success') {
+        alert('AI Configuration Saved Successfully!')
       } else if (data.type === 'view_mode_updated') {
         viewMode.value = data.mode
       } else if (data.type === 'device_list') {
@@ -299,6 +309,17 @@ const handleSaveCameraConfig = (data) => {
   }
 }
 
+const handleSaveAiConfig = (config) => {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ 
+      type: 'save_ai_config', 
+      config 
+    }))
+  } else {
+    console.error('WebSocket not connected. Cannot save AI config.')
+  }
+}
+
 // Mobile Pagination Logic
 const currentEventPage = ref(1)
 const eventsPerPage = 10
@@ -333,12 +354,14 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
         :windowWidth="windowWidth"
         :viewMode="viewMode"
         :aiEnabled="aiEnabled"
+        :aiConfig="aiConfig"
         @triggerCameraAction="triggerCameraAction"
         @triggerServoAction="triggerServoAction"
         @saveServoConfig="handleSaveServoConfig"
         @saveCameraConfig="handleSaveCameraConfig"
         @setViewMode="handleSetViewMode"
         @setAiEnabled="handleSetAiEnabled"
+        @saveAiConfig="handleSaveAiConfig"
       />
 
       <aside class="col-lg-2 sidebar-section d-flex flex-column bg-slate-900 border-start border-slate-700">
