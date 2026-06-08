@@ -355,6 +355,15 @@ function getEffectiveCameraConfig(config, device) {
   return effectiveConfig;
 }
 
+function getSignalBars(rssi) {
+  if (rssi >= -55) return 5;
+  if (rssi >= -65) return 4;
+  if (rssi >= -75) return 3;
+  if (rssi >= -85) return 2;
+  if (rssi >= -95) return 1;
+  return 0;
+}
+
 function heartbeat() {
   this.isAlive = true;
 }
@@ -366,6 +375,7 @@ function broadcastDeviceList(wss) {
     ip: device.ip,
     mac: device.mac,
     signalBars: device.signalBars,
+    signalRssi: device.signalRssi || null,
     lastSeen: device.lastSeen
   }));
 
@@ -421,6 +431,7 @@ function initWebSocket(server) {
         mac: macAddress,
         type: 'Camera',
         signalBars: 5,
+        signalRssi: null,
         lastSeen: new Date().toLocaleTimeString(),
         ws: ws,  // simpan referensi untuk on-demand capture
         rollingBuffer: [], // Buffer untuk frame JPEG (Pre-roll)
@@ -591,7 +602,14 @@ function initWebSocket(server) {
             const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
             const device = devices.get(deviceId);
             if (device) {
-              device.signalBars = data.bars;
+              const rssi = (data.rssi !== undefined) ? Number(data.rssi) : null;
+              device.signalRssi = rssi;
+              if (rssi !== null) {
+                device.signalBars = getSignalBars(rssi);
+              } else if (data.bars !== undefined) {
+                // Backward compatibility if camera firmware is old
+                device.signalBars = Number(data.bars);
+              }
               device.lastSeen = new Date().toLocaleTimeString();
               broadcastDeviceList(wss);
 
@@ -606,7 +624,7 @@ function initWebSocket(server) {
                       device.ws.send(JSON.stringify({ type: 'camera_config_update', config: configToSend }));
                       device.currentResolution = configToSend.resolution;
                       device.currentQuality = configToSend.quality;
-                      console.log(`Dynamic resolution scaling updated camera ${device.mac} to Res=${configToSend.resolution}, Qual=${configToSend.quality} (Bars: ${data.bars})`);
+                      console.log(`Dynamic resolution scaling updated camera ${device.mac} to Res=${configToSend.resolution}, Qual=${configToSend.quality} (RSSI: ${device.signalRssi} dBm, Bars: ${device.signalBars})`);
                     }
                   }
                 } catch (e) {

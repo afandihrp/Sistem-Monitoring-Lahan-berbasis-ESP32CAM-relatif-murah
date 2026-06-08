@@ -5,6 +5,17 @@ defineProps({
     required: true
   }
 })
+
+const getNominalDbm = (bars) => {
+  const mapping = {
+    5: -50,
+    4: -60,
+    3: -70,
+    2: -80,
+    1: -90
+  };
+  return mapping[bars] || 'N/A';
+}
 </script>
 
 <template>
@@ -25,16 +36,21 @@ defineProps({
             </div>
             <!-- Dynamic signal status indicator (replaces Online/Offline text badge) -->
             <div class="d-flex align-items-center ms-2" style="height: 24px;">
-              <!-- Online Device: Green Dynamic Signal Bars -->
-              <div v-if="device.status === 'Online'" class="d-flex align-items-end gap-1" style="height: 16px;" :title="`Signal Strength: ${device.signalBars || 0}/5`">
-                <div v-for="bar in 5" :key="bar" 
-                     :style="{ 
-                       width: '3px', 
-                       height: (bar * 20) + '%', 
-                       backgroundColor: (device.signalBars || 0) >= bar ? '#22c55e' : '#64748b',
-                       boxShadow: (device.signalBars || 0) >= bar ? '0 0 6px rgba(34, 197, 94, 0.6)' : 'none',
-                       borderRadius: '1px'
-                     }">
+              <!-- Online Device: Green Dynamic Signal Bars + dBm label -->
+              <div v-if="device.status === 'Online'" class="d-flex align-items-center gap-2" style="height: 16px;">
+                <span class="text-slate-400 font-monospace" style="font-size: 0.7rem;">
+                  {{ device.signalRssi !== null && device.signalRssi !== undefined ? device.signalRssi + ' dBm' : (device.signalBars ? getNominalDbm(device.signalBars) + ' dBm' : 'N/A') }}
+                </span>
+                <div class="d-flex align-items-end gap-1" style="height: 16px;" :title="`Signal Strength: ${device.signalBars || 0}/5`">
+                  <div v-for="bar in 5" :key="bar" 
+                       :style="{ 
+                         width: '3px', 
+                         height: (bar * 20) + '%', 
+                         backgroundColor: (device.signalBars || 0) >= bar ? '#22c55e' : '#64748b',
+                         boxShadow: (device.signalBars || 0) >= bar ? '0 0 6px rgba(34, 197, 94, 0.6)' : 'none',
+                         borderRadius: '1px'
+                       }">
+                  </div>
                 </div>
               </div>
               <!-- Offline Device: Muted Bars with a Red X Overlay indicating lost signal -->

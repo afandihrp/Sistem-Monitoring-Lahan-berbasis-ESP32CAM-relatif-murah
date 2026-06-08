@@ -45,6 +45,9 @@ uint8_t SERVO_POS_DEFAULT = 90;
 const char* ssid = "BatuKhan";
 const char* password = "momoygemoy";
 
+// const char* ssid = "Tenda_6A9248";
+// const char* password = "";
+
 // Security API Key
 const char* apiKey = "momo_gemoy_api_key_123";
 
@@ -162,14 +165,6 @@ bool isConnected = false;
 unsigned long lastSignalSent = 0;
 IPAddress serverIP;
 
-int getSignalBars(long rssi) {
-  if (rssi >= -55) return 5;
-  if (rssi >= -65) return 4;
-  if (rssi >= -75) return 3;
-  if (rssi >= -85) return 2;
-  if (rssi >= -95) return 1;
-  return 0;
-}
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   switch(type) {
@@ -624,10 +619,10 @@ void loop() {
     // Send signal strength every 5 seconds
     if (millis() - lastSignalSent > 8000) {
       lastSignalSent = millis();
-      int bars = getSignalBars(WiFi.RSSI());
-      String msg = "{\"type\":\"signal\",\"bars\":" + String(bars) + "}";
+      long rssi = WiFi.RSSI();
+      String msg = "{\"type\":\"signal\",\"rssi\":" + String(rssi) + "}";
       webSocket.sendTXT(msg);
-      Serial.printf("Signal: %ld dBm (%d bars)\n", WiFi.RSSI(), bars);
+      Serial.printf("Signal: %ld dBm\n", rssi);
     }
 
     camera_fb_t * fb = NULL;
