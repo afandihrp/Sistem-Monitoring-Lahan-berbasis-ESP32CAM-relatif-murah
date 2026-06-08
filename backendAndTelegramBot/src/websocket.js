@@ -144,14 +144,21 @@ function triggerAiWorker() {
 
         // Object Follower: track human when recording is active and AI is online
         if (device.isRecordingAi) {
-          const defaultAngle = getDefaultAngle(device.mac);
-          const followResult = calculateNextFollowerAngle(device.currentAngle, boxCoordinates, defaultAngle);
-          if (followResult) {
-            const { newAngle, offset } = followResult;
-            device.currentAngle = newAngle;
-            if (device.ws && device.ws.readyState === 1) {
-              device.ws.send(JSON.stringify({ type: 'servo_control', value: newAngle }));
-              console.log(`[Object Follower] Adjusted servo for ${deviceId} to ${newAngle}° (Offset: ${offset.toFixed(2)})`);
+          const now = Date.now();
+          if (!device.lastServoAdjustTime) {
+            device.lastServoAdjustTime = 0;
+          }
+          if (now - device.lastServoAdjustTime >= 500) {
+            const defaultAngle = getDefaultAngle(device.mac);
+            const followResult = calculateNextFollowerAngle(device.currentAngle, boxCoordinates, defaultAngle);
+            if (followResult) {
+              const { newAngle, offset } = followResult;
+              device.currentAngle = newAngle;
+              device.lastServoAdjustTime = now;
+              if (device.ws && device.ws.readyState === 1) {
+                device.ws.send(JSON.stringify({ type: 'servo_control', value: newAngle }));
+                console.log(`[Object Follower] Adjusted servo for ${deviceId} to ${newAngle}° (Offset: ${offset.toFixed(2)})`);
+              }
             }
           }
         }
