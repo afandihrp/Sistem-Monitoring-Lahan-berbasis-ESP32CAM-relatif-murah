@@ -47,6 +47,10 @@ const props = defineProps({
     default: () => ({
       pirAiDetection: true,
       pirAiRecording: true,
+      streamAiDetection: true,
+      streamAiRecording: true,
+      streamAiTelegram: true,
+      telegramInterval: 10,
       objectTracking: true,
       maxDuration: 30
     })

@@ -117,11 +117,22 @@ function createRouter(wss) {
           device.pirActiveTimeout = null;
         }
 
-        const { getGlobalAiEnabled, getPirAiDetection, getPirAiRecording } = require('./websocket');
+        const { getGlobalAiEnabled, getPirAiDetection, getPirAiRecording, getTelegramInterval } = require('./websocket');
         const { aiClient } = require('./services/aiClient');
         const isAiOnline = aiClient.isConnected && getGlobalAiEnabled() && getPirAiDetection();
 
-        const shouldRecord = !getGlobalAiEnabled() || getPirAiRecording();
+        // Evaluate Telegram Cooldown status for this event
+        const now = Date.now();
+        const intervalMs = getTelegramInterval() * 1000;
+        if (!device.lastTelegramAlertTime || (now - device.lastTelegramAlertTime >= intervalMs)) {
+          device.lastTelegramAlertTime = now;
+          device.telegramAlertsMuted = false;
+        } else {
+          console.log(`[Telegram] PIR alerts throttled (cooldown active) for device ${deviceId}`);
+          device.telegramAlertsMuted = true;
+        }
+
+        const shouldRecord = !getGlobalAiEnabled() || !getPirAiDetection() || getPirAiRecording();
         if (shouldRecord) {
           device.isRecordingAi = true;
           device.aiSensorName = sensor;
@@ -203,7 +214,11 @@ function createRouter(wss) {
         updateLatestLogWithAI(sensor, ip, imageUrl, humanPresence, aiDetails);
         
         // Send motion alert to Telegram
-        sendMotionAlert(`IP: ${ip}`, sensor, filename);
+        if (!device.telegramAlertsMuted) {
+          sendMotionAlert(`IP: ${ip}`, sensor, filename);
+        } else {
+          console.log(`[Telegram] PIR snapshot alert throttled (cooldown active) for device ${deviceId}`);
+        }
 
         // Notify Web Clients
         const payload = JSON.stringify({

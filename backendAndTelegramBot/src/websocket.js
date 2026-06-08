@@ -25,6 +25,8 @@ let globalPirAiDetection = true;
 let globalPirAiRecording = true;
 let globalStreamAiDetection = true;
 let globalStreamAiRecording = true;
+let globalStreamAiTelegram = true;
+let globalTelegramInterval = 10;
 let globalObjectTracking = true;
 let globalMaxDuration = 30;
 
@@ -74,48 +76,66 @@ function stopAiRecording(deviceId) {
   // Clear the rolling buffer back to empty for next pre-roll
   device.rollingBuffer = [];
 
-  renderVideo(framesToRender, outputFilename, globalMaxDuration)
-    .then(videoPath => {
-      if (device.latestSnapshotFilename) {
-        sendMotionAlert(`IP: ${remoteIp}`, sensorName, device.latestSnapshotFilename);
-        device.latestSnapshotFilename = null;
-      }
-      sendMotionVideoAlert(`IP: ${remoteIp}`, sensorName, videoPath);
-      
-      // Bind and save video to log.json
-      const videoUrl = `/data/videos/${outputFilename}`;
-      updateLatestLogVideo(sensorName, remoteIp, videoUrl);
+  if (framesToRender.length > 0) {
+    renderVideo(framesToRender, outputFilename, globalMaxDuration)
+      .then(videoPath => {
+        const isStreamAi = (sensorName === 'AI_Person_Detection');
+        const shouldNotifyTelegram = !device.telegramAlertsMuted && (!isStreamAi || globalStreamAiTelegram);
 
-      // Broadcast updated logs to all Kiosks
-      if (wssInstance) {
-        const payloadLogs = JSON.stringify({
-          type: 'historical_logs',
-          logs: getLogs()
-        });
-        wssInstance.clients.forEach((client) => {
-          if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-            client.send(payloadLogs);
+        if (shouldNotifyTelegram) {
+          if (device.latestSnapshotFilename) {
+            sendMotionAlert(`IP: ${remoteIp}`, sensorName, device.latestSnapshotFilename);
+            device.latestSnapshotFilename = null;
           }
-        });
-      }
+          sendMotionVideoAlert(`IP: ${remoteIp}`, sensorName, videoPath);
+        } else {
+          console.log(`[Telegram] Telegram alert skipped/throttled for device ${deviceId}.`);
+          device.latestSnapshotFilename = null;
+        }
+        
+        // Bind and save video to log.json
+        const videoUrl = `/data/videos/${outputFilename}`;
+        updateLatestLogVideo(sensorName, remoteIp, videoUrl);
 
-      // Instruct camera to return to default position
-      const defaultAngle = getDefaultAngle(device.mac);
-      if (device.ws && device.ws.readyState === 1) {
-        device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
-      }
-      device.currentAngle = defaultAngle;
-      console.log(`[AI Record] Sent return-to-center command after video rendering completed.`);
-    })
-    .catch(err => {
-      console.error(`[AI Record] Gagal merender video: ${err.message}`);
-      // Fallback return-to-center in case of rendering errors
-      const defaultAngle = getDefaultAngle(device.mac);
-      if (device.ws && device.ws.readyState === 1) {
-        device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
-      }
-      device.currentAngle = defaultAngle;
-    });
+        // Broadcast updated logs to all Kiosks
+        if (wssInstance) {
+          const payloadLogs = JSON.stringify({
+            type: 'historical_logs',
+            logs: getLogs()
+          });
+          wssInstance.clients.forEach((client) => {
+            if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+              client.send(payloadLogs);
+            }
+          });
+        }
+
+        // Instruct camera to return to default position
+        const defaultAngle = getDefaultAngle(device.mac);
+        if (device.ws && device.ws.readyState === 1) {
+          device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
+        }
+        device.currentAngle = defaultAngle;
+        console.log(`[AI Record] Sent return-to-center command after video rendering completed.`);
+      })
+      .catch(err => {
+        console.error(`[AI Record] Gagal merender video: ${err.message}`);
+        // Fallback return-to-center in case of rendering errors
+        const defaultAngle = getDefaultAngle(device.mac);
+        if (device.ws && device.ws.readyState === 1) {
+          device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
+        }
+        device.currentAngle = defaultAngle;
+      });
+  } else {
+    console.log(`[AI Record] Stop AI Event: no frames to render for ${deviceId}. Skipping rendering.`);
+    // Instruct camera to return to default position
+    const defaultAngle = getDefaultAngle(device.mac);
+    if (device.ws && device.ws.readyState === 1) {
+      device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
+    }
+    device.currentAngle = defaultAngle;
+  }
 }
 
 function triggerAiWorker() {
@@ -174,15 +194,27 @@ function triggerAiWorker() {
           device.lastTimePersonSeen = Date.now();
           console.log(`[AI Hold] Person detected on PIR-active camera ${deviceId}. Extending hold.`);
         } else {
-          // Normal AI recording logic
-          if (!device.isRecordingAi && globalStreamAiRecording) {
-            console.log(`[AI Record] Person detected on ${deviceId}. Starting recording...`);
+          // Normal AI stream detection event logic
+          if (!device.isRecordingAi && (globalStreamAiRecording || globalStreamAiTelegram)) {
+            console.log(`[AI Record] Person detected on ${deviceId}. Starting stream event...`);
+            
+            // Evaluate Telegram Cooldown
+            const now = Date.now();
+            const intervalMs = globalTelegramInterval * 1000;
+            if (!device.lastTelegramAlertTime || (now - device.lastTelegramAlertTime >= intervalMs)) {
+              device.lastTelegramAlertTime = now;
+              device.telegramAlertsMuted = false;
+            } else {
+              console.log(`[Telegram] Live stream alerts throttled (cooldown active) for device ${deviceId}`);
+              device.telegramAlertsMuted = true;
+            }
+            
             device.isRecordingAi = true;
             device.aiSensorName = 'AI_Person_Detection';
             device.lastTimePersonSeen = Date.now();
 
-            // Start recording with the triggering scanned frame
-            device.rollingBuffer = [frameBuffer];
+            // Start recording with the triggering scanned frame (if recording is enabled)
+            device.rollingBuffer = globalStreamAiRecording ? [frameBuffer] : [];
 
             // Broadcast motion_event IMMEDIATELY to trigger Kiosk alarm sound and UI entry placeholder
             const payload = JSON.stringify({
@@ -245,8 +277,13 @@ function triggerAiWorker() {
               // Save the finalized image (either AI-annotated or raw stream fallback)
               fs.writeFileSync(filepath, imageToSave);
 
-              // Save the snapshot filename to be sent later with the video
-              device.latestSnapshotFilename = filename;
+              // Send motion alert to Telegram immediately on detect
+              if (!device.telegramAlertsMuted && globalStreamAiTelegram) {
+                console.log(`[Telegram] Sending stream AI snapshot alert immediately on detect for ${deviceId}`);
+                sendMotionAlert(`IP: ${remoteIp}`, sensor, filename);
+              } else {
+                console.log(`[Telegram] Stream AI snapshot alert skipped/muted for ${deviceId} (Muted: ${device.telegramAlertsMuted})`);
+              }
 
               // Log event ke data/log.json
               logEvent({
@@ -346,9 +383,11 @@ function loadSystemSettings() {
       globalPirAiRecording = settings.pirAiRecording !== undefined ? settings.pirAiRecording : true;
       globalStreamAiDetection = settings.streamAiDetection !== undefined ? settings.streamAiDetection : true;
       globalStreamAiRecording = settings.streamAiRecording !== undefined ? settings.streamAiRecording : true;
+      globalStreamAiTelegram = settings.streamAiTelegram !== undefined ? settings.streamAiTelegram : true;
+      globalTelegramInterval = settings.telegramInterval !== undefined ? settings.telegramInterval : 10;
       globalObjectTracking = settings.objectTracking !== undefined ? settings.objectTracking : true;
       globalMaxDuration = settings.maxDuration !== undefined ? settings.maxDuration : 30;
-      console.log(`[Settings] Loaded system settings: ViewMode = ${globalViewMode}, AI = ${globalAiEnabled ? 'ENABLED' : 'DISABLED'}, PIR AI Det = ${globalPirAiDetection}, PIR AI Rec = ${globalPirAiRecording}, Stream AI Det = ${globalStreamAiDetection}, Stream AI Rec = ${globalStreamAiRecording}, Tracking = ${globalObjectTracking}, MaxDur = ${globalMaxDuration}s`);
+      console.log(`[Settings] Loaded system settings: ViewMode = ${globalViewMode}, AI = ${globalAiEnabled ? 'ENABLED' : 'DISABLED'}, PIR AI Det = ${globalPirAiDetection}, PIR AI Rec = ${globalPirAiRecording}, Stream AI Det = ${globalStreamAiDetection}, Stream AI Rec = ${globalStreamAiRecording}, Stream Telegram = ${globalStreamAiTelegram}, Telegram Interval = ${globalTelegramInterval}s, Tracking = ${globalObjectTracking}, MaxDur = ${globalMaxDuration}s`);
     } else {
       console.log('[Settings] No system settings file found, using defaults.');
     }
@@ -370,6 +409,8 @@ function saveSystemSettings() {
       pirAiRecording: globalPirAiRecording,
       streamAiDetection: globalStreamAiDetection,
       streamAiRecording: globalStreamAiRecording,
+      streamAiTelegram: globalStreamAiTelegram,
+      telegramInterval: globalTelegramInterval,
       objectTracking: globalObjectTracking,
       maxDuration: globalMaxDuration
     };
@@ -553,7 +594,9 @@ function initWebSocket(server) {
         currentResolution: null,
         currentQuality: null,
         currentAngle: getDefaultAngle(macAddress),
-        lastServoAdjustTime: 0
+        lastServoAdjustTime: 0,
+        lastTelegramAlertTime: 0,
+        telegramAlertsMuted: false
       });
       broadcastDeviceList(wss);
 
@@ -628,6 +671,8 @@ function initWebSocket(server) {
           pirAiRecording: globalPirAiRecording,
           streamAiDetection: globalStreamAiDetection,
           streamAiRecording: globalStreamAiRecording,
+          streamAiTelegram: globalStreamAiTelegram,
+          telegramInterval: globalTelegramInterval,
           objectTracking: globalObjectTracking,
           maxDuration: globalMaxDuration
         } 
@@ -647,7 +692,14 @@ function initWebSocket(server) {
           device.latestFrame = message; // Keep updating to the absolute newest frame
           
           // Unified rolling buffer for both standard AI and PIR recordings
-          device.rollingBuffer.push(message);
+          // Skip frame accumulation during live stream events if stream recording is disabled
+          const isStreamAi = (device.aiSensorName === 'AI_Person_Detection');
+          const shouldRecordFrames = !device.isRecordingAi || !isStreamAi || globalStreamAiRecording;
+
+          if (shouldRecordFrames) {
+            device.rollingBuffer.push(message);
+          }
+
           if (device.isRecordingAi) {
             // Cap at 900 frames (~90s at 10fps) to prevent RAM exhaust on Raspberry Pi
             if (device.rollingBuffer.length > 900) {
@@ -848,11 +900,13 @@ function initWebSocket(server) {
               globalPirAiRecording = config.pirAiRecording !== undefined ? config.pirAiRecording : true;
               globalStreamAiDetection = config.streamAiDetection !== undefined ? config.streamAiDetection : true;
               globalStreamAiRecording = config.streamAiRecording !== undefined ? config.streamAiRecording : true;
+              globalStreamAiTelegram = config.streamAiTelegram !== undefined ? config.streamAiTelegram : true;
+              globalTelegramInterval = config.telegramInterval !== undefined ? config.telegramInterval : 10;
               globalObjectTracking = config.objectTracking !== undefined ? config.objectTracking : true;
               globalMaxDuration = config.maxDuration !== undefined ? config.maxDuration : 30;
               saveSystemSettings();
               
-              console.log(`[Settings] AI Config saved: PIR Det=${globalPirAiDetection}, PIR Rec=${globalPirAiRecording}, Stream Det=${globalStreamAiDetection}, Stream Rec=${globalStreamAiRecording}, Tracking=${globalObjectTracking}, MaxDur=${globalMaxDuration}s`);
+              console.log(`[Settings] AI Config saved: PIR Det=${globalPirAiDetection}, PIR Rec=${globalPirAiRecording}, Stream Det=${globalStreamAiDetection}, Stream Rec=${globalStreamAiRecording}, Stream Telegram=${globalStreamAiTelegram}, Telegram Interval=${globalTelegramInterval}s, Tracking=${globalObjectTracking}, MaxDur=${globalMaxDuration}s`);
               
               // Reply to the sender that save was successful
               ws.send(JSON.stringify({ type: 'save_ai_config_success' }));
@@ -865,6 +919,8 @@ function initWebSocket(server) {
                   pirAiRecording: globalPirAiRecording,
                   streamAiDetection: globalStreamAiDetection,
                   streamAiRecording: globalStreamAiRecording,
+                  streamAiTelegram: globalStreamAiTelegram,
+                  telegramInterval: globalTelegramInterval,
                   objectTracking: globalObjectTracking,
                   maxDuration: globalMaxDuration
                 }
@@ -1215,6 +1271,14 @@ function getStreamAiRecording() {
   return globalStreamAiRecording;
 }
 
+function getStreamAiTelegram() {
+  return globalStreamAiTelegram;
+}
+
+function getTelegramInterval() {
+  return globalTelegramInterval;
+}
+
 function getObjectTracking() {
   return globalObjectTracking;
 }
@@ -1236,6 +1300,8 @@ module.exports = {
   getPirAiRecording,
   getStreamAiDetection,
   getStreamAiRecording,
+  getStreamAiTelegram,
+  getTelegramInterval,
   getObjectTracking,
   getMaxDuration
 };

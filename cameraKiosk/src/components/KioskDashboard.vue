@@ -18,6 +18,8 @@ const aiConfig = ref({
   pirAiRecording: true,
   streamAiDetection: true,
   streamAiRecording: true,
+  streamAiTelegram: true,
+  telegramInterval: 10,
   objectTracking: true,
   maxDuration: 30
 })
