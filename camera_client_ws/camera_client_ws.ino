@@ -76,6 +76,10 @@ volatile int pendingServoAngle = -1;
 unsigned long servoReturnTime = 0;
 bool isServoWaitingToReturn = false;
 
+volatile int currentServoAngle = 90;
+volatile int targetServoAngle = 90;
+TaskHandle_t servoTaskHandle = NULL;
+
 // Global camera config agar bisa dipakai ulang saat reinit
 camera_config_t app_cam_config;
 
@@ -160,6 +164,46 @@ void setServoAngle(uint8_t angle) {
   Serial.printf("[SERVO] Angle set to %d (Duty: %d)\n", angle, duty);
 }
 
+void servoTask(void * pvParameters) {
+  for (;;) {
+    int target = __atomic_load_n(&targetServoAngle, __ATOMIC_SEQ_CST);
+    int current = __atomic_load_n(&currentServoAngle, __ATOMIC_SEQ_CST);
+
+    if (current != target) {
+      int diff = target - current;
+      int nextAngle = current;
+      if (abs(diff) <= 10) {
+        nextAngle = target;
+      } else {
+        if (diff > 0) {
+          nextAngle += 10;
+        } else {
+          nextAngle -= 10;
+        }
+      }
+
+      __atomic_store_n(&currentServoAngle, nextAngle, __ATOMIC_SEQ_CST);
+      setServoAngle(nextAngle);
+
+      vTaskDelay(pdMS_TO_TICKS(50));
+    } else {
+      // Suspend itself to save CPU cycles when target is reached
+      vTaskSuspend(NULL);
+    }
+  }
+}
+
+void setTargetAngle(int angle) {
+  if (angle < 0) angle = 0;
+  if (angle > 180) angle = 180;
+
+  __atomic_store_n(&targetServoAngle, angle, __ATOMIC_SEQ_CST);
+
+  if (servoTaskHandle != NULL) {
+    vTaskResume(servoTaskHandle);
+  }
+}
+
 WebSocketsClient webSocket;
 bool isConnected = false;
 unsigned long lastSignalSent = 0;
@@ -208,7 +252,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
            
            Serial.printf("[WSc] Servo config updated via WS: L=%d, M=%d, R=%d, D=%d\n", SERVO_POS_LEFT, SERVO_POS_MIDDLE, SERVO_POS_RIGHT, SERVO_POS_DEFAULT);
            // Set the servo to the new default immediately (ledcWrite is fast and non-blocking)
-           setServoAngle(SERVO_POS_DEFAULT);
+           setTargetAngle(SERVO_POS_DEFAULT);
         } else if (cmd.indexOf("\"camera_config_update\"") >= 0) {
            int resIdx = cmd.indexOf("\"resolution\":\"");
            if (resIdx != -1) {
@@ -376,7 +420,20 @@ void setup() {
 
   // Init Servo PWM (ESP32 Core 3.x API)
   ledcAttach(SERVO_PIN, SERVO_LEDC_FREQ, SERVO_LEDC_RES);
+  currentServoAngle = SERVO_POS_DEFAULT;
+  targetServoAngle = SERVO_POS_DEFAULT;
   setServoAngle(SERVO_POS_DEFAULT); // Start at center position
+
+  // Create FreeRTOS task for smooth servo movement (Pinned to Core 0)
+  xTaskCreatePinnedToCore(
+    servoTask,
+    "servoTask",
+    2048,
+    NULL,
+    1,
+    &servoTaskHandle,
+    0
+  );
 
   // Tambahkan delay 1 detik agar tegangan listrik (power supply) stabil kembali 
   // setelah servo menarik arus besar. Ini mencegah error inisialisasi I2C kamera (Error 0x106).
@@ -541,8 +598,8 @@ void captureAndUpload(String label) {
 void check_sensor(uint8_t pin, bool &prev_state, String label, uint8_t angle) {
   bool current_state = digitalRead(pin);
   if (current_state == HIGH && prev_state == LOW) {
-    // Move servo to the direction of motion
-    setServoAngle(angle);
+    // Move servo to the direction of motion smoothly
+    setTargetAngle(angle);
 
     // Kirim notifikasi motion ke server via WebSocket
     String msg = "{\"type\":\"motion\",\"sensor\":\"" + label + "\"}";
@@ -592,7 +649,7 @@ void loop() {
   if (pendingServoAngle != -1) {
     int angle = pendingServoAngle;
     pendingServoAngle = -1; // Reset
-    setServoAngle(angle);
+    setTargetAngle(angle);
     
     // Batalkan auto-return jika digerakkan manual
     isServoWaitingToReturn = false;
@@ -600,7 +657,7 @@ void loop() {
 
   // Proses auto-return servo
   if (isServoWaitingToReturn && millis() > servoReturnTime) {
-    setServoAngle(SERVO_POS_DEFAULT);
+    setTargetAngle(SERVO_POS_DEFAULT);
     isServoWaitingToReturn = false;
   }
 
