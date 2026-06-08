@@ -72,6 +72,10 @@ volatile int pendingServoAngle = -1;
 unsigned long servoReturnTime = 0;
 bool isServoWaitingToReturn = false;
 
+// State variables for deferred motion capture (move first, then capture)
+bool triggerCaptureAfterMove = false;
+String captureLabelAfterMove = "";
+
 volatile int currentServoAngle = 90;
 volatile int targetServoAngle = 90;
 TaskHandle_t servoTaskHandle = NULL;
@@ -668,6 +672,7 @@ void loop() {
     
     // Batalkan auto-return jika digerakkan manual
     isServoWaitingToReturn = false;
+    triggerCaptureAfterMove = false; // Batalkan capture terjadwal jika diinterupsi manual
   }
 
   // Proses auto-return servo
@@ -680,20 +685,36 @@ void loop() {
   if (__atomic_exchange_n(&pendingLeftMotion, false, __ATOMIC_SEQ_CST)) {
     webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"left\"}");
     Serial.println("Motion detected: left");
-    servoReturnTime = millis() + 5000;
-    isServoWaitingToReturn = true;
+    triggerCaptureAfterMove = true;
+    captureLabelAfterMove = "left";
+    isServoWaitingToReturn = false; // Tunda auto-return sampai foto selesai
   }
   if (__atomic_exchange_n(&pendingMiddleMotion, false, __ATOMIC_SEQ_CST)) {
     webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"middle\"}");
     Serial.println("Motion detected: middle");
-    servoReturnTime = millis() + 5000;
-    isServoWaitingToReturn = true;
+    triggerCaptureAfterMove = true;
+    captureLabelAfterMove = "middle";
+    isServoWaitingToReturn = false; // Tunda auto-return sampai foto selesai
   }
   if (__atomic_exchange_n(&pendingRightMotion, false, __ATOMIC_SEQ_CST)) {
     webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"right\"}");
     Serial.println("Motion detected: right");
-    servoReturnTime = millis() + 5000;
-    isServoWaitingToReturn = true;
+    triggerCaptureAfterMove = true;
+    captureLabelAfterMove = "right";
+    isServoWaitingToReturn = false; // Tunda auto-return sampai foto selesai
+  }
+
+  // Proses capture setelah servo selesai bergerak ke posisi target PIR
+  if (triggerCaptureAfterMove) {
+    int current = __atomic_load_n(&currentServoAngle, __ATOMIC_SEQ_CST);
+    int target = __atomic_load_n(&targetServoAngle, __ATOMIC_SEQ_CST);
+    if (current == target) {
+      triggerCaptureAfterMove = false;
+      captureAndUpload(captureLabelAfterMove);
+      // Immediately return to default angle after capture is complete
+      setTargetAngle(SERVO_POS_DEFAULT);
+      isServoWaitingToReturn = false;
+    }
   }
 
   // Debug: Print pin states every 2 seconds
