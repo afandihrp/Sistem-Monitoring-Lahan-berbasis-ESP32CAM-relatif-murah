@@ -55,13 +55,9 @@ const uint8_t left_pir_pin = 13;
 const uint8_t middle_pir_pin = 15;
 const uint8_t right_pir_pin = 14;
 
-volatile bool left_pir = false;
-volatile bool middle_pir = false;
-volatile bool right_pir = false;
-
-bool prev_state_left_pir = false;
-bool prev_state_middle_pir = false;
-bool prev_state_right_pir = false;
+volatile bool pendingLeftMotion = false;
+volatile bool pendingMiddleMotion = false;
+volatile bool pendingRightMotion = false;
 
 // Flash LED GPIO (AI Thinker ESP32-CAM: GPIO 4)
 #define FLASH_GPIO_NUM 4
@@ -435,6 +431,17 @@ void setup() {
     0
   );
 
+  // Create FreeRTOS task for PIR sensor polling (Pinned to Core 0)
+  xTaskCreatePinnedToCore(
+    pirTask,
+    "pirTask",
+    2048,
+    NULL,
+    1,
+    NULL,
+    0
+  );
+
   // Tambahkan delay 1 detik agar tegangan listrik (power supply) stabil kembali 
   // setelah servo menarik arus besar. Ini mencegah error inisialisasi I2C kamera (Error 0x106).
   delay(1000);
@@ -595,36 +602,44 @@ void captureAndUpload(String label) {
 }
 
 
-void check_sensor(uint8_t pin, bool &prev_state, String label, uint8_t angle) {
-  bool current_state = digitalRead(pin);
-  if (current_state == HIGH && prev_state == LOW) {
-    // Move servo to the direction of motion smoothly
-    setTargetAngle(angle);
+void pirTask(void * pvParameters) {
+  bool local_prev_left = false;
+  bool local_prev_middle = false;
+  bool local_prev_right = false;
 
-    // Kirim notifikasi motion ke server via WebSocket
-    String msg = "{\"type\":\"motion\",\"sensor\":\"" + label + "\"}";
-    webSocket.sendTXT(msg);
-    Serial.println("Motion detected: " + label);
+  for (;;) {
+    // Poll Left PIR
+    bool left = digitalRead(left_pir_pin);
+    if (left && !local_prev_left) {
+      setTargetAngle(SERVO_POS_LEFT);
+      __atomic_store_n(&pendingLeftMotion, true, __ATOMIC_SEQ_CST);
+      local_prev_left = true;
+    } else if (!left && local_prev_left) {
+      local_prev_left = false;
+    }
 
-    // HAPUS: captureAndUpload(label); agar stream video tidak terhenti/freeze.
-    // Sebagai gantinya, jadwalkan pengembalian servo ke tengah setelah 5 detik
-    // agar backend sempat merekam video ke arah tersebut.
-    extern unsigned long servoReturnTime;
-    extern bool isServoWaitingToReturn;
-    servoReturnTime = millis() + 5000;
-    isServoWaitingToReturn = true;
+    // Poll Middle PIR
+    bool middle = digitalRead(middle_pir_pin);
+    if (middle && !local_prev_middle) {
+      setTargetAngle(SERVO_POS_MIDDLE);
+      __atomic_store_n(&pendingMiddleMotion, true, __ATOMIC_SEQ_CST);
+      local_prev_middle = true;
+    } else if (!middle && local_prev_middle) {
+      local_prev_middle = false;
+    }
 
-    prev_state = HIGH;
-  } else if (current_state == LOW && prev_state == HIGH) {
-    prev_state = LOW;
+    // Poll Right PIR
+    bool right = digitalRead(right_pir_pin);
+    if (right && !local_prev_right) {
+      setTargetAngle(SERVO_POS_RIGHT);
+      __atomic_store_n(&pendingRightMotion, true, __ATOMIC_SEQ_CST);
+      local_prev_right = true;
+    } else if (!right && local_prev_right) {
+      local_prev_right = false;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(50)); // Poll every 50ms
   }
-}
-
-void check_pins()
-{
-  check_sensor(left_pir_pin, prev_state_left_pir, "left", SERVO_POS_LEFT);
-  check_sensor(middle_pir_pin, prev_state_middle_pir, "middle", SERVO_POS_MIDDLE);
-  check_sensor(right_pir_pin, prev_state_right_pir, "right", SERVO_POS_RIGHT);
 }
 
 unsigned long lastPinDebug = 0;
@@ -661,7 +676,25 @@ void loop() {
     isServoWaitingToReturn = false;
   }
 
-  check_pins();
+  // Proses pending motion reports secara thread-safe dari pirTask
+  if (__atomic_exchange_n(&pendingLeftMotion, false, __ATOMIC_SEQ_CST)) {
+    webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"left\"}");
+    Serial.println("Motion detected: left");
+    servoReturnTime = millis() + 5000;
+    isServoWaitingToReturn = true;
+  }
+  if (__atomic_exchange_n(&pendingMiddleMotion, false, __ATOMIC_SEQ_CST)) {
+    webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"middle\"}");
+    Serial.println("Motion detected: middle");
+    servoReturnTime = millis() + 5000;
+    isServoWaitingToReturn = true;
+  }
+  if (__atomic_exchange_n(&pendingRightMotion, false, __ATOMIC_SEQ_CST)) {
+    webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"right\"}");
+    Serial.println("Motion detected: right");
+    servoReturnTime = millis() + 5000;
+    isServoWaitingToReturn = true;
+  }
 
   // Debug: Print pin states every 2 seconds
   if (millis() - lastPinDebug > 2000) {
