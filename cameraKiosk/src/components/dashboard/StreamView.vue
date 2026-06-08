@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import ServoConfiguratorModal from './ServoConfiguratorModal.vue'
 import CameraConfiguratorModal from './CameraConfiguratorModal.vue'
 import CameraFeed from './CameraFeed.vue'
+import AiConfiguratorModal from './AiConfiguratorModal.vue'
 
 const props = defineProps({
   devices: {
@@ -47,6 +48,7 @@ const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServ
 const servoValue = ref(90)
 const showConfig = ref(false)
 const showCameraConfig = ref(false)
+const showAiConfig = ref(false)
 
 const onlineDevices = computed(() => props.devices.filter(d => d.status === 'Online'))
 
@@ -189,11 +191,26 @@ const handleSaveCameraConfig = (config) => {
                 {{ viewMode === 'single' ? 'Multiple View' : 'Single View' }}
               </button>
 
-              <!-- Repurposed AI Disable/Enable Button -->
+              <!-- Repurposed AI Disable/Enable Button with Embedded Config Cog -->
               <button @click="emit('setAiEnabled', !aiEnabled)" 
-                      :class="['btn flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2', aiEnabled ? 'btn-outline-warning' : 'btn-warning']">
-                <i :class="aiEnabled ? 'bi bi-eye-slash-fill' : 'bi bi-eye-fill'"></i>
-                {{ aiEnabled ? 'Disable AI' : 'Enable AI' }}
+                      :class="['btn flex-grow-1 d-flex align-items-center justify-content-center position-relative py-2', aiEnabled ? 'btn-outline-warning' : 'btn-warning']"
+                      style="padding-right: 4rem; padding-left: 1rem;">
+                <span class="d-flex align-items-center gap-1">
+                  <i :class="aiEnabled ? 'bi bi-eye-slash-fill' : 'bi bi-eye-fill'"></i>
+                  {{ aiEnabled ? 'Disable AI' : 'Enable AI' }}
+                </span>
+                
+                <!-- Static Line Separator and Embedded Cog Wheel Container -->
+                <div class="position-absolute end-0 top-0 bottom-0 d-flex align-items-center" style="width: 3rem;">
+                  <!-- Static Divider Line -->
+                  <div class="h-100" style="border-left: 1px solid currentColor;"></div>
+                  <!-- Config Cog Button -->
+                  <div @click.stop="showAiConfig = true" 
+                       class="flex-grow-1 h-100 d-flex align-items-center justify-content-center ai-cog-btn"
+                       title="AI Configuration">
+                    <i class="bi bi-gear-fill"></i>
+                  </div>
+                </div>
               </button>
             </div>
           </div>
@@ -242,6 +259,14 @@ const handleSaveCameraConfig = (config) => {
       :mac="currentStream.mac" 
       @close="showCameraConfig = false" 
       @save="handleSaveCameraConfig" 
+    />
+
+    <!-- AI Configuration Modal -->
+    <AiConfiguratorModal 
+      v-if="showAiConfig" 
+      :aiEnabled="aiEnabled"
+      @close="showAiConfig = false" 
+      @save="showAiConfig = false" 
     />
   </div>
 </template>
@@ -371,5 +396,16 @@ const handleSaveCameraConfig = (config) => {
     z-index: 1020;
     border-bottom: 2px solid #1e293b;
   }
+}
+
+/* Premium AI Cog Button styling & Micro-animations */
+.ai-cog-btn {
+  opacity: 0.7;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.ai-cog-btn:hover {
+  opacity: 1;
+  transform: rotate(45deg);
 }
 </style>
