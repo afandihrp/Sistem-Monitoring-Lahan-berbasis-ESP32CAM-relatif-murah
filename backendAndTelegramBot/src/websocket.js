@@ -6,6 +6,7 @@ const { aiClient } = require('./services/aiClient');
 const { logEvent, getLogs, updateLatestLogVideo } = require('./services/logger');
 const { sendMotionAlert, sendMotionVideoAlert } = require('./services/telegram');
 const { renderVideo } = require('./services/videoRenderer');
+const { calculateNextFollowerAngle } = require('./services/objectFollower');
 
 const CONFIG_FILE = path.join(__dirname, '../../data/servoConfig.json');
 const SYSTEM_SETTINGS_FILE = path.join(__dirname, '../../data/systemSettings.json');
@@ -92,24 +93,22 @@ function stopAiRecording(deviceId) {
         });
       }
 
-      // Instruct camera to return to default position if PIR was active
-      if (wasPirActive) {
-        const defaultAngle = getDefaultAngle(device.mac);
-        if (device.ws && device.ws.readyState === 1) {
-          device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
-        }
-        console.log(`[PIR Video] Sent return-to-center command after video rendering completed.`);
+      // Instruct camera to return to default position
+      const defaultAngle = getDefaultAngle(device.mac);
+      if (device.ws && device.ws.readyState === 1) {
+        device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
       }
+      device.currentAngle = defaultAngle;
+      console.log(`[AI Record] Sent return-to-center command after video rendering completed.`);
     })
     .catch(err => {
       console.error(`[AI Record] Gagal merender video: ${err.message}`);
       // Fallback return-to-center in case of rendering errors
-      if (wasPirActive) {
-        const defaultAngle = getDefaultAngle(device.mac);
-        if (device.ws && device.ws.readyState === 1) {
-          device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
-        }
+      const defaultAngle = getDefaultAngle(device.mac);
+      if (device.ws && device.ws.readyState === 1) {
+        device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
       }
+      device.currentAngle = defaultAngle;
     });
 }
 
@@ -141,6 +140,20 @@ function triggerAiWorker() {
           clearTimeout(device.aiStopTimer);
           device.aiStopTimer = null;
           console.log(`[AI Record] Person detected again. Cancelled stop recording timer for ${deviceId}.`);
+        }
+
+        // Object Follower: track human when recording is active and AI is online
+        if (device.isRecordingAi) {
+          const defaultAngle = getDefaultAngle(device.mac);
+          const followResult = calculateNextFollowerAngle(device.currentAngle, boxCoordinates, defaultAngle);
+          if (followResult) {
+            const { newAngle, offset } = followResult;
+            device.currentAngle = newAngle;
+            if (device.ws && device.ws.readyState === 1) {
+              device.ws.send(JSON.stringify({ type: 'servo_control', value: newAngle }));
+              console.log(`[Object Follower] Adjusted servo for ${deviceId} to ${newAngle}° (Offset: ${offset.toFixed(2)})`);
+            }
+          }
         }
 
         if (device.isPirActive) {
@@ -405,6 +418,27 @@ function getDefaultAngle(mac) {
   return 90; // Default fallback
 }
 
+function getPirAngle(mac, sensor) {
+  if (fs.existsSync(CONFIG_FILE)) {
+    try {
+      const allConfigs = JSON.parse(fs.readFileSync(CONFIG_FILE));
+      const config = allConfigs[mac];
+      if (config) {
+        if (sensor === 'left' && config.leftPirAngle !== undefined) return Number(config.leftPirAngle);
+        if (sensor === 'middle' && config.middlePirAngle !== undefined) return Number(config.middlePirAngle);
+        if (sensor === 'right' && config.rightPirAngle !== undefined) return Number(config.rightPirAngle);
+        if (config.defaultAngle !== undefined) return Number(config.defaultAngle);
+      }
+    } catch (e) {
+      console.error('Error reading pir angle config:', e);
+    }
+  }
+  if (sensor === 'left') return 155;
+  if (sensor === 'middle') return 90;
+  if (sensor === 'right') return 0;
+  return 90; // Default fallback
+}
+
 function getSignalBars(rssi) {
   if (rssi >= -55) return 5;
   if (rssi >= -65) return 4;
@@ -492,7 +526,9 @@ function initWebSocket(server) {
         aiStopTimer: null,
         latestSnapshotFilename: null,
         currentResolution: null,
-        currentQuality: null
+        currentQuality: null,
+        currentAngle: getDefaultAngle(macAddress),
+        lastServoAdjustTime: 0
       });
       broadcastDeviceList(wss);
 
@@ -647,6 +683,7 @@ function initWebSocket(server) {
             if (device) {
               device.isPirActive = true;
               device.lastTimePersonSeen = Date.now(); // Start hold timer from trigger timestamp
+              device.currentAngle = getPirAngle(device.mac, data.sensor);
               if (device.pirActiveTimeout) {
                 clearTimeout(device.pirActiveTimeout);
               }
@@ -662,6 +699,7 @@ function initWebSocket(server) {
                     if (device.ws && device.ws.readyState === 1) {
                       device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
                     }
+                    device.currentAngle = defaultAngle;
                   }
                   console.log(`[AI Hold] Pre-upload safety timeout triggered (8s). Returned servo to center for ${deviceId}.`);
                 }
@@ -781,8 +819,11 @@ function initWebSocket(server) {
           } else if (data.type === 'servo_control' && !isCamera) {
             // Forward servo control from Kiosk to specific Camera
             const device = devices.get(data.deviceId);
-            if (device && device.ws && device.ws.readyState === 1) {
-              device.ws.send(JSON.stringify({ type: 'servo_control', value: data.value }));
+            if (device) {
+              device.currentAngle = Number(data.value);
+              if (device.ws && device.ws.readyState === 1) {
+                device.ws.send(JSON.stringify({ type: 'servo_control', value: data.value }));
+              }
             }
           } else if (data.type === 'get_servo_config' && !isCamera) {
             // Retrieve config from file and send back to Kiosk
@@ -812,9 +853,14 @@ function initWebSocket(server) {
             // Push updated config directly to the specific camera device via WebSocket
             const deviceArray = Array.from(devices.values());
             const cameraDevice = deviceArray.find(d => d.mac === data.mac);
-            if (cameraDevice && cameraDevice.ws && cameraDevice.ws.readyState === 1) {
-               cameraDevice.ws.send(JSON.stringify({ type: 'servo_config_update', config: data.config }));
-               console.log(`Pushed updated servo config to camera ${data.mac}`);
+            if (cameraDevice) {
+              if (data.config && data.config.defaultAngle !== undefined) {
+                cameraDevice.currentAngle = Number(data.config.defaultAngle);
+              }
+              if (cameraDevice.ws && cameraDevice.ws.readyState === 1) {
+                cameraDevice.ws.send(JSON.stringify({ type: 'servo_config_update', config: data.config }));
+                console.log(`Pushed updated servo config to camera ${data.mac}`);
+              }
             }
           } else if (data.type === 'get_camera_config' && !isCamera) {
             if (fs.existsSync(CAMERA_CONFIG_FILE)) {
