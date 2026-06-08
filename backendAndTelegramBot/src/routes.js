@@ -173,9 +173,9 @@ function createRouter(wss) {
         let humanPresence = false;
         let aiDetails = null;
 
-        const { getPirAiDetection } = require('./websocket');
+        const { getGlobalAiEnabled, getPirAiDetection } = require('./websocket');
 
-        if (getPirAiDetection()) {
+        if (getGlobalAiEnabled() && getPirAiDetection()) {
           try {
             console.log(`[AI Object Detection] Analyzing picture from IP: ${ip}, Sensor: ${sensor}...`);
             const aiResult = await checkPersonAI(req.body);

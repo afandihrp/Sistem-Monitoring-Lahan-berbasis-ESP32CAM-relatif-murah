@@ -23,6 +23,8 @@ let globalAiEnabled = true;
 let globalViewMode = 'single';
 let globalPirAiDetection = true;
 let globalPirAiRecording = true;
+let globalStreamAiDetection = true;
+let globalStreamAiRecording = true;
 let globalObjectTracking = true;
 let globalMaxDuration = 30;
 
@@ -173,7 +175,7 @@ function triggerAiWorker() {
           console.log(`[AI Hold] Person detected on PIR-active camera ${deviceId}. Extending hold.`);
         } else {
           // Normal AI recording logic
-          if (!device.isRecordingAi) {
+          if (!device.isRecordingAi && globalStreamAiRecording) {
             console.log(`[AI Record] Person detected on ${deviceId}. Starting recording...`);
             device.isRecordingAi = true;
             device.aiSensorName = 'AI_Person_Detection';
@@ -342,9 +344,11 @@ function loadSystemSettings() {
       globalViewMode = settings.globalViewMode || 'single';
       globalPirAiDetection = settings.pirAiDetection !== undefined ? settings.pirAiDetection : true;
       globalPirAiRecording = settings.pirAiRecording !== undefined ? settings.pirAiRecording : true;
+      globalStreamAiDetection = settings.streamAiDetection !== undefined ? settings.streamAiDetection : true;
+      globalStreamAiRecording = settings.streamAiRecording !== undefined ? settings.streamAiRecording : true;
       globalObjectTracking = settings.objectTracking !== undefined ? settings.objectTracking : true;
       globalMaxDuration = settings.maxDuration !== undefined ? settings.maxDuration : 30;
-      console.log(`[Settings] Loaded system settings: ViewMode = ${globalViewMode}, AI = ${globalAiEnabled ? 'ENABLED' : 'DISABLED'}, PIR AI Det = ${globalPirAiDetection}, PIR AI Rec = ${globalPirAiRecording}, Tracking = ${globalObjectTracking}, MaxDur = ${globalMaxDuration}s`);
+      console.log(`[Settings] Loaded system settings: ViewMode = ${globalViewMode}, AI = ${globalAiEnabled ? 'ENABLED' : 'DISABLED'}, PIR AI Det = ${globalPirAiDetection}, PIR AI Rec = ${globalPirAiRecording}, Stream AI Det = ${globalStreamAiDetection}, Stream AI Rec = ${globalStreamAiRecording}, Tracking = ${globalObjectTracking}, MaxDur = ${globalMaxDuration}s`);
     } else {
       console.log('[Settings] No system settings file found, using defaults.');
     }
@@ -364,6 +368,8 @@ function saveSystemSettings() {
       globalViewMode,
       pirAiDetection: globalPirAiDetection,
       pirAiRecording: globalPirAiRecording,
+      streamAiDetection: globalStreamAiDetection,
+      streamAiRecording: globalStreamAiRecording,
       objectTracking: globalObjectTracking,
       maxDuration: globalMaxDuration
     };
@@ -620,6 +626,8 @@ function initWebSocket(server) {
         config: {
           pirAiDetection: globalPirAiDetection,
           pirAiRecording: globalPirAiRecording,
+          streamAiDetection: globalStreamAiDetection,
+          streamAiRecording: globalStreamAiRecording,
           objectTracking: globalObjectTracking,
           maxDuration: globalMaxDuration
         } 
@@ -652,7 +660,7 @@ function initWebSocket(server) {
             }
           }
 
-          if (globalAiEnabled) {
+          if (globalAiEnabled && globalStreamAiDetection) {
             enqueueAiRequest(deviceId, message);
           }
         }
@@ -838,11 +846,13 @@ function initWebSocket(server) {
             if (config) {
               globalPirAiDetection = config.pirAiDetection !== undefined ? config.pirAiDetection : true;
               globalPirAiRecording = config.pirAiRecording !== undefined ? config.pirAiRecording : true;
+              globalStreamAiDetection = config.streamAiDetection !== undefined ? config.streamAiDetection : true;
+              globalStreamAiRecording = config.streamAiRecording !== undefined ? config.streamAiRecording : true;
               globalObjectTracking = config.objectTracking !== undefined ? config.objectTracking : true;
               globalMaxDuration = config.maxDuration !== undefined ? config.maxDuration : 30;
               saveSystemSettings();
               
-              console.log(`[Settings] AI Config saved: Detection=${globalPirAiDetection}, Recording=${globalPirAiRecording}, Tracking=${globalObjectTracking}, MaxDur=${globalMaxDuration}s`);
+              console.log(`[Settings] AI Config saved: PIR Det=${globalPirAiDetection}, PIR Rec=${globalPirAiRecording}, Stream Det=${globalStreamAiDetection}, Stream Rec=${globalStreamAiRecording}, Tracking=${globalObjectTracking}, MaxDur=${globalMaxDuration}s`);
               
               // Reply to the sender that save was successful
               ws.send(JSON.stringify({ type: 'save_ai_config_success' }));
@@ -853,6 +863,8 @@ function initWebSocket(server) {
                 config: {
                   pirAiDetection: globalPirAiDetection,
                   pirAiRecording: globalPirAiRecording,
+                  streamAiDetection: globalStreamAiDetection,
+                  streamAiRecording: globalStreamAiRecording,
                   objectTracking: globalObjectTracking,
                   maxDuration: globalMaxDuration
                 }
@@ -1195,6 +1207,14 @@ function getPirAiRecording() {
   return globalPirAiRecording;
 }
 
+function getStreamAiDetection() {
+  return globalStreamAiDetection;
+}
+
+function getStreamAiRecording() {
+  return globalStreamAiRecording;
+}
+
 function getObjectTracking() {
   return globalObjectTracking;
 }
@@ -1214,6 +1234,8 @@ module.exports = {
   getDefaultAngle,
   getPirAiDetection,
   getPirAiRecording,
+  getStreamAiDetection,
+  getStreamAiRecording,
   getObjectTracking,
   getMaxDuration
 };

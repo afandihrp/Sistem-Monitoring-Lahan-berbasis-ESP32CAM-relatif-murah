@@ -16,6 +16,8 @@ const aiEnabled = ref(true)
 const aiConfig = ref({
   pirAiDetection: true,
   pirAiRecording: true,
+  streamAiDetection: true,
+  streamAiRecording: true,
   objectTracking: true,
   maxDuration: 30
 })

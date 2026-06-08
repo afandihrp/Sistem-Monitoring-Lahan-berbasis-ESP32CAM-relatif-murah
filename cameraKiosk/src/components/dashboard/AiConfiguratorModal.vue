@@ -11,6 +11,8 @@ const props = defineProps({
     default: () => ({
       pirAiDetection: true,
       pirAiRecording: true,
+      streamAiDetection: true,
+      streamAiRecording: true,
       objectTracking: true,
       maxDuration: 30
     })
@@ -21,6 +23,8 @@ const emit = defineEmits(['close', 'save'])
 
 const pirAiDetection = ref(props.initialConfig.pirAiDetection)
 const pirAiRecording = ref(props.initialConfig.pirAiRecording)
+const streamAiDetection = ref(props.initialConfig.streamAiDetection)
+const streamAiRecording = ref(props.initialConfig.streamAiRecording)
 const objectTracking = ref(props.initialConfig.objectTracking)
 const maxDuration = ref(props.initialConfig.maxDuration)
 
@@ -31,10 +35,19 @@ watch(pirAiDetection, (newVal) => {
   }
 })
 
+// Watch stream detection toggle to automatically turn off recording if stream detection is disabled
+watch(streamAiDetection, (newVal) => {
+  if (!newVal) {
+    streamAiRecording.value = false
+  }
+})
+
 const saveConfig = () => {
   emit('save', {
     pirAiDetection: pirAiDetection.value,
     pirAiRecording: pirAiRecording.value,
+    streamAiDetection: streamAiDetection.value,
+    streamAiRecording: streamAiRecording.value,
     objectTracking: objectTracking.value,
     maxDuration: maxDuration.value
   })
@@ -59,6 +72,36 @@ const saveConfig = () => {
           <div class="text-slate-400 mt-1" style="font-size: 0.7rem; line-height: 1.3;">
             The global AI switch is currently turned off. All AI-dependent detection, recording, and tracking settings below are temporarily inactive.
           </div>
+        </div>
+      </div>
+
+      <!-- Stream Camera AI Detection & Recording Container -->
+      <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700 transition-all"
+           :style="{ opacity: aiEnabled ? 1 : 0.4, pointerEvents: aiEnabled ? 'auto' : 'none' }">
+        <!-- Parent Switch: Detection -->
+        <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
+          <div>
+            <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="streamDetectionSwitch">
+              Stream Camera Detection
+            </label>
+            <span class="text-slate-500" style="font-size: 0.7rem;">Enables AI object detection on live stream frames</span>
+          </div>
+          <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="streamDetectionSwitch" v-model="streamAiDetection" :disabled="!aiEnabled">
+        </div>
+
+        <!-- Divider Line -->
+        <hr style="border-color: #334155; opacity: 0.35; margin: 1rem 0;">
+
+        <!-- Sub-setting Switch: Recording -->
+        <div class="form-check form-switch d-flex justify-content-between align-items-center p-0 ms-4" 
+             :style="{ opacity: streamAiDetection ? 1 : 0.4, transition: 'opacity 0.2s ease', pointerEvents: streamAiDetection ? 'auto' : 'none' }">
+          <div>
+            <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="streamRecordingSwitch">
+              Stream Camera Recording
+            </label>
+            <span class="text-slate-500 d-block" style="font-size: 0.7rem;">Saves video clips during live stream AI detection events</span>
+          </div>
+          <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="streamRecordingSwitch" v-model="streamAiRecording" :disabled="!aiEnabled || !streamAiDetection">
         </div>
       </div>
 
