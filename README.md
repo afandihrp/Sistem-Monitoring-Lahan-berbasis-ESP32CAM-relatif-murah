@@ -1,6 +1,6 @@
 # Sistem Monitoring Keamanan & Bounding Box AI Berbasis ESP32-CAM
 
-Sistem monitoring keamanan pintar berbasis IoT yang mengintegrasikan kamera **ESP32-CAM**, sensor gerak PIR multi-arah, motor servo pemutar kamera otomatis, kecerdasan buatan (AI) untuk deteksi manusia, serta bot Telegram untuk notifikasi instan berupa foto dan rekaman video kejadian secara *real-time*.
+Sistem monitoring keamanan pintar berbasis IoT yang mengintegrasikan kamera **ESP32-CAM**, sensor gerak PIR multi-arah, motor servo pemutar kamera otomatis, kecerdasan buatan (AI) untuk deteksi dan pelacakan manusia (*Object Tracking*), serta bot Telegram untuk notifikasi instan berupa foto dan rekaman video kejadian secara *real-time*.
 
 ---
 
@@ -21,41 +21,41 @@ Sistem monitoring keamanan pintar berbasis IoT yang mengintegrasikan kamera **ES
 ### 1. Pelacakan Gerakan Otomatis (PIR-Triggered Servo Rotation)
 * Menggunakan 3 sensor PIR (Kiri, Tengah, Kanan) untuk mendeteksi pergerakan di area sekitar kamera.
 * Kamera akan secara otomatis berputar (menggunakan Motor Servo) mengarah ke lokasi PIR yang mendeteksi gerakan secara presisi.
-* Sudut putaran servo untuk masing-masing arah sensor dapat diatur secara kustom melalui panel kontrol.
 
-### 2. Live Streaming Video Real-Time
+### 2. Deteksi Manusia & Object Tracking Berbasis AI (Python Object Detection)
+* Backend Node.js mengirimkan frame video ke server AI berbasis Python.
+* Menampilkan *bounding box* (kotak pelacak) di sekitar tubuh manusia secara *real-time* pada antarmuka Kiosk UI.
+* **Fitur Object Tracking**: Motor servo akan secara dinamis terus menyesuaikan sudut (*panning*) untuk mengikuti pergerakan manusia di dalam jangkauan kamera berdasarkan posisi *bounding box*.
+* AI diatur secara terpusat (*Centralized AI Controller*) sehingga dapat berjalan efisien baik untuk mode Live Stream maupun untuk trigger kejadian (Event) PIR.
+
+### 3. Sistem Perekaman Video Cerdas
+* Perekaman kejadian berjalan otomatis saat terdeteksi gerakan oleh PIR atau AI.
+* **Dynamic Timeout**: Jika AI menyala, rekaman akan dipertahankan dengan *grace period* dinamis dan *fallback timeout* hingga 90 detik. Jika AI mati, rekaman akan berjalan dengan durasi statis 10 detik.
+* Frame dikumpulkan dalam *rolling buffer* dan di-render menjadi file video `.mp4` menggunakan FFmpeg tanpa mengganggu kinerja *streaming* (*Asynchronous Rendering*).
+
+### 4. Live Streaming Video Real-Time
 * Streaming video format MJPEG dari ESP32-CAM yang dikirim langsung melalui protokol WebSocket dengan latensi sangat rendah.
-* Mendukung mode tampilan **Single View** (fokus pada satu kamera aktif) dan **Multiple View** (monitoring banyak kamera sekaligus di satu layar).
+* Mendukung mode tampilan **Single View** (fokus pada satu kamera aktif) dan **Multiple View** (monitoring banyak kamera sekaligus).
 
-### 3. Deteksi Manusia Berbasis AI (Python Object Detection)
-* Backend Node.js mengirimkan frame video secara asinkron ke server AI berbasis Python.
-* Menampilkan *bounding box* (kotak pelacak) berwarna hijau di sekitar tubuh manusia secara *real-time* pada Kiosk UI.
-* Perekaman video kejadian (durasi maksimal 10 detik per event) otomatis aktif ketika ada orang terdeteksi, dengan masa tenggang (*grace period*) 3 detik setelah orang meninggalkan area untuk memastikan rekaman selesai secara utuh.
-
-### 4. Skala Resolusi & Kualitas Dinamis (Dynamic Resolution Scaling)
+### 5. Skala Resolusi & Kualitas Dinamis (Dynamic Resolution Scaling)
 * Kamera memantau kekuatan sinyal Wi-Fi dalam satuan dBm secara berkala (setiap 8 detik).
-* **Mode Dinamis**: Sistem secara otomatis menaikkan atau menurunkan resolusi/kualitas gambar ESP32-CAM berdasarkan kekuatan sinyal (Level 5 s.d. Level 1) untuk mencegah lag dan frame dropping saat bandwidth tidak stabil.
-* Mendukung resolusi dari **UXGA (1600x1200)** hingga **96x96** (sangat optimal untuk Machine Learning/TinyML).
-* **Mode Statis**: Kamera beroperasi dengan satu resolusi tetap.
-* Tombol **Reset** cepat untuk mengembalikan semua konfigurasi resolusi/kualitas ke standar optimal: **HVGA (480x320)** dengan tingkat kualitas gambar **22**.
+* Sistem secara otomatis menaikkan atau menurunkan resolusi dan kualitas gambar ESP32-CAM berdasarkan kekuatan sinyal (Level 5 s.d. Level 1) untuk mencegah *lag* saat koneksi tidak stabil.
 
-### 5. Panel Kontrol Kamera & Tuning Gambar (Kiosk UI)
-* Pengaturan sensor kamera OV2640/OV3660 secara asinkron dari jarak jauh: Kecerahan (*Brightness*), Kontras (*Contrast*), Saturasi (*Saturation*), AWB (*Auto White Balance*), AEC (*Auto Exposure Control*), AGC (*Auto Gain Control*), efek khusus (Sepia, Grayscale, dll), H-Mirror, V-Flip, serta frekuensi XCLK.
-* Kontrol sudut Servo manual melalui slider interaktif.
-* Pengaturan intensitas lampu Flash LED kamera pada saat pengambilan foto resolusi tinggi.
+### 6. Panel Kontrol Kamera & Tuning Gambar (Kiosk UI)
+* Pengaturan sensor kamera secara *remote*: Kecerahan, Kontras, Saturasi, AWB, AEC, AGC, Efek Khusus, H-Mirror, V-Flip.
+* Kontrol sudut Servo manual secara interaktif.
+* Pengaturan intensitas lampu Flash LED kamera (dikendalikan secara halus melalui sinyal PWM/LEDC).
 
-### 6. Integrasi Bot Telegram & Alert Log
-* Mengirimkan notifikasi peringatan pergerakan instan ke grup/kontak Telegram.
-* Notifikasi dikirimkan di akhir kejadian berupa:
-  1. **Foto Snapshot Resolusi Tinggi (FHD)** dengan *bounding box* AI teranotasi.
-  2. **Rekaman Video MP4** dari kejadian gerakan tersebut.
-* Log kejadian tersimpan secara lokal dan dapat diakses langsung pada halaman dashboard.
+### 7. Integrasi Bot Telegram & Alert Log
+* Mengirimkan peringatan instan ke pengguna Telegram.
+* Notifikasi memuat **Foto Snapshot Resolusi Tinggi (FHD)** dengan *bounding box* hasil deteksi AI, beserta **Video MP4** rekaman kejadian.
+* Semua kejadian tersimpan di sistem *logger* lokal dan dapat diputar ulang melalui dashboard.
 
 ---
 
 ## Arsitektur Sistem
 
-Sistem ini terbagi menjadi 3 komponen utama yang saling terhubung:
+Sistem ini terbagi menjadi 4 komponen utama yang saling terhubung dengan alur komunikasi data yang telah dioptimalkan:
 
 ```
 +-------------------+             WebSocket (Frames)            +--------------------+
@@ -74,10 +74,10 @@ Sistem ini terbagi menjadi 3 komponen utama yang saling terhubung:
                                                                                 +--------------------+
 ```
 
-1. **ESP32-CAM Client (C++/Arduino)**: Mengambil data stream gambar, membaca sensor PIR, mengendalikan servo, dan mengirimkan stream gambar via WebSocket biner ke backend.
-2. **Backend Server (Node.js & Express)**: Bertindak sebagai gateway utama, menangani koneksi WebSocket, mengelola konfigurasi, mengompilasi video MP4 menggunakan FFmpeg, mengirim log, serta mengintegrasikan bot Telegram.
-3. **AI Detector (Python & OpenCV)**: Memproses gambar mentah untuk melakukan deteksi manusia berbasis AI dan mengembalikan koordinat kotak (*bounding box*).
-4. **Vue Kiosk UI (Vue 3 & Bootstrap)**: Dashboard antarmuka pengguna bergaya modern dengan tema gelap premium untuk monitoring langsung dan konfigurasi jarak jauh.
+1. **ESP32-CAM Client (C++/Arduino)**: Menangani akuisisi gambar, membaca sensor PIR secara presisi melalui *FreeRTOS tasks*, mengatur putaran motor servo, lampu flash PWM, dan mengirim frame via WebSocket biner.
+2. **Backend Server (Node.js)**: Bertindak sebagai gateway utama, mengelola *state* dan *event* kamera melalui `websocket.js`, dan menengahi (*gatekeeper*) deteksi AI menggunakan `aiController.js`. Proses penerimaan gambar resolusi tinggi (FHD) dilakukan secara terpisah melalui HTTP REST (`routes.js`) agar lebih efisien, sebelum didelegasikan ke pemrosesan WebSocket.
+3. **AI Detector (Python & OpenCV)**: Memproses gambar mentah untuk melakukan deteksi objek (model *TinyML/YOLO*) dan mengembalikan data koordinat orang (*bounding box*).
+4. **Vue Kiosk UI**: Dashboard modern untuk pemantauan dan konfigurasi langsung.
 
 ---
 
@@ -86,17 +86,16 @@ Sistem ini terbagi menjadi 3 komponen utama yang saling terhubung:
 [tambahkan gambar alur_deteksi_keamanan disini]
 
 1. Sensor PIR mendeteksi adanya gerakan di salah satu sisi (Kiri/Tengah/Kanan).
-2. Servo memutar kamera ESP32-CAM secara instan ke arah gerakan tersebut.
-3. ESP32-CAM mengirimkan notifikasi gerakan biner ke backend.
-4. Server Node.js mulai mengumpulkan frame video dan memulai antrean pemrosesan frame ke server Python AI.
-5. Jika AI mendeteksi keberadaan manusia:
-   * Backend menandai status event sedang merekam dan membuat placeholder entri baru di log.
-   * Server Python AI merender gambar teranotasi (*bounding box*) untuk disimpan sebagai snapshot utama.
-6. Saat manusia meninggalkan jangkauan kamera (selama minimal 3 detik grace period):
-   * Backend menghentikan proses pengumpulan frame video.
-   * Render video MP4 dijalankan secara asinkron menggunakan FFmpeg.
-   * Bot Telegram mengirim pesan peringatan yang berisi **Foto Teranotasi** diikuti dengan **Video MP4**.
-   * Log dashboard diperbarui dengan tautan video hasil rekaman.
+2. Motor servo memutar kamera dengan mulus (*smooth transition*) mengarah ke lokasi gerakan.
+3. Kamera mengirimkan permintaan *capture* gambar Resolusi Tinggi (FHD) via *HTTP POST* ke Node.js, diikuti pembaruan status ke sistem WebSocket backend.
+4. Backend memulai sesi rekaman video (*Video Recording Session*) dan meneruskan gambar awal ke Server AI Python.
+5. Jika AI mendeteksi manusia:
+   * Fitur **Object Tracking** diaktifkan; kamera akan terus bergerak mengikuti arah pergeseran orang di dalam *frame*.
+   * Render foto snapshot AI yang berisikan *bounding box* akan dikirim via Telegram sebagai *alert* seketika.
+6. Saat manusia tidak lagi terdeteksi (setelah tenggang waktu *grace period* berakhir):
+   * Backend menyetop penyimpanan *buffer* rekaman.
+   * Modul perenderan memproses kumpulan *frame* JPEG menjadi video MP4 secara *asynchronous* menggunakan FFmpeg.
+   * Video lengkap kemudian dikirimkan ke pengguna Telegram dan dicatat di *log* dasbor lokal.
 
 ---
 
@@ -112,50 +111,39 @@ Berikut adalah konfigurasi pinout antara ESP32-CAM AI-Thinker dengan modul senso
 | **PIR Sensor (Kiri)** | OUT / Data | GPIO 13 | Input sinyal gerakan kiri |
 | **PIR Sensor (Tengah)** | OUT / Data | GPIO 15 | Input sinyal gerakan tengah |
 | **PIR Sensor (Kanan)** | OUT / Data | GPIO 14 | Input sinyal gerakan kanan |
-| **Motor Servo** | PWM / Control (Orange) | GPIO 12 | Kontrol sudut servo pemutar |
-| **Flash LED** | Onboard | GPIO 4 | Lampu sorot flash (Built-in) |
+| **Motor Servo** | PWM / Control | GPIO 12 | Kontrol sudut servo pemutar |
+| **Flash LED** | Onboard | GPIO 4 | Lampu sorot flash (Built-in) dikontrol PWM |
 
-### 2. Sumber Daya (Powering)
+### 2. Sumber Daya (Power Supply)
 * **VCC & GND**: Hubungkan semua kaki VCC komponen PIR ke 5V, dan GND ke GND.
-* **Servo MG90S/SG90**: Motor servo menarik arus besar ketika berputar. Sangat direkomendasikan menggunakan **Power Supply Eksternal 5V 2A** untuk mensuplai servo secara terpisah. Pastikan untuk menghubungkan **GND Power Supply Eksternal** dengan **GND ESP32-CAM** (Common Ground) agar sinyal PWM dapat terbaca dengan benar.
+* **PENTING**: Motor servo menarik arus daya yang besar ketika berputar. Sangat disarankan untuk menggunakan **Power Supply Eksternal 5V (Minimal 2A)** untuk menyuplai servo secara terpisah. Pastikan untuk menghubungkan jalur **GND Power Supply Eksternal** dengan jalur **GND ESP32-CAM** (*Common Ground*) agar sinyal PWM kontrol dari ESP32 dapat dibaca dengan stabil oleh servo.
 
 ### 3. Konfigurasi Arduino IDE
 1. Buka Arduino IDE dan buka file `camera_client_ws/camera_client_ws.ino`.
-2. Pasang library berikut melalui Library Manager:
-   * `WebSockets` oleh Markus Sattler
-3. Konfigurasi pada menu Tools:
+2. Pasang library `WebSockets` oleh Markus Sattler melalui Library Manager.
+3. Konfigurasi papan pengembangan (Board) pada menu Tools:
    * Board: **AI Thinker ESP32-CAM**
-   * PSRAM: **Enabled** (Wajib aktif untuk buffer streaming)
+   * PSRAM: **Enabled** (Wajib aktif untuk buffer *streaming* dan alokasi memori FHD)
    * Partition Scheme: **Huge APP (3MB No OTA/1MB SPIFFS)**
-4. Ubah kredensial Wi-Fi Anda pada baris 45-46:
-   ```cpp
-   const char* ssid = "SSID_WIFI_ANDA";
-   const char* password = "PASSWORD_WIFI_ANDA";
-   ```
-5. Unggah/Upload sketch ke board ESP32-CAM Anda menggunakan USB-to-TTL UART Adapter.
+4. Ubah kredensial Wi-Fi Anda di baris konfigurasi `ssid` dan `password`.
+5. *Compile* dan *Upload* program ke papan ESP32-CAM Anda.
 
 ---
 
 ## Panduan Instalasi Aplikasi (Server-Side)
 
 ### 1. Prasyarat Sistem & Spesifikasi Komputer Server
-Untuk menjalankan AI inference (deteksi manusia) serta menghosting web server dan WebSocket dengan lancar, komputer server Anda harus memenuhi spesifikasi minimum berikut:
+Sistem ini menggunakan kecerdasan buatan dan konversi rekaman video yang memerlukan daya komputasi secukupnya:
+* **Perangkat Keras**: Raspberry Pi (3/4/5) atau Komputer PC/Laptop kelas i3/i5. RAM minimal **1 GB** (Direkomendasikan **2 GB** ke atas).
+* **OS**: Linux OS (Ubuntu Server, Debian, Raspberry Pi OS, dll).
+* **Perangkat Lunak**:
+  * Node.js (v16+)
+  * Python (v3.8+)
+  * FFmpeg (wajib diinstal di sistem operasi Anda).
 
-* **Perangkat Keras (Hardware)**:
-  * **Single Board Computer**: Raspberry Pi 3, 4, atau 5 (atau SBC sejenis seperti Orange Pi / Odroid).
-  * **Komputer/PC/Laptop**: Intel Core i5 Generasi ke-3 (atau prosesor AMD/Intel lain dengan CPU setara).
-  * **RAM**: Minimal **1 GB s.d. 2 GB RAM** (RAM lebih besar direkomendasikan untuk performa deteksi AI yang lebih responsif dan lancar).
-* **Sistem Operasi**:
-  * **Linux OS**: Ubuntu Server (versi LTS direkomendasikan), Debian, Raspberry Pi OS, atau distro Linux pilihan Anda lainnya.
-* **Perangkat Lunak Pendukung**:
-  * **Node.js** (v16 atau lebih baru)
-  * **Python** (v3.8 atau lebih baru)
-  * **FFmpeg** (terdaftar di environment path sistem operasi Anda untuk rendering video)
-
-### 2. Instalasi & Setup Langkah demi Langkah
+### 2. Instalasi Langkah demi Langkah
 
 #### Langkah Awal: Kloning Repositori
-Kloning repositori proyek ini ke komputer server lokal Anda terlebih dahulu:
 ```bash
 git clone https://github.com/username/projectTaGateway.git
 cd projectTaGateway
@@ -166,49 +154,47 @@ cd projectTaGateway
    ```bash
    cd backendAndTelegramBot
    ```
-2. Pasang pustaka dependensi:
+2. Pasang dependensi:
    ```bash
    npm install
    ```
-3. Konfigurasi berkas lingkungan (.env):
-   * Buat/edit file `.env` di dalam folder ini dan isi dengan Token Bot Telegram Anda:
-     ```env
-     TELEGRAM_BOT_TOKEN=TOKEN_BOT_TELEGRAM_ANDA
-     TELEGRAM_AUTH_PASSWORD=PASSWORD_UNTUK_AUTENTIKASI_USER
-     ```
-4. Jalankan server backend (development mode):
+3. Buat file `.env` di dalam folder ini dan isi kredensial bot Telegram Anda:
+   ```env
+   TELEGRAM_BOT_TOKEN=TOKEN_BOT_TELEGRAM_ANDA
+   TELEGRAM_AUTH_PASSWORD=PASSWORD_UNTUK_AUTENTIKASI_USER
+   ```
+4. Jalankan backend:
    ```bash
    npm run dev
    ```
-   *Server akan berjalan di port `3000` dan mengaktifkan fitur HTTPS otomatis dengan mDNS `gateway.local`.*
+   *(Server beroperasi di port 3000 dan dapat diakses dengan nama domain mDNS `gateway.local`)*
 
 #### Langkah B: Setup AI Detector (Python)
-1. Masuk ke folder detektor:
+1. Masuk ke folder detektor AI:
    ```bash
    cd human_detection
    ```
-2. Buat virtual environment Python baru dan aktifkan:
+2. Buat & aktifkan *virtual environment*:
    ```bash
    python3 -m venv pc_env
    source pc_env/bin/activate
    ```
-3. Pasang semua paket dependensi yang dibutuhkan:
+3. Pasang *library* yang dibutuhkan:
    ```bash
    pip install -r requirements.txt
    ```
-4. Pastikan file model pre-trained `yolo11n_int8.tflite` sudah tersedia di dalam folder.
-5. Jalankan server deteksi Python:
+4. Pastikan file model AI (misal: `yolo11n_int8.tflite`) sudah berada di folder proyek.
+5. Jalankan *server* Python AI:
    ```bash
    ./start.sh
    ```
-   *Server AI Python akan berjalan secara lokal dan mendengarkan request frame gambar dari server Node.js.*
 
 #### Langkah C: Setup Kiosk UI (Frontend)
-1. Masuk ke folder dashboard:
+1. Masuk ke folder aplikasi dasbor:
    ```bash
    cd cameraKiosk
    ```
-2. Pasang pustaka dependensi:
+2. Pasang dependensi Node:
    ```bash
    npm install
    ```
@@ -216,26 +202,24 @@ cd projectTaGateway
    ```bash
    npm run dev
    ```
-   *Dashboard akan dapat diakses di peramban web pada alamat `http://localhost:5173`.*
+   *(Dasbor diakses via Web Browser di `http://localhost:5173`)*
 
 ---
 
 ## Panduan Pengoperasian Aplikasi
 
-### 1. Menghubungkan Kamera
-* Nyalakan ESP32-CAM Anda. Kamera akan mencari koneksi Wi-Fi dan secara otomatis meresolve alamat server menggunakan mDNS `gateway.local`.
-* Setelah terhubung, status kamera di Kiosk UI akan berubah menjadi **Online (🟢)** dan streaming video *real-time* akan langsung muncul.
+### 1. Menghubungkan Kamera & Sinkronisasi Kiosk
+* Pastikan Server Node.js berjalan. ESP32-CAM akan secara otomatis terhubung mencari domain `gateway.local`.
+* Kiosk akan secara *real-time* menampilkan status kamera berubah menjadi **Online (🟢)** dan saluran transmisi video akan langsung ditampilkan di dasbor.
 
-### 2. Registrasi Penerima Notifikasi Telegram
-* Buka aplikasi Telegram dan cari bot Anda menggunakan username bot yang sesuai.
-* Tekan `/start` atau kirim pesan apapun. Bot akan merespons dengan meminta password autentikasi.
-* Kirimkan password yang telah Anda set di file `.env` backend (misal: `123123`).
-* Setelah autentikasi sukses, ID akun Telegram Anda berhasil terdaftar ke dalam database `data/config.json`. Anda sekarang akan menerima peringatan deteksi manusia berupa foto dan rekaman video secara otomatis.
+### 2. Autentikasi Pengguna Telegram
+* Di aplikasi Telegram, cari bot yang telah Anda buat. Tekan `/start`.
+* Saat bot meminta *password*, kirim pesan dengan kata sandi autentikasi yang Anda tentukan di `.env` (contoh: `123123`).
+* Apabila sukses, ID Telegram Anda akan terdaftar, dan notifikasi keamanan akan diarahkan langsung ke perangkat (*chat*) Anda.
 
-### 3. Mengontrol Servo Manual & Image Tuning
-* Buka dashboard Kiosk di peramban web (`http://localhost:5173`).
-* Gunakan slider sudut di bawah layar untuk memutar arah kamera secara manual atau klik tombol arah Kiri/Tengah/Kanan.
-* Klik tombol **Configure Camera** untuk membuka modal pengaturan detail sensor. Di sini Anda bisa mengaktifkan mode dynamic scaling, mengubah brightness/contrast, serta melakukan Reset parameter ke default.
+### 3. Kendali Cerdas di Dasbor
+* **Manual Control**: Ubah arah kamera memakai *slider* interaktif.
+* **Camera Config**: Ubah sensitivitas cahaya, tingkat *brightness*, dan profil mode skala dinamis/statis kamera. Klik *Save* untuk memperbarui pengaturan *on-the-fly* (tanpa mematikan kamera).
 
 ---
 
@@ -243,20 +227,19 @@ cd projectTaGateway
 
 [tambahkan gambar camera_configuration_modal disini]
 
-Untuk mengatur detail tuning kamera dan dynamic resolution scaling:
-1. Klik tombol **Configure Camera** di dashboard Kiosk.
-2. Atur **Scale Mode**:
-   * **Static**: Pilih satu resolusi tetap untuk streaming.
-   * **Dynamic**: Tentukan resolusi & kualitas untuk 5 tingkatan kualitas sinyal Wi-Fi berbeda (Excellent s.d. Very Weak).
-3. Klik tombol **Save Camera Settings** untuk mengirimkan perintah konfigurasi langsung ke ESP32-CAM via WebSocket.
-4. Jika ingin mengembalikan semua pengaturan resolusi ke kondisi bawaan awal, klik tombol **Reset** yang berada di dalam kotak "Resolution & Quality".
+1. Klik tombol **Configure Camera** di UI dasbor.
+2. Pilih pengaturan **Scale Mode**:
+   * **Static**: Streaming dipatok pada resolusi stabil tanpa menyesuaikan kekuatan sinyal.
+   * **Dynamic**: Memungkinkan Anda untuk mendaftar 5 level kualitas *(Level 5 Excellent s.d. Level 1 Very Weak)*. Kamera akan mendeteksi level sinyal (RSSI dBm) dan menyeimbangkan kualitas *streaming* secara lincah agar *delay* tetap minimum.
+3. Klik **Save Camera Settings**.
+4. Gunakan tombol **Reset** (*Hardware Default*) kapan saja jika Anda ingin memulihkan semua penyetelan kontras/warna/resolusi kembali ke performa rata-rata terbaik (HVGA kualitas 22).
 
 ---
 
 ## Demo Aplikasi
 
 [tambahkan gambar dashboard_monitoring disini]
-*Tampilan dashboard monitoring utama dengan panel kontrol servo manual, live streaming video, panel log riwayat, dan grafik status sistem.*
+*Tampilan dashboard pemantauan utama dengan panel kendali servo, streaming video seketika, dan daftar kejadian pergerakan.*
 
 [tambahkan gambar telegram_notification_demo disini]
-*Tampilan pesan bot Telegram berupa lampiran snapshot manusia ber-bounding box AI beserta lampiran video rekaman MP4.*
+*Contoh peringatan (*alert*) pada Telegram berisikan pelacakan sasaran manusia (bounding box) dan video format MP4 hasil rekam jejak yang dirangkum oleh server Node.js.*
