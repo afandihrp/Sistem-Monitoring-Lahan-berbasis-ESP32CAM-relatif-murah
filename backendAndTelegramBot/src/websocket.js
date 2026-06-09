@@ -3,10 +3,11 @@ const fs = require('fs');
 const path = require('path');
 
 const { aiClient } = require('./services/aiClient');
-const { logEvent, getLogs, updateLatestLogVideo } = require('./services/logger');
+const { logEvent, getLogs, updateLatestLogVideo, updateLatestLogWithAI } = require('./services/logger');
 const { sendMotionAlert, sendMotionVideoAlert } = require('./services/telegram');
 const { renderVideo } = require('./services/videoRenderer');
 const { calculateNextFollowerAngle } = require('./services/objectFollower');
+const { shouldEnqueueStreamFrame, shouldWorkerProcessFrame } = require('./services/aiController');
 
 const CONFIG_FILE = path.join(__dirname, '../../data/servoConfig.json');
 const SYSTEM_SETTINGS_FILE = path.join(__dirname, '../../data/systemSettings.json');
@@ -145,7 +146,7 @@ function triggerAiWorker() {
   const { deviceId, frameBuffer } = aiQueue.shift();
   
   const device = devices.get(deviceId);
-  if (!device || device.status !== 'Online' || !globalAiEnabled) {
+  if (!device || device.status !== 'Online' || !shouldWorkerProcessFrame(device, { globalAiEnabled, globalPirAiRecording })) {
     isAiWorkerRunning = false;
     setImmediate(triggerAiWorker);
     return;
@@ -712,7 +713,7 @@ function initWebSocket(server) {
             }
           }
 
-          if (globalAiEnabled && globalStreamAiDetection) {
+          if (shouldEnqueueStreamFrame(device, { globalAiEnabled, globalStreamAiDetection, globalPirAiRecording })) {
             enqueueAiRequest(deviceId, message);
           }
         }
@@ -1251,40 +1252,182 @@ function updateFlashIntensity(intensity) {
   console.log(`[FlashControl] Pushed updated flash intensity (${intensity}) to all cameras`);
 }
 
-function getGlobalAiEnabled() {
-  return globalAiEnabled;
-}
 
-function getPirAiDetection() {
-  return globalPirAiDetection;
-}
 
-function getPirAiRecording() {
-  return globalPirAiRecording;
-}
+/**
+ * handlePirUpload
+ *
+ * Handles all business logic triggered by a PIR high-res image upload from the ESP32-CAM.
+ * Called by routes.js after it has already responded 200 to the camera.
+ *
+ * Responsibilities:
+ *  - Start/manage PIR video recording session
+ *  - Run AI snapshot analysis (if enabled via aiController)
+ *  - Broadcast bounding boxes, motion_image_update, historical_logs to kiosks
+ *  - Send Telegram snapshot alert
+ *  - Write the finalized image to disk and update log.json
+ *
+ * @param {string}  ip          - Camera IP address
+ * @param {string}  sensor      - PIR sensor name (left/middle/right)
+ * @param {Buffer}  imageBuffer - Raw JPEG bytes from the camera
+ * @param {object}  wss         - WebSocketServer instance (for broadcasting)
+ * @param {string}  filepath    - Absolute path to save the final image
+ * @param {string}  filename    - Filename of the image (for Telegram / log)
+ * @param {string}  imageUrl    - Relative URL for the image (for log / WS payload)
+ */
+async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename, imageUrl) {
+  const deviceId = `cam_${ip.replace(/\./g, '_')}`;
+  const device = devices.get(deviceId);
 
-function getStreamAiDetection() {
-  return globalStreamAiDetection;
-}
+  if (!device) {
+    console.warn(`[PIR Upload] No device found for IP: ${ip}. Skipping.`);
+    return;
+  }
 
-function getStreamAiRecording() {
-  return globalStreamAiRecording;
-}
+  // --- 1. Clear the 8-second pre-upload safety timeout ---
+  if (device.pirActiveTimeout) {
+    clearTimeout(device.pirActiveTimeout);
+    device.pirActiveTimeout = null;
+  }
 
-function getStreamAiTelegram() {
-  return globalStreamAiTelegram;
-}
+  // --- 2. Determine whether AI can drive the recording ---
+  const { shouldRunPirSnapshotAI } = require('./services/aiController');
+  const isAiOnline = aiClient.isConnected && globalAiEnabled && globalPirAiRecording;
+  const aiSettings = {
+    globalAiEnabled,
+    globalPirAiDetection,
+    globalPirAiRecording
+  };
 
-function getTelegramInterval() {
-  return globalTelegramInterval;
-}
+  // --- 3. Evaluate Telegram cooldown ---
+  const now = Date.now();
+  const intervalMs = globalTelegramInterval * 1000;
+  if (!device.lastTelegramAlertTime || (now - device.lastTelegramAlertTime >= intervalMs)) {
+    device.lastTelegramAlertTime = now;
+    device.telegramAlertsMuted = false;
+  } else {
+    console.log(`[Telegram] PIR alerts throttled (cooldown active) for device ${deviceId}`);
+    device.telegramAlertsMuted = true;
+  }
 
-function getObjectTracking() {
-  return globalObjectTracking;
-}
+  // --- 4. Start recording session (always on PIR event) ---
+  device.isRecordingAi = true;
+  device.aiSensorName = sensor;
+  device.lastTimePersonSeen = Date.now();
 
-function getMaxDuration() {
-  return globalMaxDuration;
+  // Trim rollingBuffer to keep only the pre-roll frames of the sweep movement
+  while (device.rollingBuffer.length > 30) {
+    device.rollingBuffer.shift();
+  }
+
+  console.log(`[PIR Video] Start recording video stream for ${deviceId} after high-res photo upload.`);
+
+  // Tell camera to cancel its local return-to-center timer
+  if (device.ws && device.ws.readyState === 1) {
+    device.ws.send(JSON.stringify({ type: 'cancel_return' }));
+    console.log(`[PIR Video] Sent cancel_return command to camera ${deviceId}`);
+  }
+
+  // --- 5. Schedule recording stop timeout ---
+  if (!isAiOnline) {
+    console.log(`[PIR Video] AI is offline/disabled. Scheduling flat 10-second stop & return for ${deviceId}.`);
+    device.pirActiveTimeout = setTimeout(() => {
+      if (device.isRecordingAi) stopAiRecording(deviceId);
+      device.pirActiveTimeout = null;
+    }, 10000);
+  } else {
+    console.log(`[PIR Video] AI is online. Scheduling 90-second safety fallback timeout for ${deviceId}.`);
+    device.pirActiveTimeout = setTimeout(() => {
+      if (device.isRecordingAi) stopAiRecording(deviceId);
+      device.pirActiveTimeout = null;
+    }, 90000);
+  }
+
+  // --- 6. Run AI snapshot analysis and finalize image asynchronously ---
+  (async () => {
+    let imageToSave = imageBuffer;
+    let humanPresence = false;
+    let aiDetails = null;
+
+    if (shouldRunPirSnapshotAI(aiSettings)) {
+      try {
+        console.log(`[AI Object Detection] Analyzing picture from IP: ${ip}, Sensor: ${sensor}...`);
+        const result = await aiClient.sendRequest(imageBuffer, true, 10000);
+
+        if (result) {
+          aiDetails = {
+            status: result.status,
+            message: result.pesan,
+            person_detected: result.ada_orang,
+            person_count: result.jumlah_orang,
+            box_coordinates: result.koordinat_kotak
+          };
+          humanPresence = result.ada_orang === true;
+
+          if (result.annotated_image) {
+            imageToSave = Buffer.from(result.annotated_image, 'base64');
+          }
+
+          console.log(`[AI Object Detection] Result: ${result.pesan} (Human count: ${result.jumlah_orang})`);
+
+          // Broadcast bounding boxes to frontend immediately
+          if (result.koordinat_kotak && Array.isArray(result.koordinat_kotak)) {
+            const boxPayload = JSON.stringify({
+              type: 'stream_boxes',
+              deviceId: deviceId,
+              boxes: result.koordinat_kotak
+            });
+            wss.clients.forEach((client) => {
+              if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                client.send(boxPayload);
+              }
+            });
+          }
+        }
+      } catch (aiErr) {
+        console.error('[AI Object Detection] Failed to call AI (falling back to raw image):', aiErr.message);
+      }
+    } else {
+      console.log(`[AI Object Detection] PIR AI is disabled. Skipping AI analysis for IP: ${ip}.`);
+    }
+
+    // Save the finalized image (AI-annotated or raw fallback)
+    fs.writeFileSync(filepath, imageToSave);
+
+    // Update log.json
+    updateLatestLogWithAI(sensor, ip, imageUrl, humanPresence, aiDetails);
+
+    // Send Telegram snapshot alert
+    if (!device.telegramAlertsMuted) {
+      sendMotionAlert(`IP: ${ip}`, sensor, filename);
+    } else {
+      console.log(`[Telegram] PIR snapshot alert throttled for device ${deviceId}`);
+    }
+
+    // Notify kiosk clients
+    const motionPayload = JSON.stringify({
+      type: 'motion_image_update',
+      sensor: sensor,
+      deviceId: deviceId,
+      imageUrl: imageUrl,
+      humanPresence: humanPresence,
+      aiDetails: aiDetails
+    });
+
+    const payloadLogs = JSON.stringify({
+      type: 'historical_logs',
+      logs: getLogs()
+    });
+
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+        client.send(motionPayload);
+        client.send(payloadLogs);
+      }
+    });
+  })().catch(err => {
+    console.error('[PIR Upload] Asynchronous processing error:', err);
+  });
 }
 
 module.exports = { 
@@ -1292,16 +1435,7 @@ module.exports = {
   getDevices, 
   sendCaptureRequest, 
   switchActiveStream, 
-  updateFlashIntensity, 
-  getGlobalAiEnabled, 
-  stopAiRecording, 
-  getDefaultAngle,
-  getPirAiDetection,
-  getPirAiRecording,
-  getStreamAiDetection,
-  getStreamAiRecording,
-  getStreamAiTelegram,
-  getTelegramInterval,
-  getObjectTracking,
-  getMaxDuration
+  updateFlashIntensity,
+  handlePirUpload
 };
+

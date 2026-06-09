@@ -234,7 +234,7 @@ const saveConfig = () => {
               <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="trackingSwitch">
                 AI Camera Object Tracking
               </label>
-              <span class="text-slate-500" style="font-size: 0.7rem;">Camera servo follows detected human objects in live stream</span>
+              <span class="text-slate-500" style="font-size: 0.7rem;">Camera servo follows detected human objects only during active recording events</span>
             </div>
             <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="trackingSwitch" v-model="objectTracking" :disabled="!aiEnabled">
           </div>
