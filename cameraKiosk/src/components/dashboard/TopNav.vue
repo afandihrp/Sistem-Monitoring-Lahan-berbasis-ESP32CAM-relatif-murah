@@ -19,6 +19,11 @@ defineProps({
   aiEnabled: {
     type: Boolean,
     default: true
+  },
+  // Tambahan prop untuk menerima data storage dari backend
+  storageData: {
+    type: Object,
+    default: null
   }
 })
 </script>
@@ -31,18 +36,36 @@ defineProps({
         Gateway_OS
       </a>
       <div class="d-flex align-items-center gap-3">
+        
+        <div v-if="storageData" class="d-flex flex-column justify-content-center border-end pe-3 me-1 border-slate-700" style="width: 110px;">
+          <div class="d-flex justify-content-between mb-1" style="font-size: 0.6rem; font-weight: bold;">
+            <span class="text-secondary">STORAGE</span>
+            <span :class="storageData.percentage >= 90 ? 'text-danger animate-pulse' : (storageData.percentage >= 70 ? 'text-warning' : 'text-success')">
+              {{ storageData.percentage }}%
+            </span>
+          </div>
+          <div class="progress" style="height: 4px; background-color: #334155; border-radius: 2px;">
+            <div class="progress-bar" 
+                 :class="storageData.percentage >= 90 ? 'bg-danger' : (storageData.percentage >= 70 ? 'bg-warning' : 'bg-success')" 
+                 :style="{ width: storageData.percentage + '%' }" >
+            </div>
+          </div>
+          <div class="text-secondary mt-1 text-center font-monospace" style="font-size: 0.55rem;">
+            {{ storageData.usedGb }}GB / {{ storageData.totalGb }}GB
+          </div>
+        </div>
         <div class="d-flex align-items-center gap-2 border-end pe-2 pe-sm-3 border-slate-700">
           <div class="fw-bold font-monospace lh-1" style="font-size: 0.85rem;">{{ currentTime }}</div>
           <div class="text-secondary" style="font-size: 0.65rem;">
             {{ new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) }}
           </div>
         </div>
+        
         <div class="d-flex flex-column align-items-end justify-content-center text-secondary" style="font-size: 0.85rem; line-height: 1.2;">
           <span :class="wsStatus === 'Online' ? 'text-success' : 'text-danger'" class="fw-bold d-flex align-items-center gap-1" style="font-size: 0.8rem;">
             <i :class="wsStatus === 'Online' ? 'bi-broadcast text-success' : 'bi-broadcast-pin text-danger'"></i>
             <span class="d-none d-sm-inline">WS:</span> {{ wsStatus }}
           </span>
-          <!-- Four-State AI Connection and Detection Label -->
           <span v-if="!aiEnabled" class="fw-bold d-flex align-items-center gap-1 text-slate-400" style="font-size: 0.65rem; margin-top: 1px;">
             <i class="bi bi-eye-slash-fill text-slate-400"></i>
             AI: DISABLED
@@ -78,18 +101,9 @@ defineProps({
 }
 
 @media (max-width: 480px) {
-  .navbar-brand {
-    font-size: 0.85rem !important;
-  }
-  .navbar-brand i {
-    font-size: 1rem !important;
-  }
-  .container-fluid {
-    padding-left: 0.4rem !important;
-    padding-right: 0.4rem !important;
-  }
-  .gap-3 {
-    gap: 0.5rem !important;
-  }
+  .navbar-brand { font-size: 0.85rem !important; }
+  .navbar-brand i { font-size: 1rem !important; }
+  .container-fluid { padding-left: 0.4rem !important; padding-right: 0.4rem !important; }
+  .gap-3 { gap: 0.5rem !important; }
 }
 </style>

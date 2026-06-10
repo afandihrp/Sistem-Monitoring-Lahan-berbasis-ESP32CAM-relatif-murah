@@ -6,6 +6,7 @@
 #include "esp_camera.h"
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
+#include <WiFiManager.h>
 
 // AI Thinker ESP32-CAM Pinout
 #define PWDN_GPIO_NUM     32
@@ -38,15 +39,7 @@ uint8_t SERVO_POS_MIDDLE = 90;
 uint8_t SERVO_POS_RIGHT = 0;
 uint8_t SERVO_POS_DEFAULT = 90;
 
-// WiFi credentials
-// const char* ssid = "Tenda03";
-// const char* password = "BRHtenda68";
-
-const char* ssid = "BatuKhan";
-const char* password = "momoygemoy";
-
-// const char* ssid = "Tenda_6A9248";
-// const char* password = "";
+// WiFi credentials managed by WiFiManager
 
 // Security API Key
 const char* apiKey = "momo_gemoy_api_key_123";
@@ -63,7 +56,6 @@ volatile bool pendingRightMotion = false;
 #define FLASH_GPIO_NUM 4
 
 // Flag untuk on-demand capture via Telegram
-volatile bool pendingOnDemandCapture = false;
 String pendingCaptureLabel = "";
 
 // Flag untuk servo control
@@ -231,7 +223,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
         // dan menyebabkan koneksi disconnect.
         if (cmd.indexOf("\"capture_request\"") >= 0) {
           Serial.println("[WSc] On-demand capture queued.");
-          pendingOnDemandCapture = true;
+          pendingCaptureLabel = "capture";
         } else if (cmd.indexOf("\"cancel_return\"") >= 0) {
           isServoWaitingToReturn = false;
           Serial.println("[WSc] Cancel return command received.");
@@ -494,11 +486,23 @@ void setup() {
   Serial.println("Camera ready: Pre-allocated FHD, Streaming at HVGA.");
 
 
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+  // Initialize WiFiManager
+  WiFiManager wm;
+  
+  // Set timeouts to prevent hanging
+  wm.setConnectTimeout(20); // 20 seconds max to try connecting to saved WiFi
+  wm.setConfigPortalTimeout(180); // 3 minutes max in captive portal before auto-restarting
+
+  Serial.println("Starting WiFiManager...");
+  // This will block until connected or the captive portal is configured
+  bool res = wm.autoConnect("ESP32-CAM-Config");
+  
+  if(!res) {
+      Serial.println("Failed to connect to WiFi. Restarting...");
+      delay(3000);
+      ESP.restart();
   }
+  
   Serial.println("\nWiFi connected");
 
   // Resolve gateway.local via mDNS
@@ -509,22 +513,28 @@ void setup() {
   Serial.println("Resolving gateway.local...");
   serverIP = MDNS.queryHost("gateway");
   
-  while (serverIP.toString() == "0.0.0.0") {
+  int mdnsAttempts = 0;
+  while (serverIP.toString() == "0.0.0.0" && mdnsAttempts < 10) {
     Serial.println("mDNS query failed, retrying...");
     delay(1000);
     serverIP = MDNS.queryHost("gateway");
+    mdnsAttempts++;
   }
   
-  Serial.printf("Resolved gateway.local to: %s\n", serverIP.toString().c_str());
+  if (serverIP.toString() != "0.0.0.0") {
+    Serial.printf("Resolved gateway.local to: %s\n", serverIP.toString().c_str());
 
-  // Get MAC address and construct connection path with query parameters
-  String mac = WiFi.macAddress();
-  String path = "/camera?mac=" + mac + "&apiKey=" + String(apiKey);
+    // Get MAC address and construct connection path with query parameters
+    String mac = WiFi.macAddress();
+    String path = "/camera?mac=" + mac + "&apiKey=" + String(apiKey);
 
-  // Connect to WebSocket using the resolved IP and query string path
-  webSocket.beginSSL(serverIP.toString().c_str(), 3000, path.c_str(), "", "");
-  webSocket.onEvent(webSocketEvent);
-  webSocket.setReconnectInterval(5000);
+    // Connect to WebSocket using the resolved IP and query string path
+    webSocket.beginSSL(serverIP.toString().c_str(), 3000, path.c_str(), "", "");
+    webSocket.onEvent(webSocketEvent);
+    webSocket.setReconnectInterval(5000);
+  } else {
+    Serial.println("mDNS resolution failed. WebSocket will not start.");
+  }
 }
 
 // Fungsi capture & upload yang bisa dipanggil dari PIR maupun on-demand
@@ -573,7 +583,6 @@ void captureAndUpload(String label) {
   Serial.println("[3] Capturing frame...");
   camera_fb_t * fb = esp_camera_fb_get();
   if (cam_flashOnCapture) {
-    // digitalWrite(FLASH_GPIO_NUM, LOW);  // Dihapus karena flash sekarang nyala permanen
     Serial.println("[3] Flash kept ON.");
   }
 
@@ -587,21 +596,25 @@ void captureAndUpload(String label) {
 
 
   // === STEP 3: Upload ke server ===
-  WiFiClientSecure client;
-  client.setInsecure();
-  HTTPClient http;
-  String uploadUrl = "https://" + serverIP.toString() + ":3000/upload?sensor=" + label + "&ip=" + WiFi.localIP().toString();
-  Serial.println("[5] Posting to: " + uploadUrl);
-  http.setTimeout(20000);
-  http.begin(client, uploadUrl);
-  http.addHeader("Content-Type", "image/jpeg");
-  int httpResponseCode = http.POST(fb->buf, fb->len);
-  if (httpResponseCode > 0) {
-    Serial.printf("[6] Upload SUCCESS: HTTP %d\n", httpResponseCode);
+  if (WiFi.status() == WL_CONNECTED) {
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    String uploadUrl = "https://" + serverIP.toString() + ":3000/upload?sensor=" + label + "&ip=" + WiFi.localIP().toString();
+    Serial.println("[5] Posting to: " + uploadUrl);
+    http.setTimeout(20000);
+    http.begin(client, uploadUrl);
+    http.addHeader("Content-Type", "image/jpeg");
+    int httpResponseCode = http.POST(fb->buf, fb->len);
+    if (httpResponseCode > 0) {
+      Serial.printf("[6] Upload SUCCESS: HTTP %d\n", httpResponseCode);
+    } else {
+      Serial.printf("[6] Upload FAILED: %s\n", http.errorToString(httpResponseCode).c_str());
+    }
+    http.end();
   } else {
-    Serial.printf("[6] Upload FAILED: %s\n", http.errorToString(httpResponseCode).c_str());
+    Serial.println("[5] WiFi Disconnected, skipping upload.");
   }
-  http.end();
   esp_camera_fb_return(fb);
 
   // === STEP 4: Kembali ke mode streaming yang terkonfigurasi ===
@@ -654,15 +667,13 @@ void pirTask(void * pvParameters) {
 unsigned long lastPinDebug = 0;
 
 void loop() {
-  webSocket.loop();
+  if (WiFi.status() == WL_CONNECTED) {
+    webSocket.loop();
+  }
 
   // Proses on-demand capture DI SINI (di main loop, bukan di WS callback)
   // agar webSocket.loop() bisa bekerja normal selama flush buffer
-  if (pendingOnDemandCapture) {
-    pendingOnDemandCapture = false;
-    captureAndUpload("capture");
-  }
-  
+
   if (pendingCaptureLabel != "") {
     String label = pendingCaptureLabel;
     pendingCaptureLabel = "";
@@ -688,21 +699,21 @@ void loop() {
 
   // Proses pending motion reports secara thread-safe dari pirTask
   if (__atomic_exchange_n(&pendingLeftMotion, false, __ATOMIC_SEQ_CST)) {
-    webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"left\"}");
+    if (WiFi.status() == WL_CONNECTED) webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"left\"}");
     Serial.println("Motion detected: left");
     triggerCaptureAfterMove = true;
     captureLabelAfterMove = "left";
     isServoWaitingToReturn = false; // Tunda auto-return sampai foto selesai
   }
   if (__atomic_exchange_n(&pendingMiddleMotion, false, __ATOMIC_SEQ_CST)) {
-    webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"middle\"}");
+    if (WiFi.status() == WL_CONNECTED) webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"middle\"}");
     Serial.println("Motion detected: middle");
     triggerCaptureAfterMove = true;
     captureLabelAfterMove = "middle";
     isServoWaitingToReturn = false; // Tunda auto-return sampai foto selesai
   }
   if (__atomic_exchange_n(&pendingRightMotion, false, __ATOMIC_SEQ_CST)) {
-    webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"right\"}");
+    if (WiFi.status() == WL_CONNECTED) webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"right\"}");
     Serial.println("Motion detected: right");
     triggerCaptureAfterMove = true;
     captureLabelAfterMove = "right";
@@ -731,7 +742,7 @@ void loop() {
                   digitalRead(right_pir_pin));
   }
 
-  if (isConnected) {    
+  if (isConnected && WiFi.status() == WL_CONNECTED) {    
     // Send signal strength every 5 seconds
     if (millis() - lastSignalSent > 8000) {
       lastSignalSent = millis();
@@ -741,11 +752,8 @@ void loop() {
       Serial.printf("Signal: %ld dBm\n", rssi);
     }
 
-    camera_fb_t * fb = NULL;
-
-
     // Ambil frame untuk dikirim ke kiosk
-    fb = esp_camera_fb_get();
+    camera_fb_t * fb = esp_camera_fb_get();
     if (!fb) {
       // Buffer sedang dipakai (misal saat captureAndUpload), skip frame ini
       delay(10);
@@ -755,8 +763,6 @@ void loop() {
     // Kirim frame JPEG ke kiosk via WebSocket
     webSocket.sendBIN(fb->buf, fb->len);
     esp_camera_fb_return(fb);
-
-    // delay(200);
   }
 }
 

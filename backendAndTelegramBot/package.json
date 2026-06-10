@@ -17,6 +17,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "check-disk-space": "^3.4.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "multicast-dns": "^7.2.5",

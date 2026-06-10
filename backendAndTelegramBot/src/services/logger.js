@@ -12,14 +12,14 @@ function logEvent(eventData) {
         logs = JSON.parse(fileContent);
       }
     }
-    
+
     const logEntry = {
       ...eventData,
       timestamp: eventData.timestamp || new Date().toISOString()
     };
-    
+
     logs.push(logEntry);
-    
+
     fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2), 'utf8');
   } catch (error) {
     console.error('Error writing to log.json:', error);
@@ -81,11 +81,101 @@ function updateLatestLogVideo(sensor, deviceIp, videoUrl) {
   }
 }
 
+// --- TAMBAHAN FITUR MANAJEMEN PENYIMPANAN (STORAGE MANAGEMENT) ---
+
+// Fungsi helper untuk menghapus file fisik (gambar/video) dengan aman
+function deleteFileSafely(fileUrl, folderName) {
+  if (!fileUrl) return;
+  const fileName = fileUrl.split('/').pop(); // Mengambil nama file dari URL
+  const filePath = path.join(__dirname, `../../../data/${folderName}`, fileName);
+  if (fs.existsSync(filePath)) {
+    try {
+      fs.unlinkSync(filePath);
+      console.log(`[Storage] Deleted file: ${fileName}`);
+    } catch (err) {
+      console.error(`[Storage] Failed to delete file ${fileName}:`, err.message);
+    }
+  }
+}
+
+// 1. Hapus 1 Kejadian (Single Delete)
+function deleteEventSingle(timestamp) {
+  try {
+    let logs = getLogs();
+    const index = logs.findIndex(log => log.timestamp === timestamp);
+
+    if (index !== -1) {
+      const log = logs[index];
+      // Hapus file fisik
+      if (log.imageUrl) deleteFileSafely(log.imageUrl, 'photos');
+      if (log.videoUrl) deleteFileSafely(log.videoUrl, 'videos');
+
+      // Hapus data dari array log.json
+      logs.splice(index, 1);
+      fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2), 'utf8');
+      return true;
+    }
+  } catch (error) {
+    console.error('Error in deleteEventSingle:', error);
+  }
+  return false;
+}
+
+// 2. Hapus Banyak Kejadian di 1 Tanggal (Batch Delete)
+function deleteEventsByDate(dateString) { // format dateString: "YYYY-MM-DD"
+  try {
+    let logs = getLogs();
+    const initialLength = logs.length;
+
+    logs = logs.filter(log => {
+      const logDate = new Date(log.timestamp);
+      // Ubah timestamp menjadi format YYYY-MM-DD sesuai waktu lokal
+      const localDateStr = `${logDate.getFullYear()}-${String(logDate.getMonth() + 1).padStart(2, '0')}-${String(logDate.getDate()).padStart(2, '0')}`;
+
+      if (localDateStr === dateString) {
+        // Hapus file fisik jika tanggal cocok
+        if (log.imageUrl) deleteFileSafely(log.imageUrl, 'photos');
+        if (log.videoUrl) deleteFileSafely(log.videoUrl, 'videos');
+        return false; // false = buang dari array (dihapus)
+      }
+      return true; // true = simpan
+    });
+
+    if (logs.length !== initialLength) {
+      fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2), 'utf8');
+      return true;
+    }
+  } catch (error) {
+    console.error('Error in deleteEventsByDate:', error);
+  }
+  return false;
+}
+
+// 3. Hapus Kejadian Paling Tua (Auto-Purge)
+function deleteOldestEvent() {
+  try {
+    let logs = getLogs();
+    if (logs.length > 0) {
+      const log = logs.shift(); // Menghapus elemen pertama (paling tua)
+      if (log.imageUrl) deleteFileSafely(log.imageUrl, 'photos');
+      if (log.videoUrl) deleteFileSafely(log.videoUrl, 'videos');
+
+      fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2), 'utf8');
+      return true;
+    }
+  } catch (error) {
+    console.error('Error in deleteOldestEvent:', error);
+  }
+  return false;
+}
+
+// Pastikan fungsi-fungsi ini ikut di-export agar bisa dipanggil oleh websocket.js
 module.exports = {
   logEvent,
   getLogs,
   updateLatestLogWithAI,
-  updateLatestLogVideo
-};
-
-
+  updateLatestLogVideo,
+  deleteEventSingle,    // <--- Tambahkan
+  deleteEventsByDate,   // <--- Tambahkan
+  deleteOldestEvent     // <--- Tambahkan
+}; 

@@ -1,9 +1,10 @@
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
+const checkDiskSpace = require('check-disk-space').default;
 
 const { aiClient } = require('./services/aiClient');
-const { logEvent, getLogs, updateLatestLogVideo, updateLatestLogWithAI } = require('./services/logger');
+const { logEvent, getLogs, updateLatestLogVideo, updateLatestLogWithAI, deleteOldestEvent } = require('./services/logger');
 const { sendMotionAlert, sendMotionVideoAlert } = require('./services/telegram');
 const { renderVideo } = require('./services/videoRenderer');
 const { calculateNextFollowerAngle } = require('./services/objectFollower');
@@ -31,6 +32,89 @@ let globalTelegramInterval = 10;
 let globalObjectTracking = true;
 let globalMaxDuration = 30;
 
+// --- KODE BARU DITAMBAHKAN DI SINI ---
+let isPurging = false;
+let cachedStoragePayload = null;
+
+function buildStoragePayload(diskSpace) {
+  const total = diskSpace.size;
+  const free = diskSpace.free;
+  const used = total - free;
+  const percentage = Math.round((used / total) * 100);
+
+  return {
+    type: 'storage_update',
+    totalGb: (total / (1024 ** 3)).toFixed(1),
+    usedGb: (used / (1024 ** 3)).toFixed(1),
+    percentage
+  };
+}
+
+function broadcastStoragePayload() {
+  if (!wssInstance || !cachedStoragePayload) return;
+
+  const storagePayload = JSON.stringify(cachedStoragePayload);
+  wssInstance.clients.forEach(client => {
+    if (client.readyState === 1 && !client.path?.startsWith('/camera')) {
+      client.send(storagePayload);
+    }
+  });
+}
+
+async function checkStorageAndPurge() {
+  try {
+    // Pada Linux (Raspberry Pi), root storage biasanya di '/'. (Ubah ke 'C:/' jika pakai Windows)
+    const rootPath = process.platform === 'win32' ? 'C:/' : '/';
+    const diskSpace = await checkDiskSpace(rootPath);
+
+    cachedStoragePayload = buildStoragePayload(diskSpace);
+    const percentage = cachedStoragePayload.percentage;
+
+    // 1. Broadcast Info Storage ke Web Kiosk
+    broadcastStoragePayload();
+
+    // 2. Logika Auto-Purge (Bersihkan jika memori sentuh 90%)
+    if (percentage >= 90 && !isPurging) {
+      console.log(`[Storage] ALARM: Disk usage at ${percentage}%. Starting auto-purge...`);
+      isPurging = true;
+      let currentPercentage = percentage;
+
+      // Looping hapus data terlama sampai storage turun di bawah 50%
+      while (currentPercentage > 50) {
+        const deleted = deleteOldestEvent();
+        if (!deleted) break; // Berhenti jika array log.json sudah kosong
+
+        // Re-check kapasitas disk setelah menghapus satu event
+        const newDiskSpace = await checkDiskSpace(rootPath);
+        cachedStoragePayload = buildStoragePayload(newDiskSpace);
+        currentPercentage = cachedStoragePayload.percentage;
+      }
+
+      console.log(`[Storage] Auto-purge complete. Disk usage dropped to ${currentPercentage}%.`);
+      isPurging = false;
+      broadcastStoragePayload();
+
+      // Broadcast log terbaru ke Dashboard Kiosk karena datanya banyak yang dihapus
+      if (wssInstance) {
+        const logsPayload = JSON.stringify({ type: 'historical_logs', logs: getLogs() });
+        wssInstance.clients.forEach(client => {
+          if (client.readyState === 1 && !client.path?.startsWith('/camera')) {
+            client.send(logsPayload);
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.error('[Storage] Error checking disk space:', err);
+  }
+}
+
+// Jalankan fungsi check memori setiap 1 Menit
+setInterval(checkStorageAndPurge, 60 * 1000);
+
+// Panggil paksa 1 kali saat server baru menyala (agar tidak perlu nunggu 1 menit pertama)
+checkStorageAndPurge();
+
 // Centralized sequential AI object detection queue
 const aiQueue = [];
 let isAiWorkerRunning = false;
@@ -43,7 +127,7 @@ function enqueueAiRequest(deviceId, frameBuffer) {
   } else {
     aiQueue.push({ deviceId, frameBuffer });
   }
-  
+
   triggerAiWorker();
 }
 
@@ -53,7 +137,7 @@ function stopAiRecording(deviceId) {
 
   console.log(`[AI Record] Selesai mengumpulkan frame (no person seen for 3s) untuk ${deviceId}. Memulai render...`);
   device.isRecordingAi = false;
-  
+
   if (device.aiStopTimer) {
     clearTimeout(device.aiStopTimer);
     device.aiStopTimer = null;
@@ -93,7 +177,7 @@ function stopAiRecording(deviceId) {
           console.log(`[Telegram] Telegram alert skipped/throttled for device ${deviceId}.`);
           device.latestSnapshotFilename = null;
         }
-        
+
         // Bind and save video to log.json
         const videoUrl = `/data/videos/${outputFilename}`;
         updateLatestLogVideo(sensorName, remoteIp, videoUrl);
@@ -141,26 +225,26 @@ function stopAiRecording(deviceId) {
 
 function triggerAiWorker() {
   if (isAiWorkerRunning || aiQueue.length === 0) return;
-  
+
   isAiWorkerRunning = true;
   const { deviceId, frameBuffer } = aiQueue.shift();
-  
+
   const device = devices.get(deviceId);
   if (!device || device.status !== 'Online' || !shouldWorkerProcessFrame(device, { globalAiEnabled, globalPirAiRecording })) {
     isAiWorkerRunning = false;
     setImmediate(triggerAiWorker);
     return;
   }
-  
+
   detectStreamAI(frameBuffer).then(result => {
     isAiWorkerRunning = false;
-    
+
     if (result && result.status === 'success') {
       const boxCoordinates = result.koordinat_kotak;
       const personDetected = result.ada_orang;
 
       device.latestBoxes = boxCoordinates;
-      
+
       // Logika Perekaman AI
       if (personDetected) {
         if (device.aiStopTimer) {
@@ -175,7 +259,7 @@ function triggerAiWorker() {
           if (!device.lastServoAdjustTime) {
             device.lastServoAdjustTime = 0;
           }
-          if (now - device.lastServoAdjustTime >= 500) {
+          if (now - device.lastServoAdjustTime >= 100) {
             const defaultAngle = getDefaultAngle(device.mac);
             const followResult = calculateNextFollowerAngle(device.currentAngle, boxCoordinates, defaultAngle);
             if (followResult) {
@@ -198,7 +282,7 @@ function triggerAiWorker() {
           // Normal AI stream detection event logic
           if (!device.isRecordingAi && (globalStreamAiRecording || globalStreamAiTelegram)) {
             console.log(`[AI Record] Person detected on ${deviceId}. Starting stream event...`);
-            
+
             // Evaluate Telegram Cooldown
             const now = Date.now();
             const intervalMs = globalTelegramInterval * 1000;
@@ -209,7 +293,7 @@ function triggerAiWorker() {
               console.log(`[Telegram] Live stream alerts throttled (cooldown active) for device ${deviceId}`);
               device.telegramAlertsMuted = true;
             }
-            
+
             device.isRecordingAi = true;
             device.aiSensorName = 'AI_Person_Detection';
             device.lastTimePersonSeen = Date.now();
@@ -338,13 +422,13 @@ function triggerAiWorker() {
           }, 3000);
         }
       }
-      
+
       const boxPayload = JSON.stringify({
         type: 'stream_boxes',
         deviceId: deviceId,
         boxes: boxCoordinates
       });
-      
+
       if (wssInstance) {
         wssInstance.clients.forEach(client => {
           if (client.readyState === 1 && !client.path.startsWith('/camera')) {
@@ -360,7 +444,7 @@ function triggerAiWorker() {
     setImmediate(triggerAiWorker);
   }).catch(err => {
     isAiWorkerRunning = false;
-    
+
     setImmediate(triggerAiWorker);
   });
 }
@@ -531,7 +615,7 @@ function broadcastDeviceList(wss) {
   }));
 
   const payload = JSON.stringify({ type: 'device_list', devices: deviceList });
-  
+
   wss.clients.forEach((client) => {
     // Only send to Kiosks (not the camera itself)
     if (client.readyState === 1 && !client.path.startsWith('/camera')) {
@@ -549,14 +633,14 @@ function initWebSocket(server) {
   wss.on('connection', (ws, req) => {
     const isCamera = req.url.startsWith('/camera');
     const remoteIp = req.socket.remoteAddress.replace('::ffff:', '');
-    
+
     // Parse query parameters from request URL
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const macAddress = url.searchParams.get('mac') || 'Unknown MAC';
     const apiKey = url.searchParams.get('apiKey');
-    
+
     console.log(`Connection attempt: URL=${req.url}, isCamera=${isCamera}, IP=${remoteIp}`);
-    
+
     // Security check for camera connections
     if (isCamera) {
       if (apiKey !== CAMERA_API_KEY) {
@@ -565,7 +649,7 @@ function initWebSocket(server) {
         return;
       }
     }
-    
+
     ws.isAlive = true;
     ws.on('pong', heartbeat);
     ws.path = req.url; // Store path to identify client type later
@@ -622,7 +706,7 @@ function initWebSocket(server) {
             ws.send(JSON.stringify({ type: 'servo_config_update', config }));
             console.log(`Sent servo config to camera ${macAddress}`);
           }
-        } catch(e) { console.error('Error sending config to camera:', e); }
+        } catch (e) { console.error('Error sending config to camera:', e); }
       }
 
       if (fs.existsSync(CAMERA_CONFIG_FILE)) {
@@ -637,7 +721,7 @@ function initWebSocket(server) {
             device.currentQuality = configToSend.quality;
             console.log(`Sent camera sensor config on boot to camera ${macAddress} (scaleMode: ${camConfig.scaleMode || 'static'}, Res: ${configToSend.resolution}, Qual: ${configToSend.quality})`);
           }
-        } catch(e) { console.error('Error sending camera config on boot to camera:', e); }
+        } catch (e) { console.error('Error sending camera config on boot to camera:', e); }
       }
     } else {
       console.log('Kiosk connected.');
@@ -646,7 +730,7 @@ function initWebSocket(server) {
 
       // Send current device list to the new Kiosk immediately
       broadcastDeviceList(wss);
-      
+
       // Send historical logs to the kiosk
       const historicalLogs = getLogs();
       if (historicalLogs && historicalLogs.length > 0) {
@@ -655,6 +739,11 @@ function initWebSocket(server) {
 
       // Send current AI server connection status immediately
       ws.send(JSON.stringify({ type: 'ai_status', isConnected: aiClient.isConnected }));
+
+      // Send latest cached storage info without recalculating disk space for each new Kiosk
+      if (cachedStoragePayload) {
+        ws.send(JSON.stringify(cachedStoragePayload));
+      }
 
       // Send current AI enabled status immediately
       ws.send(JSON.stringify({ type: 'ai_enabled_updated', enabled: globalAiEnabled }));
@@ -665,8 +754,8 @@ function initWebSocket(server) {
       }
 
       // Send current AI configurations immediately to synchronize
-      ws.send(JSON.stringify({ 
-        type: 'ai_config_response', 
+      ws.send(JSON.stringify({
+        type: 'ai_config_response',
         config: {
           pirAiDetection: globalPirAiDetection,
           pirAiRecording: globalPirAiRecording,
@@ -676,10 +765,10 @@ function initWebSocket(server) {
           telegramInterval: globalTelegramInterval,
           objectTracking: globalObjectTracking,
           maxDuration: globalMaxDuration
-        } 
+        }
       }));
     }
-    
+
     ws.on('message', (message, isBinary) => {
       if (isCamera) {
         ws.lastDataReceived = Date.now(); // Proof of life via data stream (any message)
@@ -691,7 +780,7 @@ function initWebSocket(server) {
 
         if (device) {
           device.latestFrame = message; // Keep updating to the absolute newest frame
-          
+
           // Unified rolling buffer for both standard AI and PIR recordings
           // Skip frame accumulation during live stream events if stream recording is disabled
           const isStreamAi = (device.aiSensorName === 'AI_Person_Detection');
@@ -768,7 +857,7 @@ function initWebSocket(server) {
             const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
             const device = devices.get(deviceId);
             const location = device ? device.ip : remoteIp;
-            
+
             console.log(`Motion detected by ${location}: ${data.sensor}`);
 
             if (device) {
@@ -782,7 +871,7 @@ function initWebSocket(server) {
               device.pirActiveTimeout = setTimeout(() => {
                 if (device.isPirActive) {
                   device.isPirActive = false;
-                  
+
                   if (device.isRecordingAi) {
                     stopAiRecording(deviceId);
                   } else {
@@ -808,20 +897,20 @@ function initWebSocket(server) {
             });
 
             // Broadcast motion event to all Kiosks
-            const payload = JSON.stringify({ 
-              type: 'motion_event', 
-              sensor: data.sensor, 
+            const payload = JSON.stringify({
+              type: 'motion_event',
+              sensor: data.sensor,
               location: location,
               deviceId: deviceId,
               timestamp: new Date().toISOString()
             });
-            
+
             // Broadcast updated historical logs
             const payloadLogs = JSON.stringify({
               type: 'historical_logs',
               logs: getLogs()
             });
-            
+
             wss.clients.forEach((client) => {
               if (client.readyState === 1 && !client.path.startsWith('/camera')) {
                 client.send(payload);
@@ -857,7 +946,7 @@ function initWebSocket(server) {
             globalAiEnabled = data.enabled;
             console.log(`[AI Status] Global AI state updated to: ${globalAiEnabled ? 'ENABLED' : 'DISABLED'}`);
             saveSystemSettings();
-            
+
             if (!globalAiEnabled) {
               aiQueue.length = 0; // Clear queue
               devices.forEach((device, dId) => {
@@ -867,7 +956,7 @@ function initWebSocket(server) {
                   device.aiStopTimer = null;
                 }
                 device.isRecordingAi = false;
-                
+
                 // Pangkas buffer kembali ke 30 frame (pre-roll standard) agar memori RAM segera bersih
                 while (device.rollingBuffer.length > 30) {
                   device.rollingBuffer.shift();
@@ -906,12 +995,12 @@ function initWebSocket(server) {
               globalObjectTracking = config.objectTracking !== undefined ? config.objectTracking : true;
               globalMaxDuration = config.maxDuration !== undefined ? config.maxDuration : 30;
               saveSystemSettings();
-              
+
               console.log(`[Settings] AI Config saved: PIR Det=${globalPirAiDetection}, PIR Rec=${globalPirAiRecording}, Stream Det=${globalStreamAiDetection}, Stream Rec=${globalStreamAiRecording}, Stream Telegram=${globalStreamAiTelegram}, Telegram Interval=${globalTelegramInterval}s, Tracking=${globalObjectTracking}, MaxDur=${globalMaxDuration}s`);
-              
+
               // Reply to the sender that save was successful
               ws.send(JSON.stringify({ type: 'save_ai_config_success' }));
-              
+
               // Broadcast updated config to ALL kiosks
               const aiConfigPayload = JSON.stringify({
                 type: 'ai_config_response',
@@ -937,7 +1026,7 @@ function initWebSocket(server) {
             if (globalActiveDeviceId !== data.deviceId) {
               globalActiveDeviceId = data.deviceId;
               console.log(`Global active stream changed to: ${globalActiveDeviceId}`);
-              
+
               // Broadcast stream change to ALL other kiosks
               const activeStreamPayload = JSON.stringify({ type: 'active_stream_updated', deviceId: globalActiveDeviceId });
               wss.clients.forEach((client) => {
@@ -970,16 +1059,16 @@ function initWebSocket(server) {
             // Save config to file
             let allConfigs = {};
             if (fs.existsSync(CONFIG_FILE)) {
-              try { 
+              try {
                 const rawData = fs.readFileSync(CONFIG_FILE);
-                allConfigs = JSON.parse(rawData); 
-              } catch (e) {}
+                allConfigs = JSON.parse(rawData);
+              } catch (e) { }
             }
             allConfigs[data.mac] = { ...data.config, lastUpdated: new Date().toISOString() };
             fs.writeFileSync(CONFIG_FILE, JSON.stringify(allConfigs, null, 2));
             console.log(`Servo config saved via WS for MAC: ${data.mac}`);
             ws.send(JSON.stringify({ type: 'save_servo_config_success', mac: data.mac }));
-            
+
             // Push updated config directly to the specific camera device via WebSocket
             const deviceArray = Array.from(devices.values());
             const cameraDevice = deviceArray.find(d => d.mac === data.mac);
@@ -1005,27 +1094,45 @@ function initWebSocket(server) {
           } else if (data.type === 'save_camera_config' && !isCamera) {
             let allConfigs = {};
             if (fs.existsSync(CAMERA_CONFIG_FILE)) {
-              try { 
+              try {
                 const rawData = fs.readFileSync(CAMERA_CONFIG_FILE);
-                allConfigs = JSON.parse(rawData); 
-              } catch (e) {}
+                allConfigs = JSON.parse(rawData);
+              } catch (e) { }
             }
             allConfigs[data.mac] = { ...data.config, lastUpdated: new Date().toISOString() };
             fs.writeFileSync(CAMERA_CONFIG_FILE, JSON.stringify(allConfigs, null, 2));
             console.log(`Camera config saved via WS for MAC: ${data.mac}`);
             ws.send(JSON.stringify({ type: 'save_camera_config_success', mac: data.mac }));
-            
+
             // Push updated config directly to the specific camera device via WebSocket
             const deviceArray = Array.from(devices.values());
             const cameraDevice = deviceArray.find(d => d.mac === data.mac);
             if (cameraDevice && cameraDevice.ws && cameraDevice.ws.readyState === 1) {
-               const configToSend = getEffectiveCameraConfig(data.config, cameraDevice);
-               cameraDevice.ws.send(JSON.stringify({ type: 'camera_config_update', config: configToSend }));
-               cameraDevice.currentResolution = configToSend.resolution;
-               cameraDevice.currentQuality = configToSend.quality;
-               console.log(`Pushed updated camera config to camera ${data.mac} (Res: ${configToSend.resolution}, Qual: ${configToSend.quality})`);
+              const configToSend = getEffectiveCameraConfig(data.config, cameraDevice);
+              cameraDevice.ws.send(JSON.stringify({ type: 'camera_config_update', config: configToSend }));
+              cameraDevice.currentResolution = configToSend.resolution;
+              cameraDevice.currentQuality = configToSend.quality;
+              console.log(`Pushed updated camera config to camera ${data.mac} (Res: ${configToSend.resolution}, Qual: ${configToSend.quality})`);
             }
           }
+
+          // --- KODE BARU DITAMBAHKAN DI SINI ---
+          else if (data.type === 'delete_event_single' && !isCamera) {
+            console.log(`[Storage] Request delete single event: ${data.timestamp}`);
+            if (deleteEventSingle(data.timestamp)) {
+              // Kirim balik data log terbaru agar layar web langsung ter-update
+              ws.send(JSON.stringify({ type: 'historical_logs', logs: getLogs() }));
+            }
+          }
+          else if (data.type === 'delete_event_batch' && !isCamera) {
+            console.log(`[Storage] Request batch delete for date: ${data.date}`);
+            if (deleteEventsByDate(data.date)) {
+              // Kirim balik data log terbaru agar layar web langsung ter-update
+              ws.send(JSON.stringify({ type: 'historical_logs', logs: getLogs() }));
+            }
+          }
+          // --- KODE BARU SELESAI ---
+
         } catch (e) {
           console.log(`Received text message from ${isCamera ? 'Camera' : 'Kiosk'}: ${message}`);
         }
@@ -1040,7 +1147,7 @@ function initWebSocket(server) {
           device.status = 'Offline';
           device.lastSeen = new Date().toLocaleTimeString();
           console.log(`Camera ${remoteIp} disconnected.`);
-          
+
           if (device.isRecordingAi) {
             stopAiRecording(deviceId);
           }
@@ -1073,7 +1180,7 @@ function initWebSocket(server) {
               }
             });
           }
-          
+
           broadcastDeviceList(wss);
         }
       } else {
@@ -1094,7 +1201,7 @@ function initWebSocket(server) {
           if (device) {
             device.status = 'Offline';
             device.lastSeen = new Date().toLocaleTimeString();
-            
+
             if (device.isRecordingAi) {
               stopAiRecording(deviceId);
             }
@@ -1107,7 +1214,7 @@ function initWebSocket(server) {
               clearTimeout(device.aiStopTimer);
               device.aiStopTimer = null;
             }
-            
+
             // Dynamic Auto-Activation Switch if active camera went offline
             if (deviceId === globalActiveDeviceId) {
               const onlineDevice = Array.from(devices.values()).find(d => d.status === 'Online');
@@ -1125,7 +1232,7 @@ function initWebSocket(server) {
                 }
               });
             }
-            
+
             broadcastDeviceList(wss);
           }
           return ws.terminate();
@@ -1135,7 +1242,7 @@ function initWebSocket(server) {
         // We only ping every 30s (6 cycles of 5s) to save bandwidth
         if (!ws.pingCounter) ws.pingCounter = 0;
         ws.pingCounter++;
-        
+
         if (ws.pingCounter >= 6) {
           ws.pingCounter = 0;
           if (ws.isAlive === false) {
@@ -1213,10 +1320,10 @@ function switchActiveStream(direction) {
 function updateFlashIntensity(intensity) {
   let allConfigs = {};
   if (fs.existsSync(CAMERA_CONFIG_FILE)) {
-    try { 
+    try {
       const rawData = fs.readFileSync(CAMERA_CONFIG_FILE);
-      allConfigs = JSON.parse(rawData); 
-    } catch (e) {}
+      allConfigs = JSON.parse(rawData);
+    } catch (e) { }
   }
 
   // Ensure currently connected cameras are in allConfigs
@@ -1235,7 +1342,7 @@ function updateFlashIntensity(intensity) {
   });
 
   fs.writeFileSync(CAMERA_CONFIG_FILE, JSON.stringify(allConfigs, null, 2));
-  
+
   // Push updated config directly to the specific camera device via WebSocket
   deviceArray.forEach(cameraDevice => {
     if (cameraDevice.ws && cameraDevice.ws.readyState === 1 && cameraDevice.type === 'Camera') {
@@ -1430,12 +1537,11 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
   });
 }
 
-module.exports = { 
-  initWebSocket, 
-  getDevices, 
-  sendCaptureRequest, 
-  switchActiveStream, 
+module.exports = {
+  initWebSocket,
+  getDevices,
+  sendCaptureRequest,
+  switchActiveStream,
   updateFlashIntensity,
   handlePirUpload
 };
-

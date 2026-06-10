@@ -25,6 +25,11 @@ const aiConfig = ref({
 })
 let ws = null
 let pendingActiveStreamId = null
+const storageData = ref({
+  percentage: 0,
+  usedGb: '...',
+  totalGb: '...'
+})
 
 const devices = ref([])
 const liveImageSrc = ref('')
@@ -130,6 +135,8 @@ const connectWS = () => {
         } else {
           pendingActiveStreamId = data.deviceId
         }
+      } else if (data.type === 'storage_update') {  // <--- TAMBAHKAN BLOK INI
+        storageData.value = data;                   // <---
       } else if (data.type === 'ai_status') {
         aiConnected.value = data.isConnected
       } else if (data.type === 'ai_enabled_updated') {
@@ -289,6 +296,24 @@ const handleSetAiEnabled = (enabled) => {
   }
 }
 
+// --- TAMBAHAN FUNGSI HAPUS STORAGE ---
+const handleDeleteSingleEvent = (timestamp) => {
+  if (confirm('Yakin ingin menghapus rekaman ini? Tindakan ini tidak dapat dibatalkan.')) {
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'delete_event_single', timestamp }));
+    }
+  }
+}
+
+const handleDeleteBatchEvents = (dateStr) => {
+  if (confirm(`PERINGATAN: Yakin ingin menghapus SEMUA riwayat foto dan video pada tanggal ${dateStr}?\n\nKapasitas memori akan kembali lega.`)) {
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'delete_event_batch', date: dateStr }));
+    }
+  }
+}
+// -------------------------------------
+
 const handleSaveServoConfig = (data) => {
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ 
@@ -345,7 +370,7 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
 
 <template>
   <div class="main-wrapper d-flex flex-column" data-bs-theme="dark">
-    <TopNav :currentTime="currentTime" :wsStatus="wsStatus" :aiConnected="aiConnected" :aiDetecting="aiDetecting" :aiEnabled="aiEnabled" />
+    <TopNav :currentTime="currentTime" :wsStatus="wsStatus" :aiConnected="aiConnected" :aiDetecting="aiDetecting" :aiEnabled="aiEnabled" :storageData="storageData" />
 
     <main class="row g-0 flex-grow-1" id="main-layout">
       <StreamView 
@@ -380,6 +405,8 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
           @nextPage="nextPage"
           @prevPage="prevPage"
           @dateSelected="handleDateSelected"
+          @deleteSingle="handleDeleteSingleEvent"
+          @deleteBatch="handleDeleteBatchEvents"
         />
       </aside>
     </main>
