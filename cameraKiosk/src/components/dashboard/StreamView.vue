@@ -59,6 +59,13 @@ const props = defineProps({
 
 const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'saveCameraConfig', 'setViewMode', 'setAiEnabled', 'saveAiConfig'])
 const servoValue = ref(90)
+
+// Sync manual slider ref with backend-synced currentAngle
+watch(() => props.currentStream?.currentAngle, (newAngle) => {
+  if (newAngle !== undefined && newAngle !== null) {
+    servoValue.value = newAngle
+  }
+}, { immediate: true })
 const showConfig = ref(false)
 const showCameraConfig = ref(false)
 const showAiConfig = ref(false)

@@ -147,6 +147,11 @@ const connectWS = () => {
         alert('AI Configuration Saved Successfully!')
       } else if (data.type === 'view_mode_updated') {
         viewMode.value = data.mode
+      } else if (data.type === 'servo_angle_update') {
+        const device = devices.value.find(d => d.id === data.deviceId)
+        if (device) {
+          device.currentAngle = data.value
+        }
       } else if (data.type === 'device_list') {
         devices.value = data.devices
         if (pendingActiveStreamId) {

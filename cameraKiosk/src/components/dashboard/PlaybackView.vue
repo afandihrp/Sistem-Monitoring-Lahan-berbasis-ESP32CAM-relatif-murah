@@ -175,6 +175,14 @@ const handleTimeUpdate = (e) => {
 }
 
 const handleVideoEnded = () => {
+  if (currentClip.value) {
+    const currentIndex = activeClips.value.findIndex(clip => clip.id === currentClip.value.id)
+    if (currentIndex !== -1 && currentIndex + 1 < activeClips.value.length) {
+      const nextClip = activeClips.value[currentIndex + 1]
+      selectClip(nextClip)
+      return
+    }
+  }
   isPlaying.value = false
   currentClip.value = null
 }

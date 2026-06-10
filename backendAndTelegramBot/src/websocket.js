@@ -131,6 +131,30 @@ function enqueueAiRequest(deviceId, frameBuffer) {
   triggerAiWorker();
 }
 
+function updateDeviceServoAngle(deviceId, angle) {
+  const device = devices.get(deviceId);
+  if (!device) return;
+
+  device.currentAngle = angle;
+  if (device.ws && device.ws.readyState === 1) {
+    device.ws.send(JSON.stringify({ type: 'servo_control', value: angle }));
+  }
+
+  const payload = JSON.stringify({
+    type: 'servo_angle_update',
+    deviceId: deviceId,
+    value: angle
+  });
+
+  if (wssInstance) {
+    wssInstance.clients.forEach((client) => {
+      if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+        client.send(payload);
+      }
+    });
+  }
+}
+
 function stopAiRecording(deviceId) {
   const device = devices.get(deviceId);
   if (!device || !device.isRecordingAi) return;
@@ -197,29 +221,20 @@ function stopAiRecording(deviceId) {
 
         // Instruct camera to return to default position
         const defaultAngle = getDefaultAngle(device.mac);
-        if (device.ws && device.ws.readyState === 1) {
-          device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
-        }
-        device.currentAngle = defaultAngle;
+        updateDeviceServoAngle(deviceId, defaultAngle);
         console.log(`[AI Record] Sent return-to-center command after video rendering completed.`);
       })
       .catch(err => {
         console.error(`[AI Record] Gagal merender video: ${err.message}`);
         // Fallback return-to-center in case of rendering errors
         const defaultAngle = getDefaultAngle(device.mac);
-        if (device.ws && device.ws.readyState === 1) {
-          device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
-        }
-        device.currentAngle = defaultAngle;
+        updateDeviceServoAngle(deviceId, defaultAngle);
       });
   } else {
     console.log(`[AI Record] Stop AI Event: no frames to render for ${deviceId}. Skipping rendering.`);
     // Instruct camera to return to default position
     const defaultAngle = getDefaultAngle(device.mac);
-    if (device.ws && device.ws.readyState === 1) {
-      device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
-    }
-    device.currentAngle = defaultAngle;
+    updateDeviceServoAngle(deviceId, defaultAngle);
   }
 }
 
@@ -268,19 +283,18 @@ function triggerAiWorker() {
           if (!device.lastServoAdjustTime) {
             device.lastServoAdjustTime = 0;
           }
-          if (now - device.lastServoAdjustTime >= 500) {
+          if (now - device.lastServoAdjustTime >= 100) {
             const defaultAngle = getDefaultAngle(device.mac);
             const followResult = calculateNextFollowerAngle(device.currentAngle, boxCoordinates, defaultAngle);
             if (followResult) {
               const { newAngle, offset } = followResult;
-              device.currentAngle = newAngle;
+              updateDeviceServoAngle(deviceId, newAngle);
               device.lastServoAdjustTime = now;
               if (device.ws && device.ws.readyState === 1) {
-                device.ws.send(JSON.stringify({ type: 'servo_control', value: newAngle }));
                 // Batalkan return otomatis dari hardware ESP jika ada
                 device.ws.send(JSON.stringify({ type: 'cancel_return' }));
-                console.log(`[Object Follower] Adjusted servo for ${deviceId} to ${newAngle}° (Offset: ${offset.toFixed(2)})`);
               }
+              console.log(`[Object Follower] Adjusted servo for ${deviceId} to ${newAngle}° (Offset: ${offset.toFixed(2)})`);
             }
           }
         }
@@ -438,20 +452,18 @@ function triggerAiWorker() {
           const defaultAngle = getDefaultAngle(device.mac);
           const now = Date.now();
           const manualControlAge = device.lastManualControlTime ? (now - device.lastManualControlTime) : Infinity;
+          const returnDuration = getReturnDuration(device.mac);
 
-          if (device.currentAngle !== defaultAngle && !device.trackingReturnTimer && manualControlAge > 15000) {
-            console.log(`[Object Follower] No person detected on ${deviceId}. Scheduling return-to-center in 3 seconds...`);
+          if (device.currentAngle !== defaultAngle && !device.trackingReturnTimer && manualControlAge > returnDuration) {
+            console.log(`[Object Follower] No person detected on ${deviceId}. Scheduling return-to-center in ${returnDuration/1000} seconds...`);
             device.trackingReturnTimer = setTimeout(() => {
                if (!device.isRecordingAi && !device.isPirActive) {
                    const defAngle = getDefaultAngle(device.mac);
-                   if (device.ws && device.ws.readyState === 1) {
-                       device.ws.send(JSON.stringify({ type: 'servo_control', value: defAngle }));
-                   }
-                   device.currentAngle = defAngle;
-                   console.log(`[Object Follower] Returned servo to default ${defAngle}° for ${deviceId} after 3s of no detection.`);
+                   updateDeviceServoAngle(deviceId, defAngle);
+                   console.log(`[Object Follower] Returned servo to default ${defAngle}° for ${deviceId} after ${returnDuration/1000}s of no detection.`);
                }
                device.trackingReturnTimer = null;
-            }, 3000);
+            }, returnDuration);
           }
         }
       }
@@ -481,6 +493,7 @@ function triggerAiWorker() {
     setImmediate(triggerAiWorker);
   });
 }
+
 
 function serializeFrame(deviceId, frameBuffer) {
   const deviceIdBuffer = Buffer.from(deviceId, 'utf8');
@@ -587,6 +600,21 @@ function getEffectiveCameraConfig(config, device) {
   return effectiveConfig;
 }
 
+function getReturnDuration(mac) {
+  if (fs.existsSync(CONFIG_FILE)) {
+    try {
+      const allConfigs = JSON.parse(fs.readFileSync(CONFIG_FILE));
+      const config = allConfigs[mac];
+      if (config && config.returnToDefaultDuration !== undefined) {
+        return Number(config.returnToDefaultDuration) * 1000;
+      }
+    } catch (e) {
+      console.error('Error reading return duration config:', e);
+    }
+  }
+  return 15000; // Default fallback
+}
+
 function getDefaultAngle(mac) {
   if (fs.existsSync(CONFIG_FILE)) {
     try {
@@ -644,7 +672,8 @@ function broadcastDeviceList(wss) {
     mac: device.mac,
     signalBars: device.signalBars,
     signalRssi: device.signalRssi || null,
-    lastSeen: device.lastSeen
+    lastSeen: device.lastSeen,
+    currentAngle: device.currentAngle
   }));
 
   const payload = JSON.stringify({ type: 'device_list', devices: deviceList });
@@ -896,7 +925,7 @@ function initWebSocket(server) {
             if (device) {
               device.isPirActive = true;
               device.lastTimePersonSeen = Date.now(); // Start hold timer from trigger timestamp
-              device.currentAngle = getPirAngle(device.mac, data.sensor);
+              updateDeviceServoAngle(deviceId, getPirAngle(device.mac, data.sensor));
               if (device.pirActiveTimeout) {
                 clearTimeout(device.pirActiveTimeout);
               }
@@ -909,10 +938,7 @@ function initWebSocket(server) {
                     stopAiRecording(deviceId);
                   } else {
                     const defaultAngle = getDefaultAngle(device.mac);
-                    if (device.ws && device.ws.readyState === 1) {
-                      device.ws.send(JSON.stringify({ type: 'servo_control', value: defaultAngle }));
-                    }
-                    device.currentAngle = defaultAngle;
+                    updateDeviceServoAngle(deviceId, defaultAngle);
                   }
                   console.log(`[AI Hold] Pre-upload safety timeout triggered (8s). Returned servo to center for ${deviceId}.`);
                 }
@@ -1072,15 +1098,12 @@ function initWebSocket(server) {
             // Forward servo control from Kiosk to specific Camera
             const device = devices.get(data.deviceId);
             if (device) {
-              device.currentAngle = Number(data.value);
+              updateDeviceServoAngle(data.deviceId, Number(data.value));
               device.lastManualControlTime = Date.now();
               if (device.trackingReturnTimer) {
                 clearTimeout(device.trackingReturnTimer);
                 device.trackingReturnTimer = null;
                 console.log(`[Object Follower] Cancelled return-to-center due to manual control for ${data.deviceId}`);
-              }
-              if (device.ws && device.ws.readyState === 1) {
-                device.ws.send(JSON.stringify({ type: 'servo_control', value: data.value }));
               }
             }
           } else if (data.type === 'get_servo_config' && !isCamera) {

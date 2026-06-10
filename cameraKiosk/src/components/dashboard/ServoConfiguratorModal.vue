@@ -14,7 +14,8 @@ const servoConfig = ref({
   defaultAngle: 90,
   leftPirAngle: 45,
   middlePirAngle: 90,
-  rightPirAngle: 135
+  rightPirAngle: 135,
+  returnToDefaultDuration: 15
 })
 
 const fetchServoConfig = () => {
@@ -31,7 +32,8 @@ const handleConfigReceived = (event) => {
       defaultAngle: config.defaultAngle ?? 90,
       leftPirAngle: config.leftPirAngle ?? 45,
       middlePirAngle: config.middlePirAngle ?? 90,
-      rightPirAngle: config.rightPirAngle ?? 135
+      rightPirAngle: config.rightPirAngle ?? 135,
+      returnToDefaultDuration: config.returnToDefaultDuration ?? 15
     };
     console.log('Loaded saved servo config via WS for:', mac);
   }
@@ -109,6 +111,50 @@ const handleThumbEnd = () => {
           <span class="text-info font-monospace small">{{ servoConfig.defaultAngle }}°</span>
         </div>
         <input type="range" class="form-range custom-slider" min="0" max="180" v-model.number="servoConfig.defaultAngle">
+      </div>
+
+      <!-- Return to Default Duration -->
+      <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
+        <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">AUTO-RETURN DELAY</label>
+        <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Wait time before the servo automatically returns to its default angle</span>
+        
+        <div class="d-flex gap-2 justify-content-between">
+          <button 
+            type="button"
+            @click="servoConfig.returnToDefaultDuration = 3" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 3 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem;">
+            3s
+          </button>
+          <button 
+            type="button"
+            @click="servoConfig.returnToDefaultDuration = 5" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 5 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem;">
+            5s
+          </button>
+          <button 
+            type="button"
+            @click="servoConfig.returnToDefaultDuration = 15" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 15 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem;">
+            15s
+          </button>
+          <button 
+            type="button"
+            @click="servoConfig.returnToDefaultDuration = 30" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 30 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem;">
+            30s
+          </button>
+          <button 
+            type="button"
+            @click="servoConfig.returnToDefaultDuration = 60" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 60 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem;">
+            60s
+          </button>
+        </div>
       </div>
 
       <!-- PIR Mapping (Multi-Thumb Slider) -->

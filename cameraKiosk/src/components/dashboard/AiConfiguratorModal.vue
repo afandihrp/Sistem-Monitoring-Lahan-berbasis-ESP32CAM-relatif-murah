@@ -48,10 +48,9 @@ watch(streamAiDetection, (newVal) => {
   }
 })
 
-// Watch stream Telegram notification toggle to automatically turn off recording if Telegram is disabled
+// Watch stream Telegram notification toggle to automatically reset telegramInterval if Telegram is disabled
 watch(streamAiTelegram, (newVal) => {
   if (!newVal) {
-    streamAiRecording.value = false
     telegramInterval.value = 10
   }
 })
@@ -184,15 +183,15 @@ const saveConfig = () => {
           <hr style="border-color: #334155; opacity: 0.35; margin: 1rem 0;">
 
           <!-- Sub-setting Switch: Recording -->
-          <div class="form-check form-switch d-flex justify-content-between align-items-center p-0 ms-5" 
-               :style="{ opacity: (streamAiDetection && streamAiTelegram) ? 1 : 0.4, transition: 'opacity 0.2s ease', pointerEvents: (streamAiDetection && streamAiTelegram) ? 'auto' : 'none' }">
+          <div class="form-check form-switch d-flex justify-content-between align-items-center p-0 ms-4" 
+               :style="{ opacity: streamAiDetection ? 1 : 0.4, transition: 'opacity 0.2s ease', pointerEvents: streamAiDetection ? 'auto' : 'none' }">
             <div>
               <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="streamRecordingSwitch">
                 Stream Camera Recording
               </label>
               <span class="text-slate-500 d-block" style="font-size: 0.7rem;">Continuous recording as long as there is an object detected</span>
             </div>
-            <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="streamRecordingSwitch" v-model="streamAiRecording" :disabled="!aiEnabled || !streamAiDetection || !streamAiTelegram">
+            <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="streamRecordingSwitch" v-model="streamAiRecording" :disabled="!aiEnabled || !streamAiDetection">
           </div>
         </div>
 
