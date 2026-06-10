@@ -4,7 +4,7 @@ const path = require('path');
 const checkDiskSpace = require('check-disk-space').default;
 
 const { aiClient } = require('./services/aiClient');
-const { logEvent, getLogs, updateLatestLogVideo, updateLatestLogWithAI, deleteOldestEvent } = require('./services/logger');
+const { logEvent, getLogs, updateLatestLogVideo, updateLatestLogWithAI, deleteOldestEvent, deleteEventSingle, deleteEventsByDate } = require('./services/logger');
 const { sendMotionAlert, sendMotionVideoAlert } = require('./services/telegram');
 const { renderVideo } = require('./services/videoRenderer');
 const { calculateNextFollowerAngle } = require('./services/objectFollower');
@@ -230,7 +230,7 @@ function triggerAiWorker() {
   const { deviceId, frameBuffer } = aiQueue.shift();
 
   const device = devices.get(deviceId);
-  if (!device || device.status !== 'Online' || !shouldWorkerProcessFrame(device, { globalAiEnabled, globalPirAiRecording })) {
+  if (!device || device.status !== 'Online' || !shouldWorkerProcessFrame(device, { globalAiEnabled, globalPirAiRecording, globalObjectTracking })) {
     isAiWorkerRunning = false;
     setImmediate(triggerAiWorker);
     return;
@@ -253,13 +253,22 @@ function triggerAiWorker() {
           console.log(`[AI Record] Person detected again. Cancelled stop recording timer for ${deviceId}.`);
         }
 
-        // Object Follower: track human when recording is active, AI is online, and tracking is enabled
-        if (device.isRecordingAi && globalObjectTracking) {
+        // Object Follower: track human if AI is online and tracking is enabled
+        if (globalObjectTracking) {
+          // Cancel return-to-center timer because person is detected
+          if (device.trackingReturnTimer) {
+            clearTimeout(device.trackingReturnTimer);
+            device.trackingReturnTimer = null;
+            console.log(`[Object Follower] Person present. Cancelled return-to-center timer for ${deviceId}.`);
+          }
+          // Reset manual override cooldown when person is detected in frame
+          device.lastManualControlTime = null;
+
           const now = Date.now();
           if (!device.lastServoAdjustTime) {
             device.lastServoAdjustTime = 0;
           }
-          if (now - device.lastServoAdjustTime >= 100) {
+          if (now - device.lastServoAdjustTime >= 500) {
             const defaultAngle = getDefaultAngle(device.mac);
             const followResult = calculateNextFollowerAngle(device.currentAngle, boxCoordinates, defaultAngle);
             if (followResult) {
@@ -268,6 +277,8 @@ function triggerAiWorker() {
               device.lastServoAdjustTime = now;
               if (device.ws && device.ws.readyState === 1) {
                 device.ws.send(JSON.stringify({ type: 'servo_control', value: newAngle }));
+                // Batalkan return otomatis dari hardware ESP jika ada
+                device.ws.send(JSON.stringify({ type: 'cancel_return' }));
                 console.log(`[Object Follower] Adjusted servo for ${deviceId} to ${newAngle}° (Offset: ${offset.toFixed(2)})`);
               }
             }
@@ -420,6 +431,28 @@ function triggerAiWorker() {
             console.log(`[AI Record] 3 seconds elapsed with no person detected on ${deviceId}. Stopping recording.`);
             stopAiRecording(deviceId);
           }, 3000);
+        }
+
+        // Object Follower: if no person detected, schedule return to center after 3 seconds
+        if (globalObjectTracking) {
+          const defaultAngle = getDefaultAngle(device.mac);
+          const now = Date.now();
+          const manualControlAge = device.lastManualControlTime ? (now - device.lastManualControlTime) : Infinity;
+
+          if (device.currentAngle !== defaultAngle && !device.trackingReturnTimer && manualControlAge > 15000) {
+            console.log(`[Object Follower] No person detected on ${deviceId}. Scheduling return-to-center in 3 seconds...`);
+            device.trackingReturnTimer = setTimeout(() => {
+               if (!device.isRecordingAi && !device.isPirActive) {
+                   const defAngle = getDefaultAngle(device.mac);
+                   if (device.ws && device.ws.readyState === 1) {
+                       device.ws.send(JSON.stringify({ type: 'servo_control', value: defAngle }));
+                   }
+                   device.currentAngle = defAngle;
+                   console.log(`[Object Follower] Returned servo to default ${defAngle}° for ${deviceId} after 3s of no detection.`);
+               }
+               device.trackingReturnTimer = null;
+            }, 3000);
+          }
         }
       }
 
@@ -802,7 +835,7 @@ function initWebSocket(server) {
             }
           }
 
-          if (shouldEnqueueStreamFrame(device, { globalAiEnabled, globalStreamAiDetection, globalPirAiRecording })) {
+          if (shouldEnqueueStreamFrame(device, { globalAiEnabled, globalStreamAiDetection, globalPirAiRecording, globalObjectTracking })) {
             enqueueAiRequest(deviceId, message);
           }
         }
@@ -1040,6 +1073,12 @@ function initWebSocket(server) {
             const device = devices.get(data.deviceId);
             if (device) {
               device.currentAngle = Number(data.value);
+              device.lastManualControlTime = Date.now();
+              if (device.trackingReturnTimer) {
+                clearTimeout(device.trackingReturnTimer);
+                device.trackingReturnTimer = null;
+                console.log(`[Object Follower] Cancelled return-to-center due to manual control for ${data.deviceId}`);
+              }
               if (device.ws && device.ws.readyState === 1) {
                 device.ws.send(JSON.stringify({ type: 'servo_control', value: data.value }));
               }

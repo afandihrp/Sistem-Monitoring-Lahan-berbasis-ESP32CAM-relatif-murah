@@ -19,11 +19,15 @@
  * @param {boolean} settings.globalAiEnabled
  * @param {boolean} settings.globalStreamAiDetection
  * @param {boolean} settings.globalPirAiRecording
+ * @param {boolean} settings.globalObjectTracking
  * @returns {boolean}
  */
-function shouldEnqueueStreamFrame(device, { globalAiEnabled, globalStreamAiDetection, globalPirAiRecording }) {
+function shouldEnqueueStreamFrame(device, { globalAiEnabled, globalStreamAiDetection, globalPirAiRecording, globalObjectTracking }) {
   // Normal stream AI path
   if (globalAiEnabled && globalStreamAiDetection) return true;
+
+  // Object tracking active
+  if (globalAiEnabled && globalObjectTracking) return true;
 
   // Temporary AI enable: PIR recording is active and PIR AI recording is enabled
   if (device && device.isPirActive && device.isRecordingAi && globalAiEnabled && globalPirAiRecording) return true;
@@ -58,10 +62,12 @@ function shouldRunPirSnapshotAI({ globalAiEnabled, globalPirAiDetection, globalP
  * @param {object} settings
  * @param {boolean} settings.globalAiEnabled
  * @param {boolean} settings.globalPirAiRecording
+ * @param {boolean} settings.globalObjectTracking
  * @returns {boolean}
  */
-function shouldWorkerProcessFrame(device, { globalAiEnabled, globalPirAiRecording }) {
+function shouldWorkerProcessFrame(device, { globalAiEnabled, globalPirAiRecording, globalObjectTracking }) {
   if (globalAiEnabled) return true;
+  if (globalAiEnabled && globalObjectTracking) return true;
   if (device && device.isPirActive && device.isRecordingAi && globalPirAiRecording) return true;
   return false;
 }

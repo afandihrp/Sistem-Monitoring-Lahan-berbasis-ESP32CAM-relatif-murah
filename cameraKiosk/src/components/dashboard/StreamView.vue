@@ -99,7 +99,7 @@ const handleSaveAiConfig = (config) => {
     <!-- KIRI: Primary Stream View -->
     <section class="stream-section bg-black position-relative flex-grow-1">
       <!-- Header Stream (Absolute agar video bisa full edge-to-edge) -->
-      <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-between align-items-center z-2 stream-header-grad">
+      <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-between align-items-center z-2">
         <span v-if="currentStream.status === 'Online' && viewMode !== 'multiple'" class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
           <span class="spinner-grow spinner-grow-sm" style="width: 0.8rem; height: 0.8rem;" role="status"></span>
           LIVE FEED
@@ -139,14 +139,17 @@ const handleSaveAiConfig = (config) => {
           <div :class="gridClass">
             <div v-for="device in onlineDevices" :key="device.id" class="grid-item bg-black position-relative">
               <!-- Grid Header -->
-              <div class="position-absolute top-0 start-0 w-100 p-2 d-flex justify-content-between align-items-center z-2 stream-header-grad">
-                <span class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-1 px-2 py-0.5" style="font-size: 0.65rem;">
-                  <span class="spinner-grow spinner-grow-sm" style="width: 0.5rem; height: 0.5rem;" role="status"></span>
+              <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-between align-items-center z-2">
+                <span class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
+                  <span class="spinner-grow spinner-grow-sm" style="width: 0.8rem; height: 0.8rem;" role="status"></span>
                   LIVE FEED
                 </span>
-                <span class="text-white fw-bold font-monospace text-uppercase text-truncate px-2" style="text-shadow: 1px 1px 2px black; font-size: 0.75rem; max-width: 60%;">
-                  {{ device.ip }}
-                </span>
+                
+                <div class="d-flex align-items-center gap-2 gap-sm-3">
+                  <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black; font-size: 0.8rem;">
+                    <span class="d-none d-sm-inline">ESP32-CAM</span> [{{ device.ip }}]
+                  </span>
+                </div>
               </div>
 
               <!-- Camera Feed Area -->
@@ -293,7 +296,6 @@ const handleSaveAiConfig = (config) => {
 <style scoped>
 .font-monospace { font-family: 'JetBrains Mono', ui-monospace, monospace !important; }
 .object-fit-contain { object-fit: contain; }
-.stream-header-grad { background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%); }
 
 /* High-Visibility Custom Slider (for PTZ manual control) */
 .custom-slider {

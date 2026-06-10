@@ -298,7 +298,7 @@ const handleSetAiEnabled = (enabled) => {
 
 // --- TAMBAHAN FUNGSI HAPUS STORAGE ---
 const handleDeleteSingleEvent = (timestamp) => {
-  if (confirm('Yakin ingin menghapus rekaman ini? Tindakan ini tidak dapat dibatalkan.')) {
+  if (confirm('Are you sure? Data will be permanently deleted')) {
     if (ws && ws.readyState === 1) {
       ws.send(JSON.stringify({ type: 'delete_event_single', timestamp }));
     }
@@ -306,7 +306,7 @@ const handleDeleteSingleEvent = (timestamp) => {
 }
 
 const handleDeleteBatchEvents = (dateStr) => {
-  if (confirm(`PERINGATAN: Yakin ingin menghapus SEMUA riwayat foto dan video pada tanggal ${dateStr}?\n\nKapasitas memori akan kembali lega.`)) {
+  if (confirm('Are you sure? Data will be permanently deleted')) {
     if (ws && ws.readyState === 1) {
       ws.send(JSON.stringify({ type: 'delete_event_batch', date: dateStr }));
     }

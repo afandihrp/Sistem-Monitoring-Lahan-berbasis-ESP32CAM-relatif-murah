@@ -39,16 +39,16 @@ function calculateNextFollowerAngle(currentAngle, boxCoordinates, defaultAngle =
 
   // Only adjust if the offset is significant to avoid unnecessary micro-adjustments
   // Increased deadband to 0.10 to prevent micro-adjustments to minor movements
-  if (Math.abs(offset) > 0.20) {
+  if (Math.abs(offset) > 0.10) {
     const angleValue = currentAngle !== undefined ? currentAngle : defaultAngle;
-    
+
     // Map offset to angle adjustment. Left pan increases angle, Right pan decreases angle.
     // Decreased proportional gain to Kp = 30 to make adjustments smaller and less prone to overshoot
     // Inverted to match the physical orientation of the camera servo.
-    const deltaAngle = offset * 30; 
+    const deltaAngle = offset * 30;
     let newAngle = Math.round(angleValue + deltaAngle);
     newAngle = Math.max(0, Math.min(180, newAngle));
-    
+
     if (newAngle !== angleValue) {
       return { newAngle, offset };
     }
