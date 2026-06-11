@@ -131,12 +131,12 @@ function enqueueAiRequest(deviceId, frameBuffer) {
   triggerAiWorker();
 }
 
-function updateDeviceServoAngle(deviceId, angle) {
+function updateDeviceServoAngle(deviceId, angle, skipCameraSend = false) {
   const device = devices.get(deviceId);
   if (!device) return;
 
   device.currentAngle = angle;
-  if (device.ws && device.ws.readyState === 1) {
+  if (!skipCameraSend && device.ws && device.ws.readyState === 1) {
     device.ws.send(JSON.stringify({ type: 'servo_control', value: angle }));
   }
 
@@ -925,7 +925,7 @@ function initWebSocket(server) {
             if (device) {
               device.isPirActive = true;
               device.lastTimePersonSeen = Date.now(); // Start hold timer from trigger timestamp
-              updateDeviceServoAngle(deviceId, getPirAngle(device.mac, data.sensor));
+              updateDeviceServoAngle(deviceId, getPirAngle(device.mac, data.sensor), true);
               if (device.pirActiveTimeout) {
                 clearTimeout(device.pirActiveTimeout);
               }
@@ -1564,7 +1564,7 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
     fs.writeFileSync(filepath, imageToSave);
 
     // Update log.json
-    updateLatestLogWithAI(sensor, ip, imageUrl, humanPresence, aiDetails);
+    await updateLatestLogWithAI(sensor, ip, imageUrl, humanPresence, aiDetails);
 
     // Send Telegram snapshot alert
     if (!device.telegramAlertsMuted) {
