@@ -371,11 +371,26 @@ const prevPage = () => { if (currentEventPage.value > 1) currentEventPage.value-
 // Window width tracking
 const windowWidth = ref(window.innerWidth)
 window.addEventListener('resize', () => { windowWidth.value = window.innerWidth })
+
+const isForceMobile = ref(false)
+const effectiveWindowWidth = computed(() => {
+  return isForceMobile.value ? 999 : windowWidth.value
+})
 </script>
 
 <template>
-  <div class="main-wrapper d-flex flex-column" data-bs-theme="dark">
-    <TopNav :currentTime="currentTime" :wsStatus="wsStatus" :aiConnected="aiConnected" :aiDetecting="aiDetecting" :aiEnabled="aiEnabled" :storageData="storageData" />
+  <div :class="['main-wrapper', 'd-flex', 'flex-column', { 'force-mobile': isForceMobile }]" data-bs-theme="dark">
+    <TopNav 
+      :currentTime="currentTime" 
+      :wsStatus="wsStatus" 
+      :aiConnected="aiConnected" 
+      :aiDetecting="aiDetecting" 
+      :aiEnabled="aiEnabled" 
+      :storageData="storageData" 
+      :windowWidth="windowWidth" 
+      :isForceMobile="isForceMobile" 
+      @toggle-force-mobile="isForceMobile = !isForceMobile" 
+    />
 
     <main class="row g-0 flex-grow-1" id="main-layout">
       <StreamView 
@@ -385,7 +400,8 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
         :liveBoxes="visibleBoxes"
         :cameraImages="cameraImages"
         :cameraBoxes="cameraBoxes"
-        :windowWidth="windowWidth"
+        :windowWidth="effectiveWindowWidth"
+        :isForceMobile="isForceMobile"
         :viewMode="viewMode"
         :aiEnabled="aiEnabled"
         :aiConfig="aiConfig"
@@ -406,7 +422,7 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
           :paginatedEvents="paginatedEvents" 
           :currentEventPage="currentEventPage" 
           :totalPages="totalPages" 
-          :windowWidth="windowWidth"
+          :windowWidth="effectiveWindowWidth"
           @nextPage="nextPage"
           @prevPage="prevPage"
           @dateSelected="handleDateSelected"
@@ -426,15 +442,15 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
 
 /* --- DESKTOP --- */
 @media (min-width: 1001px) {
-  .main-wrapper {
+  .main-wrapper:not(.force-mobile) {
     height: 100vh;
     overflow: hidden;
   }
-  #main-layout {
+  .main-wrapper:not(.force-mobile) #main-layout {
     height: calc(100vh - 45px);
     overflow: hidden;
   }
-  .sidebar-section {
+  .main-wrapper:not(.force-mobile) .sidebar-section {
     height: 100%;
     overflow-y: auto;
   }
@@ -457,5 +473,27 @@ window.addEventListener('resize', () => { windowWidth.value = window.innerWidth 
     border-top: 1px solid #1e293b;
     height: auto !important;
   }
+}
+
+/* --- FORCE MOBILE OVERRIDES --- */
+.main-wrapper.force-mobile {
+  min-height: 100vh;
+  height: auto !important;
+  overflow-x: hidden;
+}
+.main-wrapper.force-mobile #main-layout {
+  flex-direction: column;
+  height: auto !important;
+}
+.main-wrapper.force-mobile .stream-view-wrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+.main-wrapper.force-mobile .sidebar-section {
+  width: 100% !important;
+  max-width: 100% !important;
+  border-left: none !important;
+  border-top: 1px solid #1e293b;
+  height: auto !important;
 }
 </style>

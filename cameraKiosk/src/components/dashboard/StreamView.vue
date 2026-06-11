@@ -34,6 +34,10 @@ const props = defineProps({
     type: Number,
     required: true
   },
+  isForceMobile: {
+    type: Boolean,
+    default: false
+  },
   viewMode: {
     type: String,
     default: 'single'
@@ -102,7 +106,7 @@ const handleSaveAiConfig = (config) => {
 </script>
 
 <template>
-  <div class="stream-view-wrapper d-flex flex-column col-lg-10 p-0">
+  <div :class="['stream-view-wrapper', 'd-flex', 'flex-column', 'col-lg-10', 'p-0', { 'force-mobile': isForceMobile }]">
     <!-- KIRI: Primary Stream View -->
     <section class="stream-section bg-black position-relative flex-grow-1">
       <!-- Header Stream (Absolute agar video bisa full edge-to-edge) -->
@@ -400,7 +404,7 @@ const handleSaveAiConfig = (config) => {
 
 /* --- DESKTOP --- */
 @media (min-width: 1001px) {
-  .stream-section {
+  .stream-view-wrapper:not(.force-mobile) .stream-section {
     flex-grow: 1;
     min-height: 0;
     height: 0; /* Let flexbox allocate height dynamically without page overflow */
@@ -424,6 +428,22 @@ const handleSaveAiConfig = (config) => {
     z-index: 1020;
     border-bottom: 2px solid #1e293b;
   }
+}
+
+/* --- FORCE MOBILE OVERRIDES --- */
+.stream-view-wrapper.force-mobile {
+  width: 100% !important;
+  flex: none !important;
+  max-width: 100% !important;
+}
+.stream-view-wrapper.force-mobile .stream-section {
+  width: 100% !important;
+  height: 45vh;
+  min-height: 280px;
+  position: sticky;
+  top: 0px;
+  z-index: 1020;
+  border-bottom: 2px solid #1e293b;
 }
 
 /* Premium AI Cog Button styling & Micro-animations */

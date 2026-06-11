@@ -24,8 +24,18 @@ defineProps({
   storageData: {
     type: Object,
     default: null
+  },
+  isForceMobile: {
+    type: Boolean,
+    default: false
+  },
+  windowWidth: {
+    type: Number,
+    required: true
   }
 })
+
+defineEmits(['toggle-force-mobile'])
 </script>
 
 <template>
@@ -60,6 +70,17 @@ defineProps({
             {{ new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) }}
           </div>
         </div>
+        
+        <!-- Force Mobile View Toggle (Only shown on Desktop > 1000px) -->
+        <button 
+          v-if="windowWidth > 1000" 
+          @click="$emit('toggle-force-mobile')" 
+          :class="['btn btn-sm text-uppercase fw-bold font-monospace px-2 py-1 border-slate-700', isForceMobile ? 'btn-info text-slate-900' : 'btn-outline-secondary text-slate-300']"
+          style="font-size: 0.65rem; border: 1px solid rgba(148, 163, 184, 0.3);"
+        >
+          <i :class="isForceMobile ? 'bi bi-phone-fill me-1' : 'bi bi-pc-display me-1'"></i>
+          {{ isForceMobile ? 'Normal View' : 'Mobile View' }}
+        </button>
         
         <div class="d-flex flex-column align-items-end justify-content-center text-secondary" style="font-size: 0.85rem; line-height: 1.2;">
           <span :class="wsStatus === 'Online' ? 'text-success' : 'text-danger'" class="fw-bold d-flex align-items-center gap-1" style="font-size: 0.8rem;">
