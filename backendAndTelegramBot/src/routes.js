@@ -25,6 +25,44 @@ function createRouter(wss) {
     }
   });
 
+  // API Endpoint for Tripwire Trigger (GET method for easy testing by node or browser)
+  router.get('/api/tripwire', (req, res) => {
+    const location = req.query.location || 'Unknown Location';
+    const sensor = req.query.sensor || 'Tripwire_01';
+
+    try {
+      // 1. Trigger Telegram Spam Alert
+      const { triggerTripwireAlert } = require('./services/telegram');
+      triggerTripwireAlert(location, sensor);
+
+      // 2. Log event so it appears in the frontend dashboard
+      logEvent({
+        type: 'tripwire alert',
+        sensor: sensor,
+        location: location,
+        message: '0 Volt Detected!',
+        timestamp: new Date().toISOString()
+      });
+
+      // 3. Notify connected websocket clients to update their UI with new logs
+      const payloadLogs = JSON.stringify({
+        type: 'historical_logs',
+        logs: getLogs()
+      });
+      wss.clients.forEach((client) => {
+        if (client.readyState === 1 && (!client.path || !client.path.startsWith('/camera'))) {
+          client.send(payloadLogs);
+        }
+      });
+
+      console.log(`[API] Tripwire triggered via API: ${sensor} at ${location}`);
+      res.status(200).send(`Tripwire alert triggered for sensor: ${sensor} at location: ${location}`);
+    } catch (err) {
+      console.error('[API] Error triggering tripwire:', err);
+      res.status(500).send('Internal Server Error');
+    }
+  });
+
   // Upload route for high-res snapshot from ESP32-CAM
   router.post('/upload', express.raw({ limit: '10mb', type: 'image/jpeg' }), async (req, res) => {
     const sensor = req.query.sensor;

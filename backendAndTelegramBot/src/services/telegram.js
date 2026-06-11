@@ -15,6 +15,7 @@ const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN, {
 // Array chat ID yang akan menerima notifikasi
 let registeredChatIds = [];
 const activePhotoUploads = new Map(); // Untuk menahan upload video sampai foto terkirim
+const activeTripwireSpams = new Map(); // Untuk menyimpan interval spam tripwire
 
 // Load existing config — backward compatible dengan format lama (single ID)
 try {
@@ -528,7 +529,7 @@ bot.action(/^gv:(\d+)$/, async (ctx) => {
   try {
     await ctx.answerCbQuery(); // Hapus animasi loading pada tombol
     const timestampPart = ctx.match[1];
-    
+
     // Cari entry yang sesuai berdasarkan timestamp unik di log.json
     const { getLogs } = require('./logger');
     const logs = getLogs();
@@ -599,7 +600,6 @@ bot.command('flash', async (ctx) => {
     await ctx.reply(`❌ Terjadi kesalahan saat mengubah flash: ${err.message}`);
   }
 });
-
 
 // --- Inisialisasi bot ---
 function initTelegramBot() {
@@ -768,5 +768,73 @@ async function sendMotionVideoAlert(location, sensor, videoFilePath) {
   }
 }
 
-module.exports = { initTelegramBot, sendMotionAlert, sendMotionVideoAlert, notifyCaptureResult, registerExpectedPhoto };
+// --- Tripwire Spam Alert ---
+// Handler tombol dismiss untuk mematikan spam
+bot.action(/^dismiss_tw:(.+)$/, async (ctx) => {
+  try {
+    const sensorId = ctx.match[1];
+
+    // Hentikan spam interval jika ada
+    if (activeTripwireSpams.has(sensorId)) {
+      clearInterval(activeTripwireSpams.get(sensorId));
+      activeTripwireSpams.delete(sensorId);
+
+      await ctx.answerCbQuery('✅ Alert berhasil dimatikan.', { show_alert: true });
+
+      // Edit pesan untuk memberi tahu bahwa alert sudah dimatikan
+      const newText = ctx.callbackQuery.message.text + `\n\n✅ *DIMATIKAN* oleh user/ID: ${ctx.from.id}`;
+      // Hapus tombol setelah di-dismiss
+      await ctx.editMessageText(newText, {
+        parse_mode: 'Markdown',
+        reply_markup: { inline_keyboard: [] }
+      }).catch(() => { });
+    } else {
+      await ctx.answerCbQuery('ℹ️ Alert ini sudah dimatikan sebelumnya.');
+      // Hilangkan tombol jika sudah mati
+      await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => { });
+    }
+  } catch (err) {
+    console.error('Error in dismiss_tw callback:', err);
+    await ctx.answerCbQuery('❌ Gagal memproses.');
+  }
+});
+
+// Fungsi untuk memulai spam alert
+function triggerTripwireAlert(location, sensor) {
+  // Jika spam untuk sensor ini sedang aktif, jangan buat interval ganda
+  if (activeTripwireSpams.has(sensor)) return;
+
+  console.log(`[Telegram] Memulai spam tripwire alert untuk ${sensor} di ${location}`);
+
+  // Mengirim setiap 2 detik sesuai permintaan user
+  // (Peringatan: jika memicu rate-limit error 429 dari Telegram, ubah ke 5000 ms)
+  const intervalMs = 2000;
+
+  const { Markup } = require('telegraf');
+
+  const intervalId = setInterval(async () => {
+    if (registeredChatIds.length === 0) return;
+
+    const message = `🚨 *PERINGATAN KRITIS: TRIPWIRE TERPUTUS!* 🚨\n\n📍 *Lokasi:* ${location}\n🛡️ *Sensor:* ${sensor}\n⚠️ *Indikasi:* Kabel terputus / Tegangan 0 Volt / Kerusakan\n⏰ *Waktu:* ${new Date().toLocaleTimeString('id-ID')} (WIB)`;
+
+    const keyboard = Markup.inlineKeyboard([
+      Markup.button.callback('🔕 Matikan Alert (Dismiss)', `dismiss_tw:${sensor}`)
+    ]);
+
+    for (const chatId of registeredChatIds) {
+      try {
+        await bot.telegram.sendMessage(chatId, message, {
+          parse_mode: 'Markdown',
+          ...keyboard
+        });
+      } catch (err) {
+        console.error(`[Telegram] Gagal mengirim spam alert ke ${chatId}:`, err.message);
+      }
+    }
+  }, intervalMs);
+
+  activeTripwireSpams.set(sensor, intervalId);
+}
+
+module.exports = { initTelegramBot, sendMotionAlert, sendMotionVideoAlert, notifyCaptureResult, registerExpectedPhoto, triggerTripwireAlert };
 
