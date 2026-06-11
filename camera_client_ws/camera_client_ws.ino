@@ -89,6 +89,7 @@ bool cam_vflip = false;
 String cam_specialEffect = "None";
 int cam_xclk = 8000000;
 bool cam_flashOnCapture = true;
+int cam_flashIntensity = 0;
 
 void applyCameraConfig() {
   sensor_t * s = esp_camera_sensor_get();
@@ -353,17 +354,17 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
              if (end != -1) cam_flashOnCapture = (cmd.substring(start, end).indexOf("true") != -1);
            }
 
-           int intensityIdx = cmd.indexOf("\"flashIntensity\":");
-           if (intensityIdx != -1) {
-             int start = intensityIdx + 17;
-             int end = cmd.indexOf(",", start);
-             if (end == -1) end = cmd.indexOf("}", start);
-             if (end != -1) {
-                int intensity = cmd.substring(start, end).toInt();
-                ledcWrite(FLASH_GPIO_NUM, intensity);
-                Serial.printf("[Flash] Intensity updated to %d\n", intensity);
-             }
-           }
+            int intensityIdx = cmd.indexOf("\"flashIntensity\":");
+            if (intensityIdx != -1) {
+              int start = intensityIdx + 17;
+              int end = cmd.indexOf(",", start);
+              if (end == -1) end = cmd.indexOf("}", start);
+              if (end != -1) {
+                 cam_flashIntensity = cmd.substring(start, end).toInt();
+                 ledcWrite(FLASH_GPIO_NUM, cam_flashIntensity);
+                 Serial.printf("[Flash] Intensity updated to %d\n", cam_flashIntensity);
+              }
+            }
 
            Serial.printf("[WSc] Camera config updated: Res=%s, Qual=%d, Bright=%d, Contrast=%d, Sat=%d, AWB=%d, AEC=%d, AGC=%d, Mirror=%d, Flip=%d, Effect=%s, XCLK=%d, Flash=%d\n",
                          cam_resolution.c_str(), cam_quality, cam_brightness, cam_contrast, cam_saturation, cam_awb, cam_aec, cam_agc, cam_hmirror, cam_vflip, cam_specialEffect.c_str(), cam_xclk, cam_flashOnCapture);
@@ -565,7 +566,8 @@ void captureAndUpload(String label) {
   // Conditionally enable flash based on camera config
   if (cam_flashOnCapture) {
     Serial.println("[2] Flash ON — flushing frames for AEC adjustment...");
-    digitalWrite(FLASH_GPIO_NUM, HIGH);
+    int flashVal = (cam_flashIntensity > 0) ? cam_flashIntensity : 255;
+    ledcWrite(FLASH_GPIO_NUM, flashVal);
   } else {
     Serial.println("[2] Flash DISABLED by config — flushing frames...");
   }
@@ -582,8 +584,11 @@ void captureAndUpload(String label) {
   // === STEP 2: Ambil frame FHD ===
   Serial.println("[3] Capturing frame...");
   camera_fb_t * fb = esp_camera_fb_get();
+
+  // Turn flash back to its configured baseline (cam_flashIntensity) immediately after capture
   if (cam_flashOnCapture) {
-    Serial.println("[3] Flash kept ON.");
+    ledcWrite(FLASH_GPIO_NUM, cam_flashIntensity);
+    Serial.println("[3] Flash returned to baseline.");
   }
 
   if (!fb) {
