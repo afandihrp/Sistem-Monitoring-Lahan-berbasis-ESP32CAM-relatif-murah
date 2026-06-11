@@ -1,12 +1,15 @@
+const previousState = new Map();
+
 /**
  * Calculates the next servo angle to follow the first detected person.
  * 
+ * @param {string} deviceId ID of the device (MAC address or similar)
  * @param {number} currentAngle Current servo angle (0 - 180)
  * @param {Array} boxCoordinates Array of detected box coordinates (from AI)
  * @param {number} defaultAngle Fallback/default angle
  * @returns {object|null} { newAngle, offset } or null if no adjustment needed or no person detected
  */
-function calculateNextFollowerAngle(currentAngle, boxCoordinates, defaultAngle = 90) {
+function calculateNextFollowerAngle(deviceId, currentAngle, boxCoordinates, defaultAngle = 90) {
   if (!boxCoordinates || boxCoordinates.length === 0) {
     return null;
   }
@@ -37,15 +40,30 @@ function calculateNextFollowerAngle(currentAngle, boxCoordinates, defaultAngle =
   const averageCenterX = (leftmostCenterX + rightmostCenterX) / 2;
   const offset = averageCenterX - 0.5; // range: -0.5 to 0.5
 
+  const now = Date.now();
+  let state = previousState.get(deviceId) || { lastOffset: 0, lastTime: now };
+
+  let derivative = 0;
+  const dt = (now - state.lastTime) / 1000; // in seconds
+  if (dt > 0 && dt < 1.0) { // Calculate derivative only if updates are reasonably close
+    derivative = (offset - state.lastOffset) / dt;
+  }
+  
+  // Save current state for next frame
+  previousState.set(deviceId, { lastOffset: offset, lastTime: now });
+
   // Only adjust if the offset is significant to avoid unnecessary micro-adjustments
-  // Increased deadband to 0.10 to prevent micro-adjustments to minor movements
-  if (Math.abs(offset) > 0.10) {
+  // Increased deadband to 0.20 to prevent micro-adjustments to minor movements
+  if (Math.abs(offset) > 0.20) {
     const angleValue = currentAngle !== undefined ? currentAngle : defaultAngle;
 
+    // Constants for PD Controller
+    const Kp = 30;
+    const Kd = 6;
+
     // Map offset to angle adjustment. Left pan increases angle, Right pan decreases angle.
-    // Decreased proportional gain to Kp = 30 to make adjustments smaller and less prone to overshoot
-    // Inverted to match the physical orientation of the camera servo.
-    const deltaAngle = offset * 30;
+    // Kd dampens the speed as it approaches the target to reduce oscillation.
+    const deltaAngle = (offset * Kp) + (derivative * Kd);
     let newAngle = Math.round(angleValue + deltaAngle);
     newAngle = Math.max(0, Math.min(180, newAngle));
 
