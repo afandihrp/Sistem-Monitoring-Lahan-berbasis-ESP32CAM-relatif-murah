@@ -162,6 +162,20 @@ function stopAiRecording(deviceId) {
   console.log(`[AI Record] Selesai mengumpulkan frame (no person seen for 3s) untuk ${deviceId}. Memulai render...`);
   device.isRecordingAi = false;
 
+  // Clear bounding boxes when recording/hold stops to avoid leftovers
+  if (wssInstance) {
+    const clearPayload = JSON.stringify({
+      type: 'stream_boxes',
+      deviceId: deviceId,
+      boxes: []
+    });
+    wssInstance.clients.forEach((client) => {
+      if (client.readyState === 1 && !client.path?.startsWith('/camera')) {
+        client.send(clearPayload);
+      }
+    });
+  }
+
   if (device.aiStopTimer) {
     clearTimeout(device.aiStopTimer);
     device.aiStopTimer = null;
@@ -1564,6 +1578,20 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
                 client.send(boxPayload);
               }
             });
+
+            // Clear temporary PIR event boxes after 4 seconds
+            setTimeout(() => {
+              const clearPayload = JSON.stringify({
+                type: 'stream_boxes',
+                deviceId: deviceId,
+                boxes: []
+              });
+              wss.clients.forEach((client) => {
+                if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                  client.send(clearPayload);
+                }
+              });
+            }, 4000);
           }
         }
       } catch (aiErr) {
