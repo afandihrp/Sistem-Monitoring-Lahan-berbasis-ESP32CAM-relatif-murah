@@ -1512,8 +1512,19 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
     }, 90000);
   }
 
-  // --- 6. Run AI snapshot analysis and finalize image asynchronously ---
+  // --- 6. Run Telegram alert and AI snapshot analysis asynchronously ---
   (async () => {
+    // Save raw image immediately for instant Telegram alert and UI display
+    fs.writeFileSync(filepath, imageBuffer);
+
+    // Send Telegram alert instantly with the raw photo
+    let telegramPromise = Promise.resolve();
+    if (!device.telegramAlertsMuted) {
+      telegramPromise = sendMotionAlert(`IP: ${ip}`, sensor, filename);
+    } else {
+      console.log(`[Telegram] PIR snapshot alert throttled for device ${deviceId}`);
+    }
+
     let imageToSave = imageBuffer;
     let humanPresence = false;
     let aiDetails = null;
@@ -1535,6 +1546,8 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
 
           if (result.annotated_image) {
             imageToSave = Buffer.from(result.annotated_image, 'base64');
+            // Overwrite the raw image with the annotated version
+            fs.writeFileSync(filepath, imageToSave);
           }
 
           console.log(`[AI Object Detection] Result: ${result.pesan} (Human count: ${result.jumlah_orang})`);
@@ -1560,18 +1573,8 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
       console.log(`[AI Object Detection] PIR AI is disabled. Skipping AI analysis for IP: ${ip}.`);
     }
 
-    // Save the finalized image (AI-annotated or raw fallback)
-    fs.writeFileSync(filepath, imageToSave);
-
     // Update log.json
     await updateLatestLogWithAI(sensor, ip, imageUrl, humanPresence, aiDetails);
-
-    // Send Telegram snapshot alert
-    if (!device.telegramAlertsMuted) {
-      sendMotionAlert(`IP: ${ip}`, sensor, filename);
-    } else {
-      console.log(`[Telegram] PIR snapshot alert throttled for device ${deviceId}`);
-    }
 
     // Notify kiosk clients
     const motionPayload = JSON.stringify({
@@ -1594,6 +1597,9 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
         client.send(payloadLogs);
       }
     });
+
+    // Await Telegram notification completion
+    await telegramPromise;
   })().catch(err => {
     console.error('[PIR Upload] Asynchronous processing error:', err);
   });
