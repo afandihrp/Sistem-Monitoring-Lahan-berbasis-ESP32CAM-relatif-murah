@@ -40,25 +40,59 @@ function getLogs() {
   return [];
 }
 
-function updateLatestLogWithAI(sensor, deviceIp, imageUrl, humanPresence, aiDetails) {
+async function updateLatestLogWithAI(sensor, deviceIp, imageUrl, humanPresence, aiDetails) {
+  const deviceId = `cam_${deviceIp.replace(/\./g, '_')}`;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      if (fs.existsSync(LOG_FILE_PATH)) {
+        const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf8'));
+        let found = false;
+        for (let i = logs.length - 1; i >= 0; i--) {
+          const log = logs[i];
+          if (log.sensor === sensor && log.deviceId === deviceId) {
+            log.imageUrl = imageUrl;
+            log.humanPresence = humanPresence;
+            if (aiDetails) {
+              log.aiDetails = aiDetails;
+            }
+            fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2), 'utf8');
+            found = true;
+            break;
+          }
+        }
+        if (found) {
+          console.log(`[Logger] Successfully updated PIR log with photo after ${attempt + 1} attempt(s).`);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Error updating log with AI:', error);
+      return;
+    }
+    // Wait 100ms before next retry
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  // Fallback: If still not found after retries, create a new log entry
   try {
     if (fs.existsSync(LOG_FILE_PATH)) {
       const logs = JSON.parse(fs.readFileSync(LOG_FILE_PATH, 'utf8'));
-      for (let i = logs.length - 1; i >= 0; i--) {
-        const log = logs[i];
-        if (log.sensor === sensor && log.deviceId === `cam_${deviceIp.replace(/\./g, '_')}`) {
-          log.imageUrl = imageUrl;
-          log.humanPresence = humanPresence;
-          if (aiDetails) {
-            log.aiDetails = aiDetails;
-          }
-          fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2), 'utf8');
-          break;
-        }
-      }
+      logs.push({
+        type: 'motion_event',
+        sensor: sensor,
+        location: deviceIp,
+        deviceId: deviceId,
+        imageUrl: imageUrl,
+        humanPresence: humanPresence,
+        aiDetails: aiDetails,
+        timestamp: new Date().toISOString()
+      });
+      fs.writeFileSync(LOG_FILE_PATH, JSON.stringify(logs, null, 2), 'utf8');
+      console.log(`[Logger] Fallback triggered: Created new PIR log entry with photo.`);
     }
   } catch (error) {
-    console.error('Error updating log with AI:', error);
+    console.error('Error writing fallback log:', error);
   }
 }
 
