@@ -22,15 +22,21 @@
  * @param {boolean} settings.globalObjectTracking
  * @returns {boolean}
  */
-function shouldEnqueueStreamFrame(device, { globalAiEnabled, globalStreamAiDetection, globalPirAiRecording, globalObjectTracking }) {
+function shouldEnqueueStreamFrame(device, { globalAiEnabled, globalStreamAiDetection, globalPirAiRecording, globalObjectTracking, cameraDetectionMode }) {
+  // If global AI is disabled, do not queue
+  if (!globalAiEnabled) return false;
+
+  // In Pixel mode, we always process stream frames as long as global detection is enabled
+  if (cameraDetectionMode === 'Pixel') return true;
+
   // Normal stream AI path
-  if (globalAiEnabled && globalStreamAiDetection) return true;
+  if (globalStreamAiDetection) return true;
 
   // Object tracking active
-  if (globalAiEnabled && globalObjectTracking) return true;
+  if (globalObjectTracking) return true;
 
   // Temporary AI enable: PIR recording is active and PIR AI recording is enabled
-  if (device && device.isPirActive && device.isRecordingAi && globalAiEnabled && globalPirAiRecording) return true;
+  if (device && device.isPirActive && device.isRecordingAi && globalPirAiRecording) return true;
 
   return false;
 }

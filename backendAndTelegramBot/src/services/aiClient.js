@@ -1,8 +1,8 @@
 const { WebSocketServer, WebSocket } = require('ws');
 
 class AIClient {
-  constructor() {
-    this.port = 5000;
+  constructor(port = 5000) {
+    this.port = port;
     this.wss = new WebSocketServer({ port: this.port });
     this.ws = null;
     this.pendingRequests = new Map();
@@ -100,7 +100,7 @@ class AIClient {
     }
   }
 
-  sendRequest(imageBuffer, annotate = false, timeoutMs = 10000) {
+  sendRequest(imageBuffer, annotate = false, timeoutMs = 10000, extraHeaderBuffer = null) {
     return new Promise((resolve, reject) => {
       if (!this.isConnected || this.ws.readyState !== WebSocket.OPEN) {
         return reject(new Error('AI Client is not connected to Python server'));
@@ -111,11 +111,15 @@ class AIClient {
       // Construct binary payload:
       // Bytes 0-3: requestId (UInt32BE)
       // Byte 4: annotate flag (UInt8)
-      // Bytes 5+: raw binary JPEG image buffer
+      // Optional extraHeaderBuffer
+      // Bytes+: raw binary JPEG image buffer
       const header = Buffer.alloc(5);
       header.writeUInt32BE(requestId, 0);
       header.writeUInt8(annotate ? 1 : 0, 4);
-      const payload = Buffer.concat([header, imageBuffer]);
+      
+      const payload = extraHeaderBuffer
+        ? Buffer.concat([header, extraHeaderBuffer, imageBuffer])
+        : Buffer.concat([header, imageBuffer]);
 
       const timeout = setTimeout(() => {
         if (this.pendingRequests.has(requestId)) {
@@ -128,10 +132,31 @@ class AIClient {
       this.ws.send(payload, { binary: true });
     });
   }
+
+  sendConfig(config) {
+    if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify({
+          type: 'config_update',
+          config: config
+        }));
+        console.log(`[AI Server] Configuration sent to Python client (port ${this.port}):`, config);
+        return true;
+      } catch (err) {
+        console.error(`[AI Server] Error sending configuration to Python client on port ${this.port}:`, err.message);
+      }
+    } else {
+      console.warn(`[AI Server] Cannot send configuration: Python client is not connected on port ${this.port}`);
+    }
+    return false;
+  }
 }
 
-const aiClient = new AIClient();
+const yoloClient = new AIClient(5000);
+const pixelClient = yoloClient; // Alias to yoloClient (port 5000)
 
 module.exports = {
-  aiClient
+  yoloClient,
+  pixelClient,
+  aiClient: yoloClient // Backward compatibility fallback
 };

@@ -3,7 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import ServoConfiguratorModal from './ServoConfiguratorModal.vue'
 import CameraConfiguratorModal from './CameraConfiguratorModal.vue'
 import CameraFeed from './CameraFeed.vue'
-import AiConfiguratorModal from './AiConfiguratorModal.vue'
+import SystemSettingsModal from './SystemSettingsModal.vue'
 
 const props = defineProps({
   devices: {
@@ -46,22 +46,38 @@ const props = defineProps({
     type: Boolean,
     default: true
   },
-  aiConfig: {
+  systemConfig: {
     type: Object,
     default: () => ({
+      pirEnabled: true,
+      pirCooldown: 30,
+      pirRecordVideo: true,
+      pirRecordDuration: 10,
+      telegramAlertPir: true,
+      telegramAlertAi: true,
+      telegramAlertMotion: false,
+      cameraDetectionMode: 'AI',
+      streamAiDetection: true,
+      objectTracking: true,
+      pixelMotionSensitivity: 10,
+      pixelMotionMode: 0,
+      pixelMotionMerge: false,
+      pixelMotionResetInterval: 1,
+      pixelMotionClusterDist: 50,
+      pixelMotionCaptureEnabled: true,
+      webSoundEnabled: true,
+      // AI defaults consolidated
       pirAiDetection: true,
       pirAiRecording: true,
-      streamAiDetection: true,
       streamAiRecording: true,
       streamAiTelegram: true,
       telegramInterval: 10,
-      objectTracking: true,
       maxDuration: 30
     })
   }
 })
 
-const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'saveCameraConfig', 'setViewMode', 'setAiEnabled', 'saveAiConfig'])
+const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'saveCameraConfig', 'setViewMode', 'setAiEnabled', 'saveSystemConfig'])
 const servoValue = ref(90)
 
 // Sync manual slider ref with backend-synced currentAngle
@@ -72,7 +88,7 @@ watch(() => props.currentStream?.currentAngle, (newAngle) => {
 }, { immediate: true })
 const showConfig = ref(false)
 const showCameraConfig = ref(false)
-const showAiConfig = ref(false)
+const showSystemConfig = ref(false)
 
 const onlineDevices = computed(() => props.devices.filter(d => d.status === 'Online'))
 
@@ -99,9 +115,9 @@ const handleSaveCameraConfig = (config) => {
   showCameraConfig.value = false
 }
 
-const handleSaveAiConfig = (config) => {
-  emit('saveAiConfig', config)
-  showAiConfig.value = false
+const handleSaveSystemConfig = (config) => {
+  emit('saveSystemConfig', config)
+  showSystemConfig.value = false
 }
 </script>
 
@@ -223,26 +239,12 @@ const handleSaveAiConfig = (config) => {
                 {{ viewMode === 'single' ? 'Multiple View' : 'Single View' }}
               </button>
 
-              <!-- Repurposed AI Disable/Enable Button with Embedded Config Cog -->
-              <button @click="emit('setAiEnabled', !aiEnabled)" 
-                      :class="['btn flex-grow-1 d-flex align-items-center justify-content-center position-relative py-2', aiEnabled ? 'btn-outline-warning' : 'btn-warning']"
-                      style="padding-right: 4rem; padding-left: 1rem;">
-                <span class="d-flex align-items-center gap-1">
-                  <i :class="aiEnabled ? 'bi bi-eye-slash-fill' : 'bi bi-eye-fill'"></i>
-                  {{ aiEnabled ? 'Disable AI' : 'Enable AI' }}
-                </span>
-                
-                <!-- Static Line Separator and Embedded Cog Wheel Container -->
-                <div class="position-absolute end-0 top-0 bottom-0 d-flex align-items-center" style="width: 3rem;">
-                  <!-- Static Divider Line -->
-                  <div class="h-100" style="border-left: 1px solid currentColor;"></div>
-                  <!-- Config Cog Button -->
-                  <div @click.stop="showAiConfig = true" 
-                       class="flex-grow-1 h-100 d-flex align-items-center justify-content-center ai-cog-btn"
-                       title="AI Configuration">
-                    <i class="bi bi-gear-fill"></i>
-                  </div>
-                </div>
+              <!-- System Settings Configurator Trigger Button -->
+              <button @click="showSystemConfig = true" 
+                      class="btn btn-outline-info flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2"
+                      title="System Settings">
+                <i class="bi bi-sliders2-vertical me-1"></i>
+                Settings
               </button>
             </div>
           </div>
@@ -267,7 +269,7 @@ const handleSaveAiConfig = (config) => {
                    min="0" max="180" step="1"
                    v-model="servoValue"
                    @change="emit('triggerServoAction', servoValue)">
-            <div class="d-flex justify-content-between mt-1 px-1 text-slate-500" style="font-size: 0.6rem;">
+            <div class="d-flex justify-content-between mt-1 px-1 text-slate-500" style="font-size: 0.65rem;">
               <span>0°</span>
               <span>90°</span>
               <span>180°</span>
@@ -293,13 +295,12 @@ const handleSaveAiConfig = (config) => {
       @save="handleSaveCameraConfig" 
     />
 
-    <!-- AI Configuration Modal -->
-    <AiConfiguratorModal 
-      v-if="showAiConfig" 
-      :aiEnabled="aiEnabled"
-      :initialConfig="aiConfig"
-      @close="showAiConfig = false" 
-      @save="handleSaveAiConfig" 
+    <!-- System Settings Configuration Modal -->
+    <SystemSettingsModal 
+      v-if="showSystemConfig" 
+      :initialConfig="{ ...systemConfig, cameraDetectionEnabled: aiEnabled }"
+      @close="showSystemConfig = false" 
+      @save="handleSaveSystemConfig" 
     />
   </div>
 </template>

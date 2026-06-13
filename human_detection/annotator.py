@@ -1,12 +1,13 @@
 import cv2
 
-def annotate_image(img, koordinat_kotak):
+def annotate_image(img, koordinat_kotak, label_prefix="Orang"):
     """
     Menggambar bounding box dan banner label pada gambar berdasarkan koordinat ternormalisasi.
     
     Parameters:
         img: np.ndarray (gambar BGR asli)
         koordinat_kotak: list of dict contaning "posisi" and "confidence"
+        label_prefix: str, prefix label untuk bounding box (misalnya "Orang" atau "Gerakan")
     
     Returns:
         img_hasil: np.ndarray (gambar yang sudah dianotasi)
@@ -33,7 +34,11 @@ def annotate_image(img, koordinat_kotak):
         cv2.rectangle(img_hasil, (x1, y1), (x2, y2), (0, 0, 255), 3)
 
         # Banner teks label
-        label = f"Orang: {int(conf * 100)}%"
+        if label_prefix == "Gerakan":
+            label = "Gerakan"
+        else:
+            label = f"{label_prefix}: {int(conf * 100)}%"
+            
         (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
         y_banner_top = max(y1 - text_h - 10, 0)
         y_banner_bottom = max(y1, text_h + 10)

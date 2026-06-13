@@ -13,16 +13,35 @@ setInterval(() => {
 const wsStatus = ref('Offline')
 const aiConnected = ref(false)
 const aiEnabled = ref(true)
-const aiConfig = ref({
+const defaultConfig = {
+  pirEnabled: true,
+  pirCooldown: 30,
+  pirRecordVideo: true,
+  pirRecordDuration: 10,
+  telegramAlertPir: true,
+  telegramAlertAi: true,
+  telegramAlertMotion: false,
+  cameraDetectionMode: 'AI',
+  streamAiDetection: true,
+  objectTracking: true,
+  pixelMotionSensitivity: 10,
+  pixelMotionMode: 0,
+  pixelMotionMerge: false,
+  pixelMotionResetInterval: 1,
+  pixelMotionClusterDist: 50,
+  pixelMotionCaptureEnabled: true,
+  webSoundEnabled: true,
+  // AI configurations
   pirAiDetection: true,
   pirAiRecording: true,
-  streamAiDetection: true,
   streamAiRecording: true,
   streamAiTelegram: true,
   telegramInterval: 10,
-  objectTracking: true,
   maxDuration: 30
-})
+}
+
+const savedConfig = localStorage.getItem('systemConfig')
+const systemConfig = ref(savedConfig ? { ...defaultConfig, ...JSON.parse(savedConfig) } : defaultConfig)
 let ws = null
 let pendingActiveStreamId = null
 const storageData = ref({
@@ -142,9 +161,15 @@ const connectWS = () => {
       } else if (data.type === 'ai_enabled_updated') {
         aiEnabled.value = data.enabled
       } else if (data.type === 'ai_config_response') {
-        aiConfig.value = data.config
+        systemConfig.value = { ...systemConfig.value, ...data.config }
+        localStorage.setItem('systemConfig', JSON.stringify(systemConfig.value))
       } else if (data.type === 'save_ai_config_success') {
         alert('AI Configuration Saved Successfully!')
+      } else if (data.type === 'system_config_response') {
+        systemConfig.value = data.config
+        localStorage.setItem('systemConfig', JSON.stringify(data.config))
+      } else if (data.type === 'save_system_config_success') {
+        alert('System Settings Saved Successfully!')
       } else if (data.type === 'view_mode_updated') {
         viewMode.value = data.mode
       } else if (data.type === 'servo_angle_update') {
@@ -181,7 +206,7 @@ const connectWS = () => {
         
         // Peringatan suara jika AI mendeteksi orang atau sensor PIR (left, middle, right) aktif
         const isPirSensor = data.sensor === 'left' || data.sensor === 'middle' || data.sensor === 'right';
-        if ((data.sensor === 'AI_Person_Detection' && aiEnabled.value) || isPirSensor) {
+        if (((data.sensor === 'AI_Person_Detection' && aiEnabled.value) || isPirSensor) && systemConfig.value.webSoundEnabled) {
           const alarmAudio = new Audio(`https://${window.location.hostname}:3000/data/alarm.mp3`);
           alarmAudio.play().catch(err => console.log('Autoplay audio blocked:', err));
         }
@@ -194,7 +219,7 @@ const connectWS = () => {
         }
         
         // Peringatan suara jika dari upload gambar terdapat orang
-        if (data.humanPresence && aiEnabled.value) {
+        if (data.humanPresence && aiEnabled.value && systemConfig.value.webSoundEnabled) {
           const alarmAudio = new Audio(`https://${window.location.hostname}:3000/data/alarm.mp3`);
           alarmAudio.play().catch(err => console.log('Autoplay audio blocked:', err));
         }
@@ -343,14 +368,23 @@ const handleSaveCameraConfig = (data) => {
   }
 }
 
-const handleSaveAiConfig = (config) => {
+
+const handleSaveSystemConfig = (config) => {
+  systemConfig.value = config
+  localStorage.setItem('systemConfig', JSON.stringify(config))
+  
+  if (config.cameraDetectionEnabled !== undefined && config.cameraDetectionEnabled !== aiEnabled.value) {
+    handleSetAiEnabled(config.cameraDetectionEnabled)
+  }
+
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ 
-      type: 'save_ai_config', 
+      type: 'save_system_config', 
       config 
     }))
   } else {
-    console.error('WebSocket not connected. Cannot save AI config.')
+    console.warn('WebSocket not connected. System settings saved locally on client.')
+    alert('System Settings Saved Successfully (Local Cache)!')
   }
 }
 
@@ -404,14 +438,14 @@ const effectiveWindowWidth = computed(() => {
         :isForceMobile="isForceMobile"
         :viewMode="viewMode"
         :aiEnabled="aiEnabled"
-        :aiConfig="aiConfig"
+        :systemConfig="systemConfig"
         @triggerCameraAction="triggerCameraAction"
         @triggerServoAction="triggerServoAction"
         @saveServoConfig="handleSaveServoConfig"
         @saveCameraConfig="handleSaveCameraConfig"
         @setViewMode="handleSetViewMode"
         @setAiEnabled="handleSetAiEnabled"
-        @saveAiConfig="handleSaveAiConfig"
+        @saveSystemConfig="handleSaveSystemConfig"
       />
 
       <aside class="col-lg-2 sidebar-section d-flex flex-column bg-slate-900 border-start border-slate-700">

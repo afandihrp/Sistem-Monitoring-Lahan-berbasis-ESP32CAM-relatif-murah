@@ -91,6 +91,11 @@ int cam_xclk = 8000000;
 bool cam_flashOnCapture = true;
 int cam_flashIntensity = 0;
 
+// PIR sensor settings managed by backend system settings
+bool cam_pirEnabled = true;
+int cam_pirCooldown = 30;
+unsigned long lastPirTriggerTime = 0;
+
 void applyCameraConfig() {
   sensor_t * s = esp_camera_sensor_get();
   if (!s) return;
@@ -372,17 +377,48 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
            // XCLK is changed at runtime via s->set_xclk() inside applyCameraConfig()
 
            applyCameraConfig();
-         } else if (cmd.indexOf("\"take_photo\"") >= 0) {
-            int sensorIdx = cmd.indexOf("\"sensor\":\"");
-            if (sensorIdx != -1) {
-              int start = sensorIdx + 10;
-              int end = cmd.indexOf("\"", start);
-              if (end != -1) {
-                pendingCaptureLabel = cmd.substring(start, end);
-                Serial.printf("[WSc] Received take_photo command for sensor: %s\n", pendingCaptureLabel.c_str());
+          } else if (cmd.indexOf("\"take_photo\"") >= 0) {
+             int sensorIdx = cmd.indexOf("\"sensor\":\"");
+             if (sensorIdx != -1) {
+               int start = sensorIdx + 10;
+               int end = cmd.indexOf("\"", start);
+               if (end != -1) {
+                 pendingCaptureLabel = cmd.substring(start, end);
+                 Serial.printf("[WSc] Received take_photo command for sensor: %s\n", pendingCaptureLabel.c_str());
+               }
+             }
+          } else if (cmd.indexOf("\"system_settings_update\"") >= 0) {
+            int enabledIdx = cmd.indexOf("\"pirEnabled\"");
+            int cooldownIdx = cmd.indexOf("\"pirCooldown\"");
+            
+            if (enabledIdx != -1) {
+              int colonIdx = cmd.indexOf(":", enabledIdx);
+              if (colonIdx != -1) {
+                int start = colonIdx + 1;
+                while (start < cmd.length() && (cmd[start] == ' ' || cmd[start] == '\t' || cmd[start] == '"')) {
+                  start++;
+                }
+                cam_pirEnabled = (cmd.substring(start, start + 4).indexOf("true") != -1);
               }
             }
-         }
+            if (cooldownIdx != -1) {
+              int colonIdx = cmd.indexOf(":", cooldownIdx);
+              if (colonIdx != -1) {
+                int start = colonIdx + 1;
+                while (start < cmd.length() && (cmd[start] == ' ' || cmd[start] == '\t' || cmd[start] == '"')) {
+                  start++;
+                }
+                int end = start;
+                while (end < cmd.length() && (cmd[end] >= '0' && cmd[end] <= '9')) {
+                  end++;
+                }
+                if (end > start) {
+                  cam_pirCooldown = cmd.substring(start, end).toInt();
+                }
+              }
+            }
+            Serial.printf("[WSc] System settings updated: pirEnabled=%d, pirCooldown=%d\n", cam_pirEnabled, cam_pirCooldown);
+          }
       }
       break;
     case WStype_BIN:
@@ -635,11 +671,23 @@ void pirTask(void * pvParameters) {
   bool local_prev_right = false;
 
   for (;;) {
+    if (!cam_pirEnabled) {
+      vTaskDelay(pdMS_TO_TICKS(500));
+      continue;
+    }
+
     // Poll Left PIR
     bool left = digitalRead(left_pir_pin);
     if (left && !local_prev_left) {
-      setTargetAngle(SERVO_POS_LEFT);
-      __atomic_store_n(&pendingLeftMotion, true, __ATOMIC_SEQ_CST);
+      unsigned long now = millis();
+      unsigned long cooldownMs = (unsigned long)cam_pirCooldown * 1000;
+      if (lastPirTriggerTime > 0 && (now - lastPirTriggerTime < cooldownMs)) {
+        Serial.println("PIR left trigger ignored (cooldown active)");
+      } else {
+        lastPirTriggerTime = now;
+        setTargetAngle(SERVO_POS_LEFT);
+        __atomic_store_n(&pendingLeftMotion, true, __ATOMIC_SEQ_CST);
+      }
       local_prev_left = true;
     } else if (!left && local_prev_left) {
       local_prev_left = false;
@@ -648,8 +696,15 @@ void pirTask(void * pvParameters) {
     // Poll Middle PIR
     bool middle = digitalRead(middle_pir_pin);
     if (middle && !local_prev_middle) {
-      setTargetAngle(SERVO_POS_MIDDLE);
-      __atomic_store_n(&pendingMiddleMotion, true, __ATOMIC_SEQ_CST);
+      unsigned long now = millis();
+      unsigned long cooldownMs = (unsigned long)cam_pirCooldown * 1000;
+      if (lastPirTriggerTime > 0 && (now - lastPirTriggerTime < cooldownMs)) {
+        Serial.println("PIR middle trigger ignored (cooldown active)");
+      } else {
+        lastPirTriggerTime = now;
+        setTargetAngle(SERVO_POS_MIDDLE);
+        __atomic_store_n(&pendingMiddleMotion, true, __ATOMIC_SEQ_CST);
+      }
       local_prev_middle = true;
     } else if (!middle && local_prev_middle) {
       local_prev_middle = false;
@@ -658,8 +713,15 @@ void pirTask(void * pvParameters) {
     // Poll Right PIR
     bool right = digitalRead(right_pir_pin);
     if (right && !local_prev_right) {
-      setTargetAngle(SERVO_POS_RIGHT);
-      __atomic_store_n(&pendingRightMotion, true, __ATOMIC_SEQ_CST);
+      unsigned long now = millis();
+      unsigned long cooldownMs = (unsigned long)cam_pirCooldown * 1000;
+      if (lastPirTriggerTime > 0 && (now - lastPirTriggerTime < cooldownMs)) {
+        Serial.println("PIR right trigger ignored (cooldown active)");
+      } else {
+        lastPirTriggerTime = now;
+        setTargetAngle(SERVO_POS_RIGHT);
+        __atomic_store_n(&pendingRightMotion, true, __ATOMIC_SEQ_CST);
+      }
       local_prev_right = true;
     } else if (!right && local_prev_right) {
       local_prev_right = false;
@@ -703,25 +765,19 @@ void loop() {
   }
 
   // Proses pending motion reports secara thread-safe dari pirTask
-  if (__atomic_exchange_n(&pendingLeftMotion, false, __ATOMIC_SEQ_CST)) {
-    if (WiFi.status() == WL_CONNECTED) webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"left\"}");
-    Serial.println("Motion detected: left");
+  bool left = __atomic_exchange_n(&pendingLeftMotion, false, __ATOMIC_SEQ_CST);
+  bool middle = __atomic_exchange_n(&pendingMiddleMotion, false, __ATOMIC_SEQ_CST);
+  bool right = __atomic_exchange_n(&pendingRightMotion, false, __ATOMIC_SEQ_CST);
+
+  if (left || middle || right) {
+    String detectedSensor = left ? "left" : (middle ? "middle" : "right");
+    Serial.printf("Motion detected: %s\n", detectedSensor.c_str());
+    if (WiFi.status() == WL_CONNECTED) {
+      String msg = "{\"type\":\"motion\",\"sensor\":\"" + detectedSensor + "\"}";
+      webSocket.sendTXT(msg);
+    }
     triggerCaptureAfterMove = true;
-    captureLabelAfterMove = "left";
-    isServoWaitingToReturn = false; // Tunda auto-return sampai foto selesai
-  }
-  if (__atomic_exchange_n(&pendingMiddleMotion, false, __ATOMIC_SEQ_CST)) {
-    if (WiFi.status() == WL_CONNECTED) webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"middle\"}");
-    Serial.println("Motion detected: middle");
-    triggerCaptureAfterMove = true;
-    captureLabelAfterMove = "middle";
-    isServoWaitingToReturn = false; // Tunda auto-return sampai foto selesai
-  }
-  if (__atomic_exchange_n(&pendingRightMotion, false, __ATOMIC_SEQ_CST)) {
-    if (WiFi.status() == WL_CONNECTED) webSocket.sendTXT("{\"type\":\"motion\",\"sensor\":\"right\"}");
-    Serial.println("Motion detected: right");
-    triggerCaptureAfterMove = true;
-    captureLabelAfterMove = "right";
+    captureLabelAfterMove = detectedSensor;
     isServoWaitingToReturn = false; // Tunda auto-return sampai foto selesai
   }
 

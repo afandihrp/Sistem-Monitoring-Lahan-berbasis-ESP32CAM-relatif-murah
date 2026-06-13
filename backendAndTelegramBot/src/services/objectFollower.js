@@ -58,8 +58,8 @@ function calculateNextFollowerAngle(deviceId, currentAngle, boxCoordinates, defa
     const angleValue = currentAngle !== undefined ? currentAngle : defaultAngle;
 
     // Constants for PD Controller
-    const Kp = 30;
-    const Kd = 6;
+    const Kp = 50;
+    const Kd = 10;
 
     // Map offset to angle adjustment. Left pan increases angle, Right pan decreases angle.
     // Kd dampens the speed as it approaches the target to reduce oscillation.

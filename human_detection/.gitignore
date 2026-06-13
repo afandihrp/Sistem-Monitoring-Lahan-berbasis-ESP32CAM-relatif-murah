@@ -3,3 +3,4 @@ yolov8n_saved_model
 ai_env
 yolo11n_saved_model
 export_yolo26.py
+__pycache__
