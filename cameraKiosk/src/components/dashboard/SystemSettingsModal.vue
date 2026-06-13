@@ -15,6 +15,7 @@ const props = defineProps({
       cameraDetectionEnabled: true,
       cameraDetectionMode: 'AI', // 'AI' | 'Pixel'
       streamAiDetection: true,
+      streamAiCaptureEnabled: true,
       objectTracking: true,
       pixelMotionSensitivity: 10,
       pixelMotionMode: 0,
@@ -76,6 +77,7 @@ const webSoundEnabled = ref(props.initialConfig.webSoundEnabled !== undefined ? 
 const pirAiDetection = ref(props.initialConfig.pirAiDetection !== undefined ? props.initialConfig.pirAiDetection : true)
 const pirAiRecording = ref(props.initialConfig.pirAiRecording !== undefined ? props.initialConfig.pirAiRecording : true)
 const streamAiRecording = ref(props.initialConfig.streamAiRecording !== undefined ? props.initialConfig.streamAiRecording : true)
+const streamAiCaptureEnabled = ref(props.initialConfig.streamAiCaptureEnabled !== undefined ? props.initialConfig.streamAiCaptureEnabled : true)
 const streamAiTelegram = ref(props.initialConfig.streamAiTelegram !== undefined ? props.initialConfig.streamAiTelegram : true)
 const telegramInterval = ref(props.initialConfig.telegramInterval !== undefined ? props.initialConfig.telegramInterval : 10)
 const maxDuration = ref(props.initialConfig.maxDuration !== undefined ? props.initialConfig.maxDuration : 30)
@@ -124,6 +126,7 @@ const saveConfig = () => {
     pirAiDetection: pirAiDetection.value,
     pirAiRecording: pirAiRecording.value,
     streamAiRecording: streamAiRecording.value,
+    streamAiCaptureEnabled: streamAiCaptureEnabled.value,
     streamAiTelegram: streamAiTelegram.value,
     telegramInterval: telegramInterval.value,
     maxDuration: maxDuration.value
@@ -376,6 +379,20 @@ const saveConfig = () => {
                     <span class="text-slate-500" style="font-size: 0.7rem;">Enables AI object detection on live stream frames</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="aiStreamDetSwitch" v-model="streamAiDetection" :disabled="!cameraDetectionEnabled">
+                </div>
+
+                <!-- Divider Line -->
+                <hr v-if="streamAiDetection" style="border-color: #334155; opacity: 0.35; margin: 1rem 0;">
+
+                <!-- Sub-setting Switch: Capture Stream Camera -->
+                <div v-if="streamAiDetection" class="form-check form-switch d-flex justify-content-between align-items-center p-0 ms-3">
+                  <div>
+                    <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="aiStreamCaptureSwitch">
+                      Capture Stream Camera
+                    </label>
+                    <span class="text-slate-500 d-block" style="font-size: 0.7rem;">Capture and save snapshot to gallery when human is detected</span>
+                  </div>
+                  <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="aiStreamCaptureSwitch" v-model="streamAiCaptureEnabled" :disabled="!cameraDetectionEnabled || !streamAiDetection">
                 </div>
 
                 <!-- Divider Line -->

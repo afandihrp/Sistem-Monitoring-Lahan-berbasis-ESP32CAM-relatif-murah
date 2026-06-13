@@ -23,6 +23,7 @@ const defaultConfig = {
   telegramAlertMotion: false,
   cameraDetectionMode: 'AI',
   streamAiDetection: true,
+  streamAiCaptureEnabled: true,
   objectTracking: true,
   pixelMotionSensitivity: 10,
   pixelMotionMode: 0,

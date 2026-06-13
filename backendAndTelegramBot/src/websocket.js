@@ -42,6 +42,7 @@ let globalSystemConfig = {
   telegramAlertMotion: false,
   cameraDetectionMode: 'AI',
   streamAiDetection: true,
+  streamAiCaptureEnabled: true,
   objectTracking: true,
   pixelMotionSensitivity: 10,
   pixelMotionMode: 0,
@@ -364,9 +365,10 @@ function triggerAiWorker() {
           device.lastTimePersonSeen = Date.now();
           console.log(`[AI Hold] Person detected on PIR-active camera ${deviceId}. Extending hold.`);
         } else {
-          // Normal AI/Pixel stream detection event logic
           const isPixelMode = (globalSystemConfig.cameraDetectionMode === 'Pixel');
-          const isEnabled = isPixelMode ? (globalStreamAiRecording || globalSystemConfig.telegramAlertMotion || globalSystemConfig.pixelMotionCaptureEnabled) : (globalStreamAiRecording || globalStreamAiTelegram);
+          const isEnabled = isPixelMode 
+            ? (globalStreamAiRecording || globalSystemConfig.telegramAlertMotion || globalSystemConfig.pixelMotionCaptureEnabled) 
+            : (globalStreamAiRecording || globalStreamAiTelegram || globalSystemConfig.streamAiCaptureEnabled);
           
           if (!device.isRecordingAi && isEnabled) {
             console.log(`[AI Record] ${isPixelMode ? 'Motion' : 'Person'} detected on ${deviceId}. Starting stream event...`);
@@ -407,7 +409,9 @@ function triggerAiWorker() {
             }
  
              // Asynchronously process the trigger snapshot using the stream frameBuffer (No ESP32-CAM capture requested)
-             const shouldCapture = !isPixelMode || globalSystemConfig.pixelMotionCaptureEnabled;
+             const shouldCapture = isPixelMode 
+               ? globalSystemConfig.pixelMotionCaptureEnabled 
+               : globalSystemConfig.streamAiCaptureEnabled;
              if (shouldCapture) {
                (async () => {
                  const timestamp = Date.now();
