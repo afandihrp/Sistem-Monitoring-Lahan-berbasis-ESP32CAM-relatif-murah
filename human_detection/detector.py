@@ -18,17 +18,20 @@ class PersonDetector:
         self.input_width = self.input_shape[2]
         self.input_dtype = self.input_details[0]['dtype']
 
-        # Inspeksi dimensi output untuk auto-verifikasi model (YOLOv8/v11 80-class vs 1-class)
+        # Inspeksi dimensi output untuk auto-verifikasi model (YOLOv8/v11 80-class vs 1-class, YOLO26 6-channel)
         output_shape = self.output_details[0]['shape']
-        # YOLOv8/v11 output tensor biasanya berdimensi [1, channels, boxes] (misal: [1, 84, 8400] atau [1, 5, 8400])
+        # YOLOv8/v11 output tensor biasanya berdimensi [1, channels, boxes]
         # channels mewakili 4 koordinat box + jumlah class
         num_channels = output_shape[1] if output_shape[1] < output_shape[2] else output_shape[2]
-        num_classes = num_channels - 4
         
-        if num_classes == 1:
-            print(f"[INFO] Loaded model output channels: {num_channels} (Detected Person-Only model)")
+        if num_channels == 6:
+            print(f"[INFO] Loaded model output channels: {num_channels} (Detected End-to-End NMS-Free model)")
         else:
-            print(f"[INFO] Loaded model output channels: {num_channels} (Detected {num_classes}-class COCO model)")
+            num_classes = num_channels - 4
+            if num_classes == 1:
+                print(f"[INFO] Loaded model output channels: {num_channels} (Detected Person-Only model)")
+            else:
+                print(f"[INFO] Loaded model output channels: {num_channels} (Detected {num_classes}-class COCO model)")
 
     def run_inference(self, img_bgr):
         # Preprocessing
@@ -48,41 +51,63 @@ class PersonDetector:
         output_data = self.interpreter.get_tensor(self.output_details[0]['index'])
         output_data = np.squeeze(output_data)
 
-        # Transpose: (84, 8400) → (8400, 84)
+        # Transpose: (84, 8400) → (8400, 84) atau (6, N) -> (N, 6)
         if output_data.shape[0] < output_data.shape[1]:
             output_data = output_data.T
 
         orig_h, orig_w = img_bgr.shape[:2]
+        num_channels = output_data.shape[1]
 
-        # 1. Ambil class scores (kolom index 4 ke atas)
-        class_scores = output_data[:, 4:]
-        
-        # 2. Cari class dengan score tertinggi untuk setiap bounding box
-        class_ids = np.argmax(class_scores, axis=1)
-        class_confs = class_scores[np.arange(len(class_scores)), class_ids]
-
-        # 3. Filter hanya untuk class 0 (person) dan confidence > CONF_THRESHOLD
-        mask = (class_ids == 0) & (class_confs > config.CONF_THRESHOLD)
-        
         boxes = []
         confidences = []
 
-        if np.any(mask):
-            matching_rows = output_data[mask]
-            matching_confs = class_confs[mask]
+        if num_channels == 6:
+            # YOLO26 End-to-End Format: [x1, y1, x2, y2, confidence, class_id]
+            class_confs = output_data[:, 4]
+            class_ids = output_data[:, 5].astype(np.int32)
+
+            # Filter hanya untuk class 0 (person) dan confidence > CONF_THRESHOLD
+            mask = (class_ids == 0) & (class_confs > config.CONF_THRESHOLD)
+
+            if np.any(mask):
+                matching_rows = output_data[mask]
+                matching_confs = class_confs[mask]
+
+                x1 = (matching_rows[:, 0] * orig_w).astype(np.int32)
+                y1 = (matching_rows[:, 1] * orig_h).astype(np.int32)
+                x2 = (matching_rows[:, 2] * orig_w).astype(np.int32)
+                y2 = (matching_rows[:, 3] * orig_h).astype(np.int32)
+
+                boxes = np.column_stack((x1, y1, x2, y2)).tolist()
+                confidences = matching_confs.tolist()
+        else:
+            # Standard YOLOv8/v11 Format: [xc, yc, w, h, class_0, class_1, ...]
+            # 1. Ambil class scores (kolom index 4 ke atas)
+            class_scores = output_data[:, 4:]
             
-            xc = matching_rows[:, 0]
-            yc = matching_rows[:, 1]
-            w  = matching_rows[:, 2]
-            h  = matching_rows[:, 3]
-            
-            x1 = ((xc - w / 2) * orig_w).astype(np.int32)
-            y1 = ((yc - h / 2) * orig_h).astype(np.int32)
-            x2 = ((xc + w / 2) * orig_w).astype(np.int32)
-            y2 = ((yc + h / 2) * orig_h).astype(np.int32)
-            
-            boxes = np.column_stack((x1, y1, x2, y2)).tolist()
-            confidences = matching_confs.tolist()
+            # 2. Cari class dengan score tertinggi untuk setiap bounding box
+            class_ids = np.argmax(class_scores, axis=1)
+            class_confs = class_scores[np.arange(len(class_scores)), class_ids]
+
+            # 3. Filter hanya untuk class 0 (person) dan confidence > CONF_THRESHOLD
+            mask = (class_ids == 0) & (class_confs > config.CONF_THRESHOLD)
+
+            if np.any(mask):
+                matching_rows = output_data[mask]
+                matching_confs = class_confs[mask]
+                
+                xc = matching_rows[:, 0]
+                yc = matching_rows[:, 1]
+                w  = matching_rows[:, 2]
+                h  = matching_rows[:, 3]
+                
+                x1 = ((xc - w / 2) * orig_w).astype(np.int32)
+                y1 = ((yc - h / 2) * orig_h).astype(np.int32)
+                x2 = ((xc + w / 2) * orig_w).astype(np.int32)
+                y2 = ((yc + h / 2) * orig_h).astype(np.int32)
+                
+                boxes = np.column_stack((x1, y1, x2, y2)).tolist()
+                confidences = matching_confs.tolist()
 
         # NMS (Non-Maximum Suppression)
         final_boxes = []

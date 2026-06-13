@@ -1,13 +1,13 @@
 # Configuration settings for the human detection subsystem
 
-MODEL_PATH = "yolo11n_int8.tflite"
+MODEL_PATH = "yolo26n_int8.tflite"
 
 # Detection and NMS Hyperparameters
-CONF_THRESHOLD = 0.25
+CONF_THRESHOLD = 0.50
 NMS_THRESHOLD = 0.45
 
 # Performance and Hardware
-NUM_THREADS = 1
+NUM_THREADS = 2
 
 # WebSocket Client Configuration (Target Backend)
 BACKEND_HOST = "gateway.local"
