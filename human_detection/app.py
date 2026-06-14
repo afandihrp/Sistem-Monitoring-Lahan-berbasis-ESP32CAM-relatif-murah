@@ -150,6 +150,7 @@ async def handle_client(websocket, path=None):
                             min_area_pixels = getattr(config, "PIXEL_MOTION_MIN_AREA", 10.0)
                             merge = getattr(config, "PIXEL_MOTION_MERGE", False)
                             cluster_dist = getattr(config, "PIXEL_MOTION_CLUSTER_DIST", 50)
+                            min_size = getattr(config, "PIXEL_MOTION_MIN_SIZE", 10)
 
                             # 2. Compute absolute difference berdasarkan mode
                             if pixel_mode == 0:
@@ -190,13 +191,18 @@ async def handle_client(websocket, path=None):
                             # 4. Cari Contours
                             contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-                            # Filter contours berdasarkan min area
+                            # Filter contours berdasarkan min area dan min size (jika merge aktif)
                             qualifying_boxes = []
                             for contour in contours:
                                 area = cv2.contourArea(contour)
                                 if area >= min_area_pixels:
                                     (x, y, w, h) = cv2.boundingRect(contour)
-                                    qualifying_boxes.append((x, y, w, h, area))
+                                    if merge:
+                                        # Only include if either width or height meets the min size requirement
+                                        if w >= min_size or h >= min_size:
+                                            qualifying_boxes.append((x, y, w, h, area))
+                                    else:
+                                        qualifying_boxes.append((x, y, w, h, area))
 
                             koordinat_kotak = []
                             if len(qualifying_boxes) > 0:
@@ -330,6 +336,9 @@ async def handle_client(websocket, path=None):
                         if "pixelMotionClusterDist" in new_config:
                             config.PIXEL_MOTION_CLUSTER_DIST = int(new_config["pixelMotionClusterDist"])
                             print(f"[DEBUG] config.PIXEL_MOTION_CLUSTER_DIST diperbarui menjadi: {config.PIXEL_MOTION_CLUSTER_DIST}")
+                        if "pixelMotionMinSize" in new_config:
+                            config.PIXEL_MOTION_MIN_SIZE = int(new_config["pixelMotionMinSize"])
+                            print(f"[DEBUG] config.PIXEL_MOTION_MIN_SIZE diperbarui menjadi: {config.PIXEL_MOTION_MIN_SIZE}")
                 except Exception as e:
                     print(f"[ERROR] Gagal memproses pesan konfigurasi teks: {e}")
 

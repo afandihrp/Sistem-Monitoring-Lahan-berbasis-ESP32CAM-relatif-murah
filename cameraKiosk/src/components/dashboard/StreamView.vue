@@ -65,6 +65,7 @@ const props = defineProps({
       pixelMotionMerge: false,
       pixelMotionResetInterval: 1,
       pixelMotionClusterDist: 50,
+      pixelMotionMinSize: 10,
       pixelMotionCaptureEnabled: true,
       webSoundEnabled: true,
       // AI defaults consolidated

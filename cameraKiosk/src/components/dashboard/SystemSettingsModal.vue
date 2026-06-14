@@ -22,6 +22,7 @@ const props = defineProps({
       pixelMotionMerge: false,
       pixelMotionResetInterval: 1,
       pixelMotionClusterDist: 50,
+      pixelMotionMinSize: 10,
       pixelMotionCaptureEnabled: true,
       pixelMotionRecordingEnabled: true,
       pixelMotionCaptureDelay: 100,
@@ -62,7 +63,8 @@ const getClosestSensitivityPreset = (val) => {
   if (val === undefined || val === null) return 20;
   if (val <= 15) return 10;
   if (val <= 25) return 20;
-  return 30;
+  if (val <= 37) return 30;
+  return 40;
 };
 
 const pixelMotionSensitivity = ref(getClosestSensitivityPreset(props.initialConfig.pixelMotionSensitivity))
@@ -70,6 +72,7 @@ const pixelMotionMode = ref(props.initialConfig.pixelMotionMode !== undefined ? 
 const pixelMotionMerge = ref(props.initialConfig.pixelMotionMerge !== undefined ? props.initialConfig.pixelMotionMerge : false)
 const pixelMotionResetInterval = ref(props.initialConfig.pixelMotionResetInterval !== undefined ? props.initialConfig.pixelMotionResetInterval : 1)
 const pixelMotionClusterDist = ref(props.initialConfig.pixelMotionClusterDist || 50)
+const pixelMotionMinSize = ref(props.initialConfig.pixelMotionMinSize !== undefined ? props.initialConfig.pixelMotionMinSize : 10)
 const pixelMotionCaptureEnabled = ref(props.initialConfig.pixelMotionCaptureEnabled !== undefined ? props.initialConfig.pixelMotionCaptureEnabled : true)
 const pixelMotionRecordingEnabled = ref(props.initialConfig.pixelMotionRecordingEnabled !== undefined ? props.initialConfig.pixelMotionRecordingEnabled : true)
 const pixelMotionCaptureDelay = ref(props.initialConfig.pixelMotionCaptureDelay !== undefined ? props.initialConfig.pixelMotionCaptureDelay : 100)
@@ -219,6 +222,7 @@ const saveConfig = () => {
     pixelMotionMerge: pixelMotionMerge.value,
     pixelMotionResetInterval: pixelMotionResetInterval.value,
     pixelMotionClusterDist: pixelMotionClusterDist.value,
+    pixelMotionMinSize: pixelMotionMinSize.value,
     pixelMotionCaptureEnabled: pixelMotionCaptureEnabled.value,
     pixelMotionRecordingEnabled: pixelMotionRecordingEnabled.value,
     pixelMotionCaptureDelay: pixelMotionCaptureDelay.value,
@@ -628,7 +632,8 @@ const saveConfig = () => {
                       v-for="preset in [
                         { label: 'High', value: 10 },
                         { label: 'Medium', value: 20 },
-                        { label: 'Low', value: 30 }
+                        { label: 'Low', value: 30 },
+                        { label: 'Extra Low', value: 40 }
                       ]"
                       :key="preset.value"
                       type="button"
@@ -656,6 +661,16 @@ const saveConfig = () => {
                     <span class="text-slate-500 d-block" style="font-size: 0.6rem;">Combine all separate motion rectangles into a single outer box</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="pixelMergeSwitch" v-model="pixelMotionMerge" :disabled="!cameraDetectionEnabled">
+                </div>
+
+                <!-- Minimum Contour Size Slider (Child of Merge Bounding Boxes) -->
+                <div v-if="pixelMotionMerge" class="mt-3 ps-3 border-start border-slate-700 border-2 ms-2 transition-all duration-300">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label class="text-slate-400 small">Min Contour Size</label>
+                    <span class="text-info font-monospace small fw-bold">{{ pixelMotionMinSize }} px</span>
+                  </div>
+                  <input type="range" class="form-range custom-slider" min="2" max="150" step="1" v-model.number="pixelMotionMinSize" :disabled="!cameraDetectionEnabled">
+                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">Minimum width or height of a motion block to trigger the combined merge box</span>
                 </div>
 
                 <!-- Clustering Distance Slider (Child of Merge Bounding Boxes) -->

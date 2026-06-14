@@ -53,6 +53,7 @@ let globalSystemConfig = {
   pixelMotionMerge: false,
   pixelMotionResetInterval: 1,
   pixelMotionClusterDist: 50,
+  pixelMotionMinSize: 10,
   pixelMotionCaptureEnabled: true,
   pixelMotionRecordingEnabled: true,
   pixelMotionCaptureDelay: 100,
@@ -77,7 +78,8 @@ function sendAiConfigToPython() {
     pixelMotionMode: globalSystemConfig.pixelMotionMode,
     pixelMotionMerge: globalSystemConfig.pixelMotionMerge,
     pixelMotionResetInterval: globalSystemConfig.pixelMotionResetInterval,
-    pixelMotionClusterDist: globalSystemConfig.pixelMotionClusterDist
+    pixelMotionClusterDist: globalSystemConfig.pixelMotionClusterDist,
+    pixelMotionMinSize: globalSystemConfig.pixelMotionMinSize
   };
   yoloClient.sendConfig(configToSend);
 }
