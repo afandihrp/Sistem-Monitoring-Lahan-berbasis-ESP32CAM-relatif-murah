@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 
 const props = defineProps({
   initialConfig: {
@@ -76,7 +76,33 @@ const webSoundEnabled = ref(props.initialConfig.webSoundEnabled !== undefined ? 
 // AI configurator specific states
 const pirAiDetection = ref(props.initialConfig.pirAiDetection !== undefined ? props.initialConfig.pirAiDetection : true)
 const pirAiRecording = ref(props.initialConfig.pirAiRecording !== undefined ? props.initialConfig.pirAiRecording : true)
-const streamAiRecording = ref(props.initialConfig.streamAiRecording !== undefined ? props.initialConfig.streamAiRecording : true)
+const getNormalizedStreamAiRecording = (val) => {
+  if (val === true) return 'continuous';
+  if (val === false) return 'off';
+  return val !== undefined ? val : 'continuous';
+}
+const streamAiRecording = ref(getNormalizedStreamAiRecording(props.initialConfig.streamAiRecording))
+const lastStreamAiRecordingDuration = ref((() => {
+  const raw = props.initialConfig.streamAiRecording
+  if (!raw || raw === 'off' || raw === false) return 'continuous'
+  if (raw === true) return 'continuous'
+  return raw
+})())
+const streamAiRecordingSwitch = computed({
+  get() {
+    return streamAiRecording.value !== 'off'
+  },
+  set(val) {
+    if (val) {
+      streamAiRecording.value = lastStreamAiRecordingDuration.value || 'continuous'
+    } else {
+      if (streamAiRecording.value !== 'off') {
+        lastStreamAiRecordingDuration.value = streamAiRecording.value
+      }
+      streamAiRecording.value = 'off'
+    }
+  }
+})
 const streamAiCaptureEnabled = ref(props.initialConfig.streamAiCaptureEnabled !== undefined ? props.initialConfig.streamAiCaptureEnabled : true)
 const streamAiTelegram = ref(props.initialConfig.streamAiTelegram !== undefined ? props.initialConfig.streamAiTelegram : true)
 const telegramInterval = ref(props.initialConfig.telegramInterval !== undefined ? props.initialConfig.telegramInterval : 10)
@@ -92,9 +118,35 @@ watch(pirAiDetection, (newVal) => {
 watch(streamAiDetection, (newVal) => {
   if (!newVal) {
     streamAiTelegram.value = false
-    streamAiRecording.value = false
+    streamAiRecording.value = 'off'
   }
 })
+
+// Helper to manage unified video recording duration
+const updateRecordingDuration = (dur) => {
+  if (dur === 'continuous') {
+    if (streamAiRecording.value !== 'off') {
+      streamAiRecording.value = 'continuous'
+    }
+    lastStreamAiRecordingDuration.value = 'continuous'
+    pirRecordDuration.value = 60
+  } else {
+    const val = parseInt(dur, 10)
+    if (streamAiRecording.value !== 'off') {
+      streamAiRecording.value = val
+    }
+    lastStreamAiRecordingDuration.value = val
+    pirRecordDuration.value = val
+  }
+}
+
+const getRecordingDurationActive = (dur) => {
+  if (dur === 'continuous') {
+    return lastStreamAiRecordingDuration.value === 'continuous' || lastStreamAiRecordingDuration.value === true
+  }
+  return parseInt(lastStreamAiRecordingDuration.value, 10) === parseInt(dur, 10)
+}
+
 
 // Helper to get duration / cooldown text labels
 const getSecondsLabel = (sec) => {
@@ -228,24 +280,6 @@ const saveConfig = () => {
               <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="pirRecordSwitch" v-model="pirRecordVideo" :disabled="!pirEnabled">
             </div>
 
-            <!-- Nested Video Duration presets (Active when PIR is enabled and Record Video is true) -->
-            <div v-if="pirRecordVideo" class="mt-3 pt-3 border-top border-slate-700 border-opacity-50 ms-3 transition-all">
-              <label class="text-slate-300 small fw-bold text-uppercase mb-2 d-block" style="font-size: 0.7rem;">Video Recording Duration</label>
-              <span class="text-slate-500 d-block mb-3" style="font-size: 0.65rem;">Choose the duration of the recorded video file</span>
-              <div class="d-flex gap-1 justify-content-between flex-wrap">
-                <button 
-                  v-for="dur in [5, 10, 20, 30, 60]" 
-                  :key="dur"
-                  type="button"
-                  :disabled="!pirEnabled || !pirRecordVideo"
-                  @click="pirRecordDuration = dur" 
-                  :class="['btn p-2 fw-bold duration-btn flex-grow-1', pirRecordDuration === dur ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-                  style="font-size: 0.7rem; min-width: 50px;"
-                >
-                  {{ getSecondsLabel(dur) }}
-                </button>
-              </div>
-            </div>
           </div>
 
         </div>
@@ -398,16 +432,17 @@ const saveConfig = () => {
                 <!-- Divider Line -->
                 <hr v-if="streamAiDetection" style="border-color: #334155; opacity: 0.35; margin: 1rem 0;">
 
-                <!-- Sub-setting Switch: Recording -->
+                <!-- Sub-setting Switch: Stream Camera Recording -->
                 <div v-if="streamAiDetection" class="form-check form-switch d-flex justify-content-between align-items-center p-0 ms-3">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="aiStreamRecSwitch">
                       Stream Camera Recording
                     </label>
-                    <span class="text-slate-500 d-block" style="font-size: 0.7rem;">Continuous recording as long as there is an object detected</span>
+                    <span class="text-slate-500 d-block" style="font-size: 0.7rem;">Record video clip when human is detected on stream</span>
                   </div>
-                  <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="aiStreamRecSwitch" v-model="streamAiRecording" :disabled="!cameraDetectionEnabled || !streamAiDetection">
+                  <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="aiStreamRecSwitch" v-model="streamAiRecordingSwitch" :disabled="!cameraDetectionEnabled || !streamAiDetection">
                 </div>
+
               </div>
 
               <!-- PIR Sensor AI Detection & Recording Box -->
@@ -451,10 +486,29 @@ const saveConfig = () => {
                 </div>
               </div>
 
-              <!-- Max Video Recording Duration -->
+              <!-- Video Recording Duration -->
               <div class="p-3 bg-slate-800 rounded border border-slate-700">
-                <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">Max Recording Duration</label>
-                <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Compression limits for recorded video files</span>
+                <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">Video Recording Duration</label>
+                <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Controls both AI Stream Recording and PIR Video Recording duration</span>
+                <div class="d-flex gap-1 justify-content-between flex-wrap">
+                  <button 
+                    v-for="dur in [10, 20, 30, 60, 'continuous']" 
+                    :key="dur"
+                    type="button"
+                    :disabled="!cameraDetectionEnabled"
+                    @click="updateRecordingDuration(dur)" 
+                    :class="['btn p-2 fw-bold duration-btn flex-grow-1', getRecordingDurationActive(dur) ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+                    style="font-size: 0.7rem; min-width: 50px;"
+                  >
+                    {{ dur === 'continuous' ? 'Continuous' : `${dur}s` }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Max Video Duration Compress -->
+              <div class="p-3 bg-slate-800 rounded border border-slate-700">
+                <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">Max Video Duration Compress</label>
+                <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Compresses and speeds up output video if recording duration exceeds this limit</span>
                 <div class="d-flex gap-2 justify-content-between">
                   <button 
                     v-for="dur in [10, 20, 30]" 

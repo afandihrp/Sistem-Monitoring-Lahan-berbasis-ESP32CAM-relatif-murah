@@ -26,7 +26,7 @@ let globalViewMode = 'single';
 let globalPirAiDetection = true;
 let globalPirAiRecording = true;
 let globalStreamAiDetection = true;
-let globalStreamAiRecording = true;
+let globalStreamAiRecording = 'continuous';
 let globalStreamAiTelegram = true;
 let globalTelegramInterval = 10;
 let globalObjectTracking = true;
@@ -200,12 +200,23 @@ function updateDeviceServoAngle(deviceId, angle, skipCameraSend = false) {
   }
 }
 
-function stopAiRecording(deviceId) {
+function stopAiRecording(deviceId, reason) {
   const device = devices.get(deviceId);
   if (!device || !device.isRecordingAi) return;
 
-  console.log(`[AI Record] Selesai mengumpulkan frame (no person seen for 3s) untuk ${deviceId}. Memulai render...`);
+  const stopReason = reason || ((globalStreamAiRecording === 'continuous' || globalStreamAiRecording === true) 
+    ? 'no person seen for 3s' 
+    : `${globalStreamAiRecording}s duration elapsed`);
+  console.log(`[AI Record] Selesai mengumpulkan frame (${stopReason}) untuk ${deviceId}. Memulai render...`);
   device.isRecordingAi = false;
+
+  // If stopped due to fixed-duration timer, apply a cooldown so the recording
+  // doesn't immediately re-trigger if the person is still in frame.
+  const isFixedDuration = (globalStreamAiRecording !== 'continuous' && globalStreamAiRecording !== true && globalStreamAiRecording !== 'off');
+  if (isFixedDuration) {
+    device.aiRecordCooldownUntil = Date.now() + 3000; // 3-second cooldown before next event
+    console.log(`[AI Record] Fixed-duration stop for ${deviceId}. Cooldown active for 3s to prevent immediate re-trigger.`);
+  }
 
   // Clear bounding boxes when recording/hold stops to avoid leftovers
   if (wssInstance) {
@@ -224,6 +235,11 @@ function stopAiRecording(deviceId) {
   if (device.aiStopTimer) {
     clearTimeout(device.aiStopTimer);
     device.aiStopTimer = null;
+  }
+
+  if (device.aiDurationTimer) {
+    clearTimeout(device.aiDurationTimer);
+    device.aiDurationTimer = null;
   }
 
   // Handle return-to-center and timeout clearance if the PIR sensor triggered this recording
@@ -366,11 +382,13 @@ function triggerAiWorker() {
           console.log(`[AI Hold] Person detected on PIR-active camera ${deviceId}. Extending hold.`);
         } else {
           const isPixelMode = (globalSystemConfig.cameraDetectionMode === 'Pixel');
+          const isRecordingEnabled = (globalStreamAiRecording !== 'off' && globalStreamAiRecording !== false);
           const isEnabled = isPixelMode 
-            ? (globalStreamAiRecording || globalSystemConfig.telegramAlertMotion || globalSystemConfig.pixelMotionCaptureEnabled) 
-            : (globalStreamAiRecording || globalStreamAiTelegram || globalSystemConfig.streamAiCaptureEnabled);
+            ? (isRecordingEnabled || globalSystemConfig.telegramAlertMotion || globalSystemConfig.pixelMotionCaptureEnabled) 
+            : (isRecordingEnabled || globalStreamAiTelegram || globalSystemConfig.streamAiCaptureEnabled);
           
-          if (!device.isRecordingAi && isEnabled) {
+          const isCoolingDown = device.aiRecordCooldownUntil && Date.now() < device.aiRecordCooldownUntil;
+          if (!device.isRecordingAi && isEnabled && !isCoolingDown) {
             console.log(`[AI Record] ${isPixelMode ? 'Motion' : 'Person'} detected on ${deviceId}. Starting stream event...`);
  
             // Evaluate Telegram Cooldown
@@ -389,23 +407,19 @@ function triggerAiWorker() {
             device.lastTimePersonSeen = Date.now();
  
             // Start recording with the triggering scanned frame (if recording is enabled)
-            device.rollingBuffer = globalStreamAiRecording ? [frameBuffer] : [];
- 
-            // Broadcast motion_event IMMEDIATELY to trigger Kiosk alarm sound and UI entry placeholder
-            const payload = JSON.stringify({
-              type: 'motion_event',
-              sensor: device.aiSensorName,
-              location: device.ip,
-              deviceId: deviceId,
-              timestamp: new Date().toISOString()
-            });
- 
-            if (wssInstance) {
-              wssInstance.clients.forEach((client) => {
-                if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-                  client.send(payload);
-                }
-              });
+            device.rollingBuffer = isRecordingEnabled ? [frameBuffer] : [];
+
+            // Schedule the duration timer if a fixed duration is chosen (not continuous/off)
+            if (isRecordingEnabled && globalStreamAiRecording !== 'continuous' && globalStreamAiRecording !== true) {
+              const durationSec = parseInt(globalStreamAiRecording, 10);
+              if (!isNaN(durationSec) && durationSec > 0) {
+                console.log(`[AI Record] Scheduling stop in ${durationSec} seconds for ${deviceId} (fixed duration).`);
+                if (device.aiDurationTimer) clearTimeout(device.aiDurationTimer);
+                device.aiDurationTimer = setTimeout(() => {
+                  console.log(`[AI Record] ${durationSec} seconds elapsed for ${deviceId} (fixed duration). Stopping recording.`);
+                  stopAiRecording(deviceId);
+                }, durationSec * 1000);
+              }
             }
  
              // Asynchronously process the trigger snapshot using the stream frameBuffer (No ESP32-CAM capture requested)
@@ -413,6 +427,23 @@ function triggerAiWorker() {
                ? globalSystemConfig.pixelMotionCaptureEnabled 
                : globalSystemConfig.streamAiCaptureEnabled;
              if (shouldCapture) {
+               // Broadcast motion_event IMMEDIATELY to trigger Kiosk alarm sound and UI entry placeholder
+               const payload = JSON.stringify({
+                 type: 'motion_event',
+                 sensor: device.aiSensorName,
+                 location: device.ip,
+                 deviceId: deviceId,
+                 timestamp: new Date().toISOString()
+               });
+ 
+               if (wssInstance) {
+                 wssInstance.clients.forEach((client) => {
+                   if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                     client.send(payload);
+                   }
+                 });
+               }
+
                (async () => {
                  const timestamp = Date.now();
                  const sensor = device.aiSensorName;
@@ -521,11 +552,13 @@ function triggerAiWorker() {
       } else {
         if (device.isRecordingAi && !device.aiStopTimer) {
           const isPixelMode = (globalSystemConfig.cameraDetectionMode === 'Pixel');
-          console.log(`[AI Record] No ${isPixelMode ? 'motion' : 'person'} detected on ${deviceId}. Scheduling stop in 3 seconds...`);
-          device.aiStopTimer = setTimeout(() => {
-            console.log(`[AI Record] 3 seconds elapsed with no ${isPixelMode ? 'motion' : 'person'} detected on ${deviceId}. Stopping recording.`);
-            stopAiRecording(deviceId);
-          }, 3000);
+          if (device.isPirActive || globalStreamAiRecording === 'continuous' || globalStreamAiRecording === true) {
+            console.log(`[AI Record] No ${isPixelMode ? 'motion' : 'person'} detected on ${deviceId}. Scheduling stop in 3 seconds...`);
+            device.aiStopTimer = setTimeout(() => {
+              console.log(`[AI Record] 3 seconds elapsed with no ${isPixelMode ? 'motion' : 'person'} detected on ${deviceId}. Stopping recording.`);
+              stopAiRecording(deviceId);
+            }, 3000);
+          }
         }
 
         // Object Follower: if no person detected, schedule return to center after 3 seconds
@@ -594,7 +627,10 @@ function loadSystemSettings() {
       globalPirAiDetection = settings.pirAiDetection !== undefined ? settings.pirAiDetection : true;
       globalPirAiRecording = settings.pirAiRecording !== undefined ? settings.pirAiRecording : true;
       globalStreamAiDetection = settings.streamAiDetection !== undefined ? settings.streamAiDetection : true;
-      globalStreamAiRecording = settings.streamAiRecording !== undefined ? settings.streamAiRecording : true;
+      let rawStreamAiRecording = settings.streamAiRecording !== undefined ? settings.streamAiRecording : 'continuous';
+      if (rawStreamAiRecording === true) rawStreamAiRecording = 'continuous';
+      if (rawStreamAiRecording === false) rawStreamAiRecording = 'off';
+      globalStreamAiRecording = rawStreamAiRecording;
       globalStreamAiTelegram = settings.streamAiTelegram !== undefined ? settings.streamAiTelegram : true;
       globalTelegramInterval = settings.telegramInterval !== undefined ? settings.telegramInterval : 10;
       globalObjectTracking = settings.objectTracking !== undefined ? settings.objectTracking : true;
@@ -824,6 +860,8 @@ function initWebSocket(server) {
         lastTimePersonSeen: 0,
         aiSensorName: '',
         aiStopTimer: null,
+        aiDurationTimer: null,
+        aiRecordCooldownUntil: 0, // Prevents immediate re-trigger after fixed-duration stop
         latestSnapshotFilename: null,
         currentResolution: null,
         currentQuality: null,
@@ -949,7 +987,7 @@ function initWebSocket(server) {
           // Unified rolling buffer for both standard AI and PIR recordings
           // Skip frame accumulation during live stream events if stream recording is disabled
           const isStreamAi = (device.aiSensorName === 'AI_Person_Detection' || device.aiSensorName === 'Pixel_Motion_Detection');
-          const shouldRecordFrames = !device.isRecordingAi || !isStreamAi || globalStreamAiRecording;
+          const shouldRecordFrames = !device.isRecordingAi || !isStreamAi || (globalStreamAiRecording !== 'off' && globalStreamAiRecording !== false);
 
           if (shouldRecordFrames) {
             device.rollingBuffer.push(message);
@@ -1170,7 +1208,10 @@ function initWebSocket(server) {
               globalPirAiDetection = config.pirAiDetection !== undefined ? config.pirAiDetection : true;
               globalPirAiRecording = config.pirAiRecording !== undefined ? config.pirAiRecording : true;
               globalStreamAiDetection = config.streamAiDetection !== undefined ? config.streamAiDetection : true;
-              globalStreamAiRecording = config.streamAiRecording !== undefined ? config.streamAiRecording : true;
+              let rawStreamAiRecording = config.streamAiRecording !== undefined ? config.streamAiRecording : 'continuous';
+              if (rawStreamAiRecording === true) rawStreamAiRecording = 'continuous';
+              if (rawStreamAiRecording === false) rawStreamAiRecording = 'off';
+              globalStreamAiRecording = rawStreamAiRecording;
               globalStreamAiTelegram = config.streamAiTelegram !== undefined ? config.streamAiTelegram : true;
               globalTelegramInterval = config.telegramInterval !== undefined ? config.telegramInterval : 10;
               globalObjectTracking = config.objectTracking !== undefined ? config.objectTracking : true;
@@ -1211,7 +1252,12 @@ function initWebSocket(server) {
               globalPirAiDetection = config.pirAiDetection !== undefined ? config.pirAiDetection : globalPirAiDetection;
               globalPirAiRecording = config.pirAiRecording !== undefined ? config.pirAiRecording : globalPirAiRecording;
               globalStreamAiDetection = config.streamAiDetection !== undefined ? config.streamAiDetection : globalStreamAiDetection;
-              globalStreamAiRecording = config.streamAiRecording !== undefined ? config.streamAiRecording : globalStreamAiRecording;
+              if (config.streamAiRecording !== undefined) {
+                let rawStreamAiRecording = config.streamAiRecording;
+                if (rawStreamAiRecording === true) rawStreamAiRecording = 'continuous';
+                if (rawStreamAiRecording === false) rawStreamAiRecording = 'off';
+                globalStreamAiRecording = rawStreamAiRecording;
+              }
               globalStreamAiTelegram = config.streamAiTelegram !== undefined ? config.streamAiTelegram : globalStreamAiTelegram;
               globalTelegramInterval = config.telegramInterval !== undefined ? config.telegramInterval : globalTelegramInterval;
               globalObjectTracking = config.objectTracking !== undefined ? config.objectTracking : globalObjectTracking;

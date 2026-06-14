@@ -70,7 +70,7 @@ const props = defineProps({
       // AI defaults consolidated
       pirAiDetection: true,
       pirAiRecording: true,
-      streamAiRecording: true,
+      streamAiRecording: 'continuous',
       streamAiTelegram: true,
       telegramInterval: 10,
       maxDuration: 30
