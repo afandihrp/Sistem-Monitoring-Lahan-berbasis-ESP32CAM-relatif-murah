@@ -44,12 +44,14 @@ let globalSystemConfig = {
   streamAiDetection: true,
   streamAiCaptureEnabled: true,
   objectTracking: true,
-  pixelMotionSensitivity: 10,
+  pixelMotionSensitivity: 20,
   pixelMotionMode: 0,
   pixelMotionMerge: false,
   pixelMotionResetInterval: 1,
   pixelMotionClusterDist: 50,
   pixelMotionCaptureEnabled: true,
+  pixelMotionRecordingEnabled: true,
+  pixelMotionCaptureDelay: 100,
   webSoundEnabled: true
 };
 
@@ -212,8 +214,12 @@ function stopAiRecording(deviceId, reason) {
 
   // If stopped due to fixed-duration timer, apply a cooldown so the recording
   // doesn't immediately re-trigger if the person is still in frame.
+  const isPixelMode = (globalSystemConfig.cameraDetectionMode === 'Pixel');
   const isFixedDuration = (globalStreamAiRecording !== 'continuous' && globalStreamAiRecording !== true && globalStreamAiRecording !== 'off');
-  if (isFixedDuration) {
+  const isRecordingActive = isPixelMode 
+    ? (isFixedDuration && globalSystemConfig.pixelMotionRecordingEnabled) 
+    : isFixedDuration;
+  if (isRecordingActive) {
     device.aiRecordCooldownUntil = Date.now() + 3000; // 3-second cooldown before next event
     console.log(`[AI Record] Fixed-duration stop for ${deviceId}. Cooldown active for 3s to prevent immediate re-trigger.`);
   }
@@ -384,7 +390,7 @@ function triggerAiWorker() {
           const isPixelMode = (globalSystemConfig.cameraDetectionMode === 'Pixel');
           const isRecordingEnabled = (globalStreamAiRecording !== 'off' && globalStreamAiRecording !== false);
           const isEnabled = isPixelMode 
-            ? (isRecordingEnabled || globalSystemConfig.telegramAlertMotion || globalSystemConfig.pixelMotionCaptureEnabled) 
+            ? (globalSystemConfig.telegramAlertMotion || globalSystemConfig.pixelMotionCaptureEnabled) 
             : (isRecordingEnabled || globalStreamAiTelegram || globalSystemConfig.streamAiCaptureEnabled);
           
           const isCoolingDown = device.aiRecordCooldownUntil && Date.now() < device.aiRecordCooldownUntil;
@@ -407,10 +413,13 @@ function triggerAiWorker() {
             device.lastTimePersonSeen = Date.now();
  
             // Start recording with the triggering scanned frame (if recording is enabled)
-            device.rollingBuffer = isRecordingEnabled ? [frameBuffer] : [];
+            const shouldRecord = isPixelMode 
+              ? (isRecordingEnabled && globalSystemConfig.pixelMotionRecordingEnabled) 
+              : isRecordingEnabled;
+            device.rollingBuffer = shouldRecord ? [frameBuffer] : [];
 
             // Schedule the duration timer if a fixed duration is chosen (not continuous/off)
-            if (isRecordingEnabled && globalStreamAiRecording !== 'continuous' && globalStreamAiRecording !== true) {
+            if (shouldRecord && globalStreamAiRecording !== 'continuous' && globalStreamAiRecording !== true) {
               const durationSec = parseInt(globalStreamAiRecording, 10);
               if (!isNaN(durationSec) && durationSec > 0) {
                 console.log(`[AI Record] Scheduling stop in ${durationSec} seconds for ${deviceId} (fixed duration).`);
@@ -445,6 +454,15 @@ function triggerAiWorker() {
                }
 
                (async () => {
+                  // Wait dynamic delay to allow the moving object/person to enter the image frame fully
+                  const captureDelay = (globalSystemConfig.pixelMotionCaptureDelay !== undefined) 
+                    ? globalSystemConfig.pixelMotionCaptureDelay 
+                    : 100;
+                  if (captureDelay > 0) {
+                    await new Promise(resolve => setTimeout(resolve, captureDelay));
+                  }
+
+                 const targetFrame = device.latestFrame || frameBuffer;
                  const timestamp = Date.now();
                  const sensor = device.aiSensorName;
                  const remoteIp = device.ip;
@@ -456,7 +474,7 @@ function triggerAiWorker() {
                  const filepath = path.join(photosDir, filename);
                  const imageUrl = `/data/photos/${filename}`;
     
-                 let imageToSave = frameBuffer;
+                 let imageToSave = targetFrame;
                  let humanPresence = true; // Set to true to trigger alarm sound and UI highlight for alerts
                  let aiDetails = {
                    status: 'success',
@@ -468,13 +486,13 @@ function triggerAiWorker() {
                    box_coordinates: boxCoordinates
                  };
     
-                 // Call Python AI to annotate the triggering stream frame
+                 // Call Python AI to annotate the target stream frame
                  try {
                    console.log(`[AI Record] Requesting annotated snapshot from stream frame for ${deviceId}...`);
                    let aiResult;
                    const activeClient = getActiveAiClient();
                    const extraHeader = getDeviceHeader(deviceId);
-                   aiResult = await activeClient.sendRequest(frameBuffer, true, 10000, extraHeader);
+                   aiResult = await activeClient.sendRequest(targetFrame, true, 10000, extraHeader);
                    if (aiResult && aiResult.annotated_image) {
                      imageToSave = Buffer.from(aiResult.annotated_image, 'base64');
                      aiDetails = {
@@ -552,7 +570,11 @@ function triggerAiWorker() {
       } else {
         if (device.isRecordingAi && !device.aiStopTimer) {
           const isPixelMode = (globalSystemConfig.cameraDetectionMode === 'Pixel');
-          if (device.isPirActive || globalStreamAiRecording === 'continuous' || globalStreamAiRecording === true) {
+          const isRecordingEnabled = (globalStreamAiRecording !== 'off' && globalStreamAiRecording !== false);
+          const isRecordingActive = isPixelMode 
+            ? (isRecordingEnabled && globalSystemConfig.pixelMotionRecordingEnabled) 
+            : isRecordingEnabled;
+          if (device.isPirActive || !isRecordingActive || globalStreamAiRecording === 'continuous' || globalStreamAiRecording === true) {
             console.log(`[AI Record] No ${isPixelMode ? 'motion' : 'person'} detected on ${deviceId}. Scheduling stop in 3 seconds...`);
             device.aiStopTimer = setTimeout(() => {
               console.log(`[AI Record] 3 seconds elapsed with no ${isPixelMode ? 'motion' : 'person'} detected on ${deviceId}. Stopping recording.`);
@@ -986,8 +1008,12 @@ function initWebSocket(server) {
 
           // Unified rolling buffer for both standard AI and PIR recordings
           // Skip frame accumulation during live stream events if stream recording is disabled
-          const isStreamAi = (device.aiSensorName === 'AI_Person_Detection' || device.aiSensorName === 'Pixel_Motion_Detection');
-          const shouldRecordFrames = !device.isRecordingAi || !isStreamAi || (globalStreamAiRecording !== 'off' && globalStreamAiRecording !== false);
+          const isAiSensor = (device.aiSensorName === 'AI_Person_Detection');
+          const isPixelSensor = (device.aiSensorName === 'Pixel_Motion_Detection');
+          const isRecordingEnabled = (globalStreamAiRecording !== 'off' && globalStreamAiRecording !== false);
+          const shouldRecordFrames = !device.isRecordingAi || 
+            (isAiSensor && isRecordingEnabled) || 
+            (isPixelSensor && globalSystemConfig.pixelMotionRecordingEnabled && isRecordingEnabled);
 
           if (shouldRecordFrames) {
             device.rollingBuffer.push(message);

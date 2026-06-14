@@ -153,6 +153,7 @@ const handleSaveSystemConfig = (config) => {
             :imageSrc="liveImageSrc"
             :boxes="liveBoxes"
             :aiEnabled="aiEnabled"
+            :detectionMode="systemConfig.cameraDetectionMode"
           />
           <!-- Offline Overlay -->
           <div v-if="currentStream.status !== 'Online'" 
@@ -187,6 +188,7 @@ const handleSaveSystemConfig = (config) => {
                   :imageSrc="cameraImages[device.id]"
                   :boxes="cameraBoxes[device.id]"
                   :aiEnabled="aiEnabled"
+                  :detectionMode="systemConfig.cameraDetectionMode"
                 />
               </div>
             </div>

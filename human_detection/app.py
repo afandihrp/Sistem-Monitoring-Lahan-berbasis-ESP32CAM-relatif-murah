@@ -128,96 +128,103 @@ async def handle_client(websocket, path=None):
                             states[device_id] = {
                                 'static_back': None,
                                 'prev_frame': None,
-                                'last_reset_time': time.time()
+                                'last_reset_time': time.time(),
+                                'last_boxes': []
                             }
                         device_state = states[device_id]
 
-                        pixel_mode = getattr(config, "PIXEL_MOTION_MODE", 0)
-                        sensitivity = getattr(config, "PIXEL_MOTION_SENSITIVITY", 25)
-                        min_area_pixels = getattr(config, "PIXEL_MOTION_MIN_AREA", 10.0)
-                        merge = getattr(config, "PIXEL_MOTION_MERGE", False)
-                        cluster_dist = getattr(config, "PIXEL_MOTION_CLUSTER_DIST", 50)
-
-                        # 2. Compute absolute difference berdasarkan mode
-                        if pixel_mode == 0:
-                            # Periodic background reference reset
-                            reset_interval_sec = getattr(config, "PIXEL_MOTION_RESET_INTERVAL", 1)
-                            
-                            now_time = time.time()
-                            if 'last_reset_time' not in device_state:
-                                device_state['last_reset_time'] = now_time
-                                
-                            if now_time - device_state['last_reset_time'] >= reset_interval_sec:
-                                print(f"[INFO] Mereset referensi background statis setelah {reset_interval_sec} detik untuk {device_id}")
-                                device_state['static_back'] = None
-                                device_state['last_reset_time'] = now_time
-
-                            # Static Reference mode (dengan running weighted background update lambat)
-                            if device_state['static_back'] is None:
-                                device_state['static_back'] = gray_blurred.copy().astype(np.float32)
-                            else:
-                                # Update background dengan bobot 0.02 (learning rate 2%) untuk adaptasi cahaya lambat
-                                cv2.accumulateWeighted(gray_blurred, device_state['static_back'], 0.02)
-                            
-                            static_back_display = cv2.convertScaleAbs(device_state['static_back'])
-                            diff = cv2.absdiff(static_back_display, gray_blurred)
+                        if annotate and 'last_boxes' in device_state and device_state['last_boxes']:
+                            # Reuse bounding boxes from the stream frame trigger
+                            koordinat_kotak = device_state['last_boxes']
                         else:
-                            # Frame-to-Frame difference
-                            if device_state['prev_frame'] is None:
-                                device_state['prev_frame'] = gray_blurred.copy()
-                            
-                            diff = cv2.absdiff(device_state['prev_frame'], gray_blurred)
-                            device_state['prev_frame'] = gray_blurred.copy()
+                            pixel_mode = getattr(config, "PIXEL_MOTION_MODE", 0)
+                            sensitivity = getattr(config, "PIXEL_MOTION_SENSITIVITY", 25)
+                            min_area_pixels = getattr(config, "PIXEL_MOTION_MIN_AREA", 10.0)
+                            merge = getattr(config, "PIXEL_MOTION_MERGE", False)
+                            cluster_dist = getattr(config, "PIXEL_MOTION_CLUSTER_DIST", 50)
 
-                        # 3. Thresholding dan Dilation
-                        _, thresh = cv2.threshold(diff, sensitivity, 255, cv2.THRESH_BINARY)
-                        thresh = cv2.dilate(thresh, None, iterations=2)
-
-                        # 4. Cari Contours
-                        contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-
-
-                        # Filter contours berdasarkan min area
-                        qualifying_boxes = []
-                        for contour in contours:
-                            area = cv2.contourArea(contour)
-                            if area >= min_area_pixels:
-                                (x, y, w, h) = cv2.boundingRect(contour)
-                                qualifying_boxes.append((x, y, w, h, area))
-
-                        koordinat_kotak = []
-                        if len(qualifying_boxes) > 0:
-                            if merge:
-                                # Menggabungkan semua bounding box gerakan menjadi 1 box besar
-                                min_x = min(box[0] for box in qualifying_boxes)
-                                min_y = min(box[1] for box in qualifying_boxes)
-                                max_x = max(box[0] + box[2] for box in qualifying_boxes)
-                                max_y = max(box[1] + box[3] for box in qualifying_boxes)
+                            # 2. Compute absolute difference berdasarkan mode
+                            if pixel_mode == 0:
+                                # Periodic background reference reset
+                                reset_interval_sec = getattr(config, "PIXEL_MOTION_RESET_INTERVAL", 1)
                                 
-                                koordinat_kotak.append({
-                                    "confidence": 1.0,
-                                    "posisi": [
-                                        round(float(min_x / orig_w), 4),
-                                        round(float(min_y / orig_h), 4),
-                                        round(float(max_x / orig_w), 4),
-                                        round(float(max_y / orig_h), 4)
-                                    ]
-                                })
+                                now_time = time.time()
+                                if 'last_reset_time' not in device_state:
+                                    device_state['last_reset_time'] = now_time
+                                    
+                                if now_time - device_state['last_reset_time'] >= reset_interval_sec:
+                                    print(f"[INFO] Mereset referensi background statis setelah {reset_interval_sec} detik untuk {device_id}")
+                                    device_state['static_back'] = None
+                                    device_state['last_reset_time'] = now_time
+
+                                # Static Reference mode (dengan running weighted background update lambat)
+                                if device_state['static_back'] is None:
+                                    device_state['static_back'] = gray_blurred.copy().astype(np.float32)
+                                else:
+                                    # Update background dengan bobot 0.02 (learning rate 2%) untuk adaptasi cahaya lambat
+                                    cv2.accumulateWeighted(gray_blurred, device_state['static_back'], 0.02)
+                                
+                                static_back_display = cv2.convertScaleAbs(device_state['static_back'])
+                                diff = cv2.absdiff(static_back_display, gray_blurred)
                             else:
-                                # Bounding box dikelompokkan (clustering) untuk gerakan yang berdekatan
-                                print(f"[DEBUG] Menjalankan cluster_boxes dengan max_dist={cluster_dist}")
-                                clustered_boxes = cluster_boxes(qualifying_boxes, max_dist=cluster_dist)
-                                for (x, y, w, h) in clustered_boxes:
+                                # Frame-to-Frame difference
+                                if device_state['prev_frame'] is None:
+                                    device_state['prev_frame'] = gray_blurred.copy()
+                                
+                                diff = cv2.absdiff(device_state['prev_frame'], gray_blurred)
+                                if not annotate:
+                                    device_state['prev_frame'] = gray_blurred.copy()
+
+                            # 3. Thresholding dan Dilation
+                            _, thresh = cv2.threshold(diff, sensitivity, 255, cv2.THRESH_BINARY)
+                            thresh = cv2.dilate(thresh, None, iterations=2)
+
+                            # 4. Cari Contours
+                            contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+                            # Filter contours berdasarkan min area
+                            qualifying_boxes = []
+                            for contour in contours:
+                                area = cv2.contourArea(contour)
+                                if area >= min_area_pixels:
+                                    (x, y, w, h) = cv2.boundingRect(contour)
+                                    qualifying_boxes.append((x, y, w, h, area))
+
+                            koordinat_kotak = []
+                            if len(qualifying_boxes) > 0:
+                                if merge:
+                                    # Menggabungkan semua bounding box gerakan menjadi 1 box besar
+                                    min_x = min(box[0] for box in qualifying_boxes)
+                                    min_y = min(box[1] for box in qualifying_boxes)
+                                    max_x = max(box[0] + box[2] for box in qualifying_boxes)
+                                    max_y = max(box[1] + box[3] for box in qualifying_boxes)
+                                    
                                     koordinat_kotak.append({
                                         "confidence": 1.0,
                                         "posisi": [
-                                            round(float(x / orig_w), 4),
-                                            round(float(y / orig_h), 4),
-                                            round(float((x + w) / orig_w), 4),
-                                            round(float((y + h) / orig_h), 4)
+                                            round(float(min_x / orig_w), 4),
+                                            round(float(min_y / orig_h), 4),
+                                            round(float(max_x / orig_w), 4),
+                                            round(float(max_y / orig_h), 4)
                                         ]
                                     })
+                                else:
+                                    # Bounding box dikelompokkan (clustering) untuk gerakan yang berdekatan
+                                    print(f"[DEBUG] Menjalankan cluster_boxes dengan max_dist={cluster_dist}")
+                                    clustered_boxes = cluster_boxes(qualifying_boxes, max_dist=cluster_dist)
+                                    for (x, y, w, h) in clustered_boxes:
+                                        koordinat_kotak.append({
+                                            "confidence": 1.0,
+                                            "posisi": [
+                                                round(float(x / orig_w), 4),
+                                                round(float(y / orig_h), 4),
+                                                round(float((x + w) / orig_w), 4),
+                                                round(float((y + h) / orig_h), 4)
+                                            ]
+                                        })
+                            
+                            # Cache the coordinates
+                            device_state['last_boxes'] = koordinat_kotak
 
                         ada_orang = len(koordinat_kotak) > 0
                         jumlah_orang = len(koordinat_kotak)
@@ -272,7 +279,16 @@ async def handle_client(websocket, path=None):
                     # Bersihkan sisa memori RAM untuk performa optimal di Raspberry Pi
                     del img_bytes, nparr, img
                     if mode == "Pixel":
-                        del gray, gray_blurred, diff, thresh, contours
+                        if 'gray' in locals():
+                            del gray
+                        if 'gray_blurred' in locals():
+                            del gray_blurred
+                        if 'diff' in locals():
+                            del diff
+                        if 'thresh' in locals():
+                            del thresh
+                        if 'contours' in locals():
+                            del contours
                     gc.collect()
 
                 except Exception as e:

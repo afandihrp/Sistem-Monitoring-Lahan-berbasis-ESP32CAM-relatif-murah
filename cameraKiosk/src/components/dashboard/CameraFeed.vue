@@ -17,6 +17,10 @@ const props = defineProps({
   aiEnabled: {
     type: Boolean,
     default: true
+  },
+  detectionMode: {
+    type: String,
+    default: 'AI'
   }
 })
 
@@ -88,7 +92,9 @@ const drawBoxes = () => {
     ctx.strokeRect(bx1, by1, bw, bh)
 
     // Draw Label
-    const label = `Person ${Math.round(conf * 100)}%`
+    const label = props.detectionMode === 'Pixel'
+      ? 'Motion'
+      : `Person ${Math.round(conf * 100)}%`
     ctx.font = 'bold 11px Arial'
     const textMetrics = ctx.measureText(label)
     const textHeight = 14

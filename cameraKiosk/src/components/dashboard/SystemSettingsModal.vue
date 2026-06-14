@@ -17,12 +17,14 @@ const props = defineProps({
       streamAiDetection: true,
       streamAiCaptureEnabled: true,
       objectTracking: true,
-      pixelMotionSensitivity: 10,
+      pixelMotionSensitivity: 20,
       pixelMotionMode: 0,
       pixelMotionMerge: false,
       pixelMotionResetInterval: 1,
       pixelMotionClusterDist: 50,
       pixelMotionCaptureEnabled: true,
+      pixelMotionRecordingEnabled: true,
+      pixelMotionCaptureDelay: 100,
       webSoundEnabled: true,
       // AI Parameters
       pirAiDetection: true,
@@ -57,10 +59,10 @@ const cameraDetectionMode = ref(props.initialConfig.cameraDetectionMode || 'AI')
 const streamAiDetection = ref(props.initialConfig.streamAiDetection !== undefined ? props.initialConfig.streamAiDetection : true)
 const objectTracking = ref(props.initialConfig.objectTracking !== undefined ? props.initialConfig.objectTracking : true)
 const getClosestSensitivityPreset = (val) => {
-  if (val === undefined || val === null) return 10;
-  if (val <= 6) return 2;
-  if (val <= 14) return 10;
-  return 18;
+  if (val === undefined || val === null) return 20;
+  if (val <= 15) return 10;
+  if (val <= 25) return 20;
+  return 30;
 };
 
 const pixelMotionSensitivity = ref(getClosestSensitivityPreset(props.initialConfig.pixelMotionSensitivity))
@@ -69,6 +71,8 @@ const pixelMotionMerge = ref(props.initialConfig.pixelMotionMerge !== undefined 
 const pixelMotionResetInterval = ref(props.initialConfig.pixelMotionResetInterval !== undefined ? props.initialConfig.pixelMotionResetInterval : 1)
 const pixelMotionClusterDist = ref(props.initialConfig.pixelMotionClusterDist || 50)
 const pixelMotionCaptureEnabled = ref(props.initialConfig.pixelMotionCaptureEnabled !== undefined ? props.initialConfig.pixelMotionCaptureEnabled : true)
+const pixelMotionRecordingEnabled = ref(props.initialConfig.pixelMotionRecordingEnabled !== undefined ? props.initialConfig.pixelMotionRecordingEnabled : true)
+const pixelMotionCaptureDelay = ref(props.initialConfig.pixelMotionCaptureDelay !== undefined ? props.initialConfig.pixelMotionCaptureDelay : 100)
 
 // Other Settings state
 const webSoundEnabled = ref(props.initialConfig.webSoundEnabled !== undefined ? props.initialConfig.webSoundEnabled : true)
@@ -81,7 +85,12 @@ const getNormalizedStreamAiRecording = (val) => {
   if (val === false) return 'off';
   return val !== undefined ? val : 'continuous';
 }
-const streamAiRecording = ref(getNormalizedStreamAiRecording(props.initialConfig.streamAiRecording))
+const initialStreamAiRecording = getNormalizedStreamAiRecording(props.initialConfig.streamAiRecording)
+const streamAiRecording = ref(
+  (props.initialConfig.cameraDetectionMode === 'Pixel')
+    ? (props.initialConfig.pixelMotionRecordingEnabled ? (initialStreamAiRecording === 'off' ? 'continuous' : initialStreamAiRecording) : 'off')
+    : initialStreamAiRecording
+)
 const lastStreamAiRecordingDuration = ref((() => {
   const raw = props.initialConfig.streamAiRecording
   if (!raw || raw === 'off' || raw === false) return 'continuous'
@@ -115,24 +124,61 @@ watch(pirAiDetection, (newVal) => {
   }
 })
 
+watch(pixelMotionCaptureEnabled, (newVal) => {
+  if (!newVal) {
+    pixelMotionRecordingEnabled.value = false
+  }
+})
+
 watch(streamAiDetection, (newVal) => {
   if (!newVal) {
     streamAiTelegram.value = false
-    streamAiRecording.value = 'off'
+    if (cameraDetectionMode.value === 'AI') {
+      streamAiRecording.value = 'off'
+    }
+  }
+})
+
+watch(pixelMotionRecordingEnabled, (newVal) => {
+  if (cameraDetectionMode.value === 'Pixel') {
+    if (newVal) {
+      streamAiRecording.value = lastStreamAiRecordingDuration.value || 'continuous'
+    } else {
+      if (streamAiRecording.value !== 'off') {
+        lastStreamAiRecordingDuration.value = streamAiRecording.value
+      }
+      streamAiRecording.value = 'off'
+    }
+  }
+})
+
+watch(cameraDetectionMode, (newMode) => {
+  if (newMode === 'Pixel') {
+    if (pixelMotionRecordingEnabled.value) {
+      streamAiRecording.value = lastStreamAiRecordingDuration.value || 'continuous'
+    } else {
+      if (streamAiRecording.value !== 'off') {
+        lastStreamAiRecordingDuration.value = streamAiRecording.value
+      }
+      streamAiRecording.value = 'off'
+    }
   }
 })
 
 // Helper to manage unified video recording duration
 const updateRecordingDuration = (dur) => {
+  const isRecordingActive = streamAiRecording.value !== 'off' || 
+    (cameraDetectionMode.value === 'Pixel' && pixelMotionRecordingEnabled.value)
+
   if (dur === 'continuous') {
-    if (streamAiRecording.value !== 'off') {
+    if (isRecordingActive) {
       streamAiRecording.value = 'continuous'
     }
     lastStreamAiRecordingDuration.value = 'continuous'
     pirRecordDuration.value = 60
   } else {
     const val = parseInt(dur, 10)
-    if (streamAiRecording.value !== 'off') {
+    if (isRecordingActive) {
       streamAiRecording.value = val
     }
     lastStreamAiRecordingDuration.value = val
@@ -173,6 +219,8 @@ const saveConfig = () => {
     pixelMotionResetInterval: pixelMotionResetInterval.value,
     pixelMotionClusterDist: pixelMotionClusterDist.value,
     pixelMotionCaptureEnabled: pixelMotionCaptureEnabled.value,
+    pixelMotionRecordingEnabled: pixelMotionRecordingEnabled.value,
+    pixelMotionCaptureDelay: pixelMotionCaptureDelay.value,
     webSoundEnabled: webSoundEnabled.value,
     // AI Parameters
     pirAiDetection: pirAiDetection.value,
@@ -323,7 +371,7 @@ const saveConfig = () => {
               <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
                 <div>
                   <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="tgMotionSwitch">
-                    Pixel Motion Triggers (WIP)
+                    Pixel Motion Triggers
                   </label>
                   <span class="text-slate-500" style="font-size: 0.7rem;">Send general motion warnings (non-AI differencing)</span>
                 </div>
@@ -394,7 +442,7 @@ const saveConfig = () => {
                   :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', cameraDetectionMode === 'Pixel' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
                   style="font-size: 0.75rem;"
                 >
-                  <i class="bi bi-image me-1"></i>Pixel Comparison (WIP)
+                  <i class="bi bi-image me-1"></i>Pixel Comparison
                 </button>
               </div>
             </div>
@@ -486,50 +534,12 @@ const saveConfig = () => {
                 </div>
               </div>
 
-              <!-- Video Recording Duration -->
-              <div class="p-3 bg-slate-800 rounded border border-slate-700">
-                <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">Video Recording Duration</label>
-                <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Controls both AI Stream Recording and PIR Video Recording duration</span>
-                <div class="d-flex gap-1 justify-content-between flex-wrap">
-                  <button 
-                    v-for="dur in [10, 20, 30, 60, 'continuous']" 
-                    :key="dur"
-                    type="button"
-                    :disabled="!cameraDetectionEnabled"
-                    @click="updateRecordingDuration(dur)" 
-                    :class="['btn p-2 fw-bold duration-btn flex-grow-1', getRecordingDurationActive(dur) ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-                    style="font-size: 0.7rem; min-width: 50px;"
-                  >
-                    {{ dur === 'continuous' ? 'Continuous' : `${dur}s` }}
-                  </button>
-                </div>
-              </div>
-
-              <!-- Max Video Duration Compress -->
-              <div class="p-3 bg-slate-800 rounded border border-slate-700">
-                <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">Max Video Duration Compress</label>
-                <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Compresses and speeds up output video if recording duration exceeds this limit</span>
-                <div class="d-flex gap-2 justify-content-between">
-                  <button 
-                    v-for="dur in [10, 20, 30]" 
-                    :key="dur"
-                    type="button"
-                    :disabled="!cameraDetectionEnabled"
-                    @click="maxDuration = dur" 
-                    :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', maxDuration === dur ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-                    style="font-size: 0.75rem;"
-                  >
-                    {{ getSecondsLabel(dur) }}
-                  </button>
-                </div>
-              </div>
-
             </div>
 
             <!-- Pixel Comparison specific configs -->
             <div v-else class="d-flex flex-column gap-3">
               <div class="p-3 bg-slate-800 rounded border border-slate-700">
-                <label class="text-slate-300 small fw-bold text-uppercase mb-3 d-block">Detection Tuner Parameters (WIP)</label>
+                <label class="text-slate-300 small fw-bold text-uppercase mb-3 d-block">Detection Tuner Parameters</label>
 
                 <!-- Image Capture Switch -->
                 <div class="form-check form-switch d-flex justify-content-between align-items-center p-0 mb-4 pb-3 border-bottom border-slate-700 border-opacity-50">
@@ -540,6 +550,27 @@ const saveConfig = () => {
                     <span class="text-slate-500 d-block" style="font-size: 0.6rem;">Capture and save snapshot to gallery when motion is detected</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="pixelCaptureSwitch" v-model="pixelMotionCaptureEnabled" :disabled="!cameraDetectionEnabled">
+                </div>
+
+                <!-- Capture Delay Slider (Child of Capture Motion Image) -->
+                <div class="mb-4 pb-3 border-bottom border-slate-700 border-opacity-50 ms-3 transition-opacity" :class="{ 'opacity-50': !pixelMotionCaptureEnabled }">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label class="text-slate-300 small fw-bold text-uppercase">Capture Delay</label>
+                    <span class="text-info font-monospace small fw-bold">{{ pixelMotionCaptureDelay }} ms</span>
+                  </div>
+                  <input type="range" class="form-range custom-slider" min="0" max="1000" step="50" v-model.number="pixelMotionCaptureDelay" :disabled="!cameraDetectionEnabled || !pixelMotionCaptureEnabled">
+                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">Delay in milliseconds before capturing the snapshot image</span>
+                </div>
+
+                <!-- Record Motion Video Switch (Child of Capture Motion Image) -->
+                <div class="form-check form-switch d-flex justify-content-between align-items-center p-0 mb-4 pb-3 border-bottom border-slate-700 border-opacity-50 ms-3 transition-opacity" :class="{ 'opacity-50': !pixelMotionCaptureEnabled }">
+                  <div>
+                    <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="pixelRecordSwitch">
+                      Record Motion Video
+                    </label>
+                    <span class="text-slate-500 d-block" style="font-size: 0.6rem;">Record and save video clip when motion is detected</span>
+                  </div>
+                  <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="pixelRecordSwitch" v-model="pixelMotionRecordingEnabled" :disabled="!cameraDetectionEnabled || !pixelMotionCaptureEnabled">
                 </div>
                 
                 <!-- Comparison Mode Selection -->
@@ -593,9 +624,9 @@ const saveConfig = () => {
                   <div class="d-flex gap-2">
                     <button 
                       v-for="preset in [
-                        { label: 'High', value: 2 },
-                        { label: 'Medium', value: 10 },
-                        { label: 'Low', value: 18 }
+                        { label: 'High', value: 10 },
+                        { label: 'Medium', value: 20 },
+                        { label: 'Low', value: 30 }
                       ]"
                       :key="preset.value"
                       type="button"
@@ -645,6 +676,44 @@ const saveConfig = () => {
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="pixelTrackingSwitch" v-model="objectTracking" :disabled="!cameraDetectionEnabled">
                 </div>
+              </div>
+            </div>
+
+            <!-- Video Recording Duration -->
+            <div class="p-3 bg-slate-800 rounded border border-slate-700">
+              <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">Video Recording Duration</label>
+              <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Controls both AI Stream Recording and PIR Video Recording duration</span>
+              <div class="d-flex gap-1 justify-content-between flex-wrap">
+                <button 
+                  v-for="dur in [10, 20, 30, 60, 'continuous']" 
+                  :key="dur"
+                  type="button"
+                  :disabled="!cameraDetectionEnabled"
+                  @click="updateRecordingDuration(dur)" 
+                  :class="['btn p-2 fw-bold duration-btn flex-grow-1', getRecordingDurationActive(dur) ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+                  style="font-size: 0.7rem; min-width: 50px;"
+                >
+                  {{ dur === 'continuous' ? 'Continuous' : `${dur}s` }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Max Video Duration Compress -->
+            <div class="p-3 bg-slate-800 rounded border border-slate-700">
+              <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">Max Video Duration Compress</label>
+              <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Compresses and speeds up output video if recording duration exceeds this limit</span>
+              <div class="d-flex gap-2 justify-content-between">
+                <button 
+                  v-for="dur in [10, 20, 30]" 
+                  :key="dur"
+                  type="button"
+                  :disabled="!cameraDetectionEnabled"
+                  @click="maxDuration = dur" 
+                  :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', maxDuration === dur ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+                  style="font-size: 0.75rem;"
+                >
+                  {{ getSecondsLabel(dur) }}
+                </button>
               </div>
             </div>
 
