@@ -116,6 +116,7 @@ const streamAiCaptureEnabled = ref(props.initialConfig.streamAiCaptureEnabled !=
 const streamAiTelegram = ref(props.initialConfig.streamAiTelegram !== undefined ? props.initialConfig.streamAiTelegram : true)
 const telegramInterval = ref(props.initialConfig.telegramInterval !== undefined ? props.initialConfig.telegramInterval : 10)
 const maxDuration = ref(props.initialConfig.maxDuration !== undefined ? props.initialConfig.maxDuration : 30)
+const udpStreamEnabled = ref(props.initialConfig.udpStreamEnabled !== undefined ? props.initialConfig.udpStreamEnabled : false)
 
 // Watchers copied from legacy AiConfiguratorModal to preserve cascading settings
 watch(pirAiDetection, (newVal) => {
@@ -222,6 +223,7 @@ const saveConfig = () => {
     pixelMotionRecordingEnabled: pixelMotionRecordingEnabled.value,
     pixelMotionCaptureDelay: pixelMotionCaptureDelay.value,
     webSoundEnabled: webSoundEnabled.value,
+    udpStreamEnabled: udpStreamEnabled.value,
     // AI Parameters
     pirAiDetection: pirAiDetection.value,
     pirAiRecording: pirAiRecording.value,
@@ -734,6 +736,19 @@ const saveConfig = () => {
                 <span class="text-slate-500" style="font-size: 0.7rem;">Play alarm audio chime in browser on motion/AI detections</span>
               </div>
               <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="webSoundSwitch" v-model="webSoundEnabled">
+            </div>
+          </div>
+
+          <!-- UDP Livestream Mode Switch -->
+          <div class="p-3 bg-slate-800 rounded border border-slate-700">
+            <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
+              <div>
+                <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="udpStreamSwitch">
+                  UDP Livestream Mode
+                </label>
+                <span class="text-slate-500" style="font-size: 0.7rem;">Stream binary frames via UDP to port 3001 instead of WebSockets (reduces latency)</span>
+              </div>
+              <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="udpStreamSwitch" v-model="udpStreamEnabled">
             </div>
           </div>
 

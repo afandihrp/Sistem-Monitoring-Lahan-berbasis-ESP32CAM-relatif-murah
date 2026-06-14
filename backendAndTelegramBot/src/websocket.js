@@ -2,6 +2,10 @@ const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
 const checkDiskSpace = require('check-disk-space').default;
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
+const dgram = require('dgram');
 
 const { yoloClient, pixelClient, aiClient } = require('./services/aiClient');
 const { logEvent, getLogs, updateLatestLogVideo, updateLatestLogWithAI, deleteOldestEvent, deleteEventSingle, deleteEventsByDate } = require('./services/logger');
@@ -52,7 +56,8 @@ let globalSystemConfig = {
   pixelMotionCaptureEnabled: true,
   pixelMotionRecordingEnabled: true,
   pixelMotionCaptureDelay: 100,
-  webSoundEnabled: true
+  webSoundEnabled: true,
+  udpStreamEnabled: false
 };
 
 // --- KODE BARU DITAMBAHKAN DI SINI ---
@@ -639,6 +644,61 @@ function serializeFrame(deviceId, frameBuffer) {
   return Buffer.concat([header, frameBuffer]);
 }
 
+function handleIncomingCameraFrame(deviceId, remoteIp, message) {
+  const device = devices.get(deviceId);
+
+  if (device) {
+    device.latestFrame = message; // Keep updating to the absolute newest frame
+
+    // Unified rolling buffer for both standard AI and PIR recordings
+    // Skip frame accumulation during live stream events if stream recording is disabled
+    const isAiSensor = (device.aiSensorName === 'AI_Person_Detection');
+    const isPixelSensor = (device.aiSensorName === 'Pixel_Motion_Detection');
+    const isRecordingEnabled = (globalStreamAiRecording !== 'off' && globalStreamAiRecording !== false);
+    const shouldRecordFrames = !device.isRecordingAi || 
+      (isAiSensor && isRecordingEnabled) || 
+      (isPixelSensor && globalSystemConfig.pixelMotionRecordingEnabled && isRecordingEnabled);
+
+    if (shouldRecordFrames) {
+      device.rollingBuffer.push(message);
+    }
+
+    if (device.isRecordingAi) {
+      // Cap at 900 frames (~90s at 10fps) to prevent RAM exhaust on Raspberry Pi
+      if (device.rollingBuffer.length > 900) {
+        device.rollingBuffer.shift();
+      }
+    } else {
+      // Normal rolling buffer pre-roll limit (30 frames)
+      while (device.rollingBuffer.length > 30) {
+        device.rollingBuffer.shift();
+      }
+    }
+
+    if (shouldEnqueueStreamFrame(device, { 
+      globalAiEnabled, 
+      globalStreamAiDetection, 
+      globalPirAiRecording, 
+      globalObjectTracking,
+      cameraDetectionMode: globalSystemConfig.cameraDetectionMode
+    })) {
+      enqueueAiRequest(deviceId, message);
+    }
+  }
+
+  // Broadcast binary camera frames prefixed with the deviceId
+  if (wssInstance) {
+    wssInstance.clients.forEach((client) => {
+      if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+        if (globalViewMode === 'multiple' || deviceId === globalActiveDeviceId) {
+          const prefixedMessage = serializeFrame(deviceId, message);
+          client.send(prefixedMessage, { binary: true });
+        }
+      }
+    });
+  }
+}
+
 function loadSystemSettings() {
   try {
     if (fs.existsSync(SYSTEM_SETTINGS_FILE)) {
@@ -918,14 +978,15 @@ function initWebSocket(server) {
         } catch (e) { console.error('Error sending config to camera:', e); }
       }
 
-      // Send system settings (PIR config) to the camera on boot
+      // Send system settings (PIR config & UDP stream mode) to the camera on boot
       try {
         ws.send(JSON.stringify({
           type: 'system_settings_update',
           pirEnabled: globalSystemConfig.pirEnabled,
-          pirCooldown: globalSystemConfig.pirCooldown
+          pirCooldown: globalSystemConfig.pirCooldown,
+          udpStreamEnabled: globalSystemConfig.udpStreamEnabled
         }));
-        console.log(`Sent system settings to camera ${macAddress} (PIR Enabled: ${globalSystemConfig.pirEnabled}, Cooldown: ${globalSystemConfig.pirCooldown}s)`);
+        console.log(`Sent system settings to camera ${macAddress} (PIR Enabled: ${globalSystemConfig.pirEnabled}, Cooldown: ${globalSystemConfig.pirCooldown}s, UDP Stream: ${globalSystemConfig.udpStreamEnabled})`);
       } catch (e) { console.error('Error sending system settings to camera:', e); }
 
       if (fs.existsSync(CAMERA_CONFIG_FILE)) {
@@ -1001,56 +1062,7 @@ function initWebSocket(server) {
 
       if (isBinary && isCamera) {
         const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
-        const device = devices.get(deviceId);
-
-        if (device) {
-          device.latestFrame = message; // Keep updating to the absolute newest frame
-
-          // Unified rolling buffer for both standard AI and PIR recordings
-          // Skip frame accumulation during live stream events if stream recording is disabled
-          const isAiSensor = (device.aiSensorName === 'AI_Person_Detection');
-          const isPixelSensor = (device.aiSensorName === 'Pixel_Motion_Detection');
-          const isRecordingEnabled = (globalStreamAiRecording !== 'off' && globalStreamAiRecording !== false);
-          const shouldRecordFrames = !device.isRecordingAi || 
-            (isAiSensor && isRecordingEnabled) || 
-            (isPixelSensor && globalSystemConfig.pixelMotionRecordingEnabled && isRecordingEnabled);
-
-          if (shouldRecordFrames) {
-            device.rollingBuffer.push(message);
-          }
-
-          if (device.isRecordingAi) {
-            // Cap at 900 frames (~90s at 10fps) to prevent RAM exhaust on Raspberry Pi
-            if (device.rollingBuffer.length > 900) {
-              device.rollingBuffer.shift();
-            }
-          } else {
-            // Normal rolling buffer pre-roll limit (30 frames)
-            while (device.rollingBuffer.length > 30) {
-              device.rollingBuffer.shift();
-            }
-          }
-
-          if (shouldEnqueueStreamFrame(device, { 
-            globalAiEnabled, 
-            globalStreamAiDetection, 
-            globalPirAiRecording, 
-            globalObjectTracking,
-            cameraDetectionMode: globalSystemConfig.cameraDetectionMode
-          })) {
-            enqueueAiRequest(deviceId, message);
-          }
-        }
-
-        // Broadcast binary camera frames prefixed with the deviceId
-        wss.clients.forEach((client) => {
-          if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-            if (globalViewMode === 'multiple' || deviceId === globalActiveDeviceId) {
-              const prefixedMessage = serializeFrame(deviceId, message);
-              client.send(prefixedMessage, { binary: true });
-            }
-          }
-        });
+        processChunkedMessage(deviceId, remoteIp, message, wsFrameAssemblies, handleIncomingCameraFrame);
       } else if (!isBinary) {
         try {
           const data = JSON.parse(message.toString());
@@ -1349,11 +1361,12 @@ function initWebSocket(server) {
                 }
               });
 
-              // Broadcast updated system config (PIR settings) to ALL camera clients
+              // Broadcast updated system config (PIR settings & UDP stream mode) to ALL camera clients
               const systemSettingsForCamera = JSON.stringify({
                 type: 'system_settings_update',
                 pirEnabled: globalSystemConfig.pirEnabled,
-                pirCooldown: globalSystemConfig.pirCooldown
+                pirCooldown: globalSystemConfig.pirCooldown,
+                udpStreamEnabled: globalSystemConfig.udpStreamEnabled
               });
               wss.clients.forEach((client) => {
                 if (client.readyState === 1 && client.path.startsWith('/camera')) {
@@ -1533,52 +1546,67 @@ function initWebSocket(server) {
   });
 
   // Heartbeat interval check setiap 5 detik
-  const interval = setInterval(function ping() {
-    wss.clients.forEach(function each(ws) {
+  const interval = setInterval(async function ping() {
+    const promises = Array.from(wss.clients).map(async (ws) => {
       if (ws.path && ws.path.startsWith('/camera')) {
-        // Stream-activity heartbeat for ESP32-CAM (5-second threshold)
-        if (Date.now() - ws.lastDataReceived > 5000) {
-          console.log(`[Heartbeat] Camera stream timeout: ${ws.path}. Terminating.`);
-          const deviceId = `cam_${ws.remoteIp.replace(/\./g, '_')}`;
-          const device = devices.get(deviceId);
-          if (device) {
-            device.status = 'Offline';
-            device.lastSeen = new Date().toLocaleTimeString();
+        // ICMP ping check instead of stream-activity check
+        let isAlive = false;
+        try {
+          await execPromise(`ping -c 1 -W 5 ${ws.remoteIp}`);
+          isAlive = true;
+        } catch (error) {
+          isAlive = false;
+        }
 
-            if (device.isRecordingAi) {
-              stopAiRecording(deviceId);
-            }
-            if (device.pirActiveTimeout) {
-              clearTimeout(device.pirActiveTimeout);
-              device.pirActiveTimeout = null;
-            }
-            device.isPirActive = false;
-            if (device.aiStopTimer) {
-              clearTimeout(device.aiStopTimer);
-              device.aiStopTimer = null;
-            }
+        if (isAlive) {
+          ws.failedPingCount = 0;
+        } else {
+          ws.failedPingCount = (ws.failedPingCount || 0) + 1;
+          console.log(`[Heartbeat] Camera ICMP ping failed for ${ws.remoteIp} (Failures: ${ws.failedPingCount}/5)`);
 
-            // Dynamic Auto-Activation Switch if active camera went offline
-            if (deviceId === globalActiveDeviceId) {
-              const onlineDevice = Array.from(devices.values()).find(d => d.status === 'Online');
-              if (onlineDevice) {
-                globalActiveDeviceId = onlineDevice.id;
-                console.log(`[Auto-Activate Switch] Active camera timed out. Switched to: ${globalActiveDeviceId}`);
-              } else {
-                globalActiveDeviceId = null;
-                console.log(`[Auto-Activate Switch] Active camera timed out. No online cameras left.`);
+          if (ws.failedPingCount >= 5) {
+            console.log(`[Heartbeat] Camera ICMP ping threshold exceeded: ${ws.path}. Terminating.`);
+            const deviceId = `cam_${ws.remoteIp.replace(/\./g, '_')}`;
+            const device = devices.get(deviceId);
+            if (device) {
+              device.status = 'Offline';
+              device.lastSeen = new Date().toLocaleTimeString();
+
+              if (device.isRecordingAi) {
+                stopAiRecording(deviceId);
               }
-              const activeStreamPayload = JSON.stringify({ type: 'active_stream_updated', deviceId: globalActiveDeviceId });
-              wss.clients.forEach((client) => {
-                if (client.readyState === 1 && !client.path.startsWith('/camera')) {
-                  client.send(activeStreamPayload);
-                }
-              });
-            }
+              if (device.pirActiveTimeout) {
+                clearTimeout(device.pirActiveTimeout);
+                device.pirActiveTimeout = null;
+              }
+              device.isPirActive = false;
+              if (device.aiStopTimer) {
+                clearTimeout(device.aiStopTimer);
+                device.aiStopTimer = null;
+              }
 
-            broadcastDeviceList(wss);
+              // Dynamic Auto-Activation Switch if active camera went offline
+              if (deviceId === globalActiveDeviceId) {
+                const onlineDevice = Array.from(devices.values()).find(d => d.status === 'Online');
+                if (onlineDevice) {
+                  globalActiveDeviceId = onlineDevice.id;
+                  console.log(`[Auto-Activate Switch] Active camera timed out. Switched to: ${globalActiveDeviceId}`);
+                } else {
+                  globalActiveDeviceId = null;
+                  console.log(`[Auto-Activate Switch] Active camera timed out. No online cameras left.`);
+                }
+                const activeStreamPayload = JSON.stringify({ type: 'active_stream_updated', deviceId: globalActiveDeviceId });
+                wss.clients.forEach((client) => {
+                  if (client.readyState === 1 && !client.path.startsWith('/camera')) {
+                    client.send(activeStreamPayload);
+                  }
+                });
+              }
+
+              broadcastDeviceList(wss);
+            }
+            return ws.terminate();
           }
-          return ws.terminate();
         }
       } else {
         // Standard WS heartbeat for Kiosks
@@ -1597,6 +1625,12 @@ function initWebSocket(server) {
         }
       }
     });
+
+    try {
+      await Promise.all(promises);
+    } catch (e) {
+      console.error('[Heartbeat] Concurrent heartbeat execution error:', e);
+    }
   }, 5000);
 
   aiClient.onStatusChange((isConnected) => {
@@ -1926,6 +1960,90 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
     console.error('[PIR Upload] Asynchronous processing error:', err);
   });
 }
+
+// Start UDP Livestream server on port 3001
+const udpServer = dgram.createSocket('udp4');
+
+// Maps to hold incomplete frames for each camera (separated for UDP and WebSocket transport)
+// Key: deviceId, Value: { frameId, totalChunks, chunks: Map(chunkIdx -> Buffer), timestamp }
+const udpFrameAssemblies = new Map();
+const wsFrameAssemblies = new Map();
+
+// Shared helper function to reassemble chunked binary payloads
+function processChunkedMessage(deviceId, remoteIp, msg, assembliesMap, onFrameComplete) {
+  if (msg.length < 4) return; // Invalid packet
+
+  const frameId = msg[0];
+  const totalChunks = msg[1];
+  const chunkIndex = msg[2];
+  const chunkData = msg.subarray(4);
+
+  let assembly = assembliesMap.get(deviceId);
+
+  // If no assembly exists, or it belongs to a new frame ID
+  if (!assembly || assembly.frameId !== frameId) {
+    assembly = {
+      frameId: frameId,
+      totalChunks: totalChunks,
+      chunks: new Map(),
+      timestamp: Date.now()
+    };
+    assembliesMap.set(deviceId, assembly);
+  }
+
+  // Store the chunk
+  assembly.chunks.set(chunkIndex, chunkData);
+  assembly.timestamp = Date.now();
+
+  // If we have received all chunks, reassemble and process the frame
+  if (assembly.chunks.size === totalChunks) {
+    const chunkBuffers = [];
+    let isComplete = true;
+    for (let i = 0; i < totalChunks; i++) {
+      const chunk = assembly.chunks.get(i);
+      if (!chunk) {
+        isComplete = false;
+        break;
+      }
+      chunkBuffers.push(chunk);
+    }
+
+    if (isComplete) {
+      const completedFrame = Buffer.concat(chunkBuffers);
+      assembliesMap.delete(deviceId); // Free assembly
+      onFrameComplete(deviceId, remoteIp, completedFrame);
+    }
+  }
+}
+
+// Periodic cleanup of incomplete frame assemblies to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [deviceId, assembly] of udpFrameAssemblies.entries()) {
+    if (now - assembly.timestamp > 2000) { // Discard if no new chunk for 2 seconds
+      udpFrameAssemblies.delete(deviceId);
+    }
+  }
+  for (const [deviceId, assembly] of wsFrameAssemblies.entries()) {
+    if (now - assembly.timestamp > 2000) { // Discard if no new chunk for 2 seconds
+      wsFrameAssemblies.delete(deviceId);
+    }
+  }
+}, 5000);
+
+udpServer.on('message', (msg, rinfo) => {
+  const remoteIp = rinfo.address.replace('::ffff:', '');
+  const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
+  processChunkedMessage(deviceId, remoteIp, msg, udpFrameAssemblies, handleIncomingCameraFrame);
+});
+
+udpServer.on('error', (err) => {
+  console.error(`[UDP Server] Error:\n${err.stack}`);
+});
+
+udpServer.bind(3001, () => {
+  console.log('[UDP Server] Listening for binary livestream on port 3001');
+});
 
 module.exports = {
   initWebSocket,

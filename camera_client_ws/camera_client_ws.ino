@@ -7,6 +7,7 @@
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
 #include <WiFiManager.h>
+#include <WiFiUdp.h>
 
 // AI Thinker ESP32-CAM Pinout
 #define PWDN_GPIO_NUM     32
@@ -207,6 +208,8 @@ bool isConnected = false;
 unsigned long lastSignalSent = 0;
 IPAddress serverIP;
 unsigned long lastMdnsQuery = 0;
+WiFiUDP udp;
+bool udpStreamEnabled = false;
 
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
@@ -391,6 +394,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
           } else if (cmd.indexOf("\"system_settings_update\"") >= 0) {
             int enabledIdx = cmd.indexOf("\"pirEnabled\"");
             int cooldownIdx = cmd.indexOf("\"pirCooldown\"");
+            int udpIdx = cmd.indexOf("\"udpStreamEnabled\"");
             
             if (enabledIdx != -1) {
               int colonIdx = cmd.indexOf(":", enabledIdx);
@@ -418,7 +422,17 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
                 }
               }
             }
-            Serial.printf("[WSc] System settings updated: pirEnabled=%d, pirCooldown=%d\n", cam_pirEnabled, cam_pirCooldown);
+            if (udpIdx != -1) {
+              int colonIdx = cmd.indexOf(":", udpIdx);
+              if (colonIdx != -1) {
+                int start = colonIdx + 1;
+                while (start < cmd.length() && (cmd[start] == ' ' || cmd[start] == '\t' || cmd[start] == '"')) {
+                  start++;
+                }
+                udpStreamEnabled = (cmd.substring(start, start + 4).indexOf("true") != -1);
+              }
+            }
+            Serial.printf("[WSc] System settings updated: pirEnabled=%d, pirCooldown=%d, udpStreamEnabled=%d\n", cam_pirEnabled, cam_pirCooldown, udpStreamEnabled);
           }
       }
       break;
@@ -591,6 +605,11 @@ void setup() {
   if (serverIP.toString() != "0.0.0.0") {
     Serial.printf("Resolved gateway.local to: %s\n", serverIP.toString().c_str());
     connectWebSocket();
+    if (udp.begin(0)) {
+      Serial.println("[UDP] Local socket bound to ephemeral port");
+    } else {
+      Serial.println("[UDP] Failed to bind local socket!");
+    }
   } else {
     Serial.println("mDNS resolution failed. WebSocket will not start.");
   }
@@ -863,8 +882,68 @@ void loop() {
       return;
     }
 
-    // Kirim frame JPEG ke kiosk via WebSocket
-    webSocket.sendBIN(fb->buf, fb->len);
+    // Kirim frame JPEG ke kiosk via WebSocket atau UDP
+    if (udpStreamEnabled) {
+      static uint8_t udpFrameId = 0;
+      udpFrameId++;
+      
+      size_t totalLen = fb->len;
+      size_t maxChunkSize = 1400;
+      uint8_t totalChunks = (totalLen + maxChunkSize - 1) / maxChunkSize;
+      
+      for (uint8_t chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
+        size_t offset = chunkIdx * maxChunkSize;
+        size_t chunkSize = totalLen - offset;
+        if (chunkSize > maxChunkSize) {
+          chunkSize = maxChunkSize;
+        }
+        
+        udp.beginPacket(serverIP, 3001);
+        
+        // Write header (4 bytes): [frameId, totalChunks, chunkIdx, reserved]
+        uint8_t header[4];
+        header[0] = udpFrameId;
+        header[1] = totalChunks;
+        header[2] = chunkIdx;
+        header[3] = 0;
+        udp.write(header, 4);
+        
+        // Write chunk data
+        udp.write(fb->buf + offset, chunkSize);
+        udp.endPacket();
+        
+        // Yield to the RTOS scheduler to allow LwIP/WiFi task to process the packet
+        delay(1);
+      }
+    } else {
+      static uint8_t wsFrameId = 0;
+      wsFrameId++;
+      
+      size_t totalLen = fb->len;
+      size_t maxChunkSize = 1024; // 1KB
+      uint8_t totalChunks = (totalLen + maxChunkSize - 1) / maxChunkSize;
+      
+      for (uint8_t chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
+        size_t offset = chunkIdx * maxChunkSize;
+        size_t chunkSize = totalLen - offset;
+        if (chunkSize > maxChunkSize) {
+          chunkSize = maxChunkSize;
+        }
+        
+        // Stack-allocated packet buffer for header + chunk
+        uint8_t packet[1028]; // 4 bytes header + 1024 bytes max payload
+        packet[0] = wsFrameId;
+        packet[1] = totalChunks;
+        packet[2] = chunkIdx;
+        packet[3] = 0;
+        memcpy(packet + 4, fb->buf + offset, chunkSize);
+        
+        webSocket.sendBIN(packet, 4 + chunkSize);
+        
+        // Yield to allow the network stack to transmit chunks sequentially
+        delay(1);
+      }
+    }
     esp_camera_fb_return(fb);
   }
 }
