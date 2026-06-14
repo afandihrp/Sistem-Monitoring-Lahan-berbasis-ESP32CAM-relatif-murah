@@ -366,7 +366,7 @@ function triggerAiWorker() {
           if (!device.lastServoAdjustTime) {
             device.lastServoAdjustTime = 0;
           }
-          if (now - device.lastServoAdjustTime >= 250) {
+          if (now - device.lastServoAdjustTime >= 100) {
             const defaultAngle = getDefaultAngle(device.mac);
             const followResult = calculateNextFollowerAngle(deviceId, device.currentAngle, boxCoordinates, defaultAngle);
             if (followResult) {

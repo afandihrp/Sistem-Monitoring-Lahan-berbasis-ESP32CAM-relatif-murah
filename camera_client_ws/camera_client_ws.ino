@@ -206,6 +206,7 @@ WebSocketsClient webSocket;
 bool isConnected = false;
 unsigned long lastSignalSent = 0;
 IPAddress serverIP;
+unsigned long lastMdnsQuery = 0;
 
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
@@ -430,6 +431,19 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   }
 }
 
+void connectWebSocket() {
+  // Get MAC address and construct connection path with query parameters
+  String mac = WiFi.macAddress();
+  String path = "/camera?mac=" + mac + "&apiKey=" + String(apiKey);
+
+  // Connect to WebSocket using the resolved IP and query string path
+  webSocket.disconnect();
+  webSocket.beginSSL(serverIP.toString().c_str(), 3000, path.c_str(), "", "");
+  webSocket.onEvent(webSocketEvent);
+  webSocket.setReconnectInterval(5000);
+  Serial.printf("[WSc] WebSocket initialized connecting to %s:3000%s\n", serverIP.toString().c_str(), path.c_str());
+}
+
 void setup() {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // Disable brownout detector
   
@@ -441,6 +455,14 @@ void setup() {
   else 
   {
     Serial.println("psram are not enabled");
+  }
+
+  // Check Pin 2 at boot to force launch the config portal
+  pinMode(2, INPUT_PULLUP);
+  delay(10); // Let voltage settle
+  bool forceConfigPortal = (digitalRead(2) == LOW);
+  if (forceConfigPortal) {
+    Serial.println("[BOOT] Pin 2 held LOW. Captive portal will be forced.");
   }
 
   pinMode(left_pir_pin, INPUT_PULLDOWN);
@@ -530,9 +552,14 @@ void setup() {
   wm.setConnectTimeout(20); // 20 seconds max to try connecting to saved WiFi
   wm.setConfigPortalTimeout(180); // 3 minutes max in captive portal before auto-restarting
 
-  Serial.println("Starting WiFiManager...");
-  // This will block until connected or the captive portal is configured
-  bool res = wm.autoConnect("ESP32-CAM-Config");
+  bool res = false;
+  if (forceConfigPortal) {
+    Serial.println("Starting WiFiManager config portal manually...");
+    res = wm.startConfigPortal("ESP32-CAM-Config");
+  } else {
+    Serial.println("Starting WiFiManager autoConnect...");
+    res = wm.autoConnect("ESP32-CAM-Config");
+  }
   
   if(!res) {
       Serial.println("Failed to connect to WiFi. Restarting...");
@@ -547,28 +574,23 @@ void setup() {
     Serial.println("Error setting up MDNS responder!");
   }
   
+  // Wait a moment for MDNS service to initialize and UDP sockets to settle
+  delay(2000);
+  
   Serial.println("Resolving gateway.local...");
-  serverIP = MDNS.queryHost("gateway");
+  serverIP = MDNS.queryHost("gateway", 3000);
   
   int mdnsAttempts = 0;
   while (serverIP.toString() == "0.0.0.0" && mdnsAttempts < 10) {
     Serial.println("mDNS query failed, retrying...");
-    delay(1000);
-    serverIP = MDNS.queryHost("gateway");
+    delay(2000);
+    serverIP = MDNS.queryHost("gateway", 3000);
     mdnsAttempts++;
   }
   
   if (serverIP.toString() != "0.0.0.0") {
     Serial.printf("Resolved gateway.local to: %s\n", serverIP.toString().c_str());
-
-    // Get MAC address and construct connection path with query parameters
-    String mac = WiFi.macAddress();
-    String path = "/camera?mac=" + mac + "&apiKey=" + String(apiKey);
-
-    // Connect to WebSocket using the resolved IP and query string path
-    webSocket.beginSSL(serverIP.toString().c_str(), 3000, path.c_str(), "", "");
-    webSocket.onEvent(webSocketEvent);
-    webSocket.setReconnectInterval(5000);
+    connectWebSocket();
   } else {
     Serial.println("mDNS resolution failed. WebSocket will not start.");
   }
@@ -736,6 +758,26 @@ unsigned long lastPinDebug = 0;
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     webSocket.loop();
+
+    // If WebSocket is disconnected, try to resolve gateway.local via mDNS periodically
+    if (!isConnected) {
+      if (millis() - lastMdnsQuery > 10000) {
+        lastMdnsQuery = millis();
+        Serial.println("[mDNS] WebSocket disconnected. Querying gateway.local...");
+        IPAddress newIP = MDNS.queryHost("gateway", 3000);
+        if (newIP.toString() != "0.0.0.0") {
+          if (newIP != serverIP) {
+            Serial.printf("[mDNS] gateway.local IP changed from %s to %s\n", serverIP.toString().c_str(), newIP.toString().c_str());
+            serverIP = newIP;
+            connectWebSocket();
+          } else {
+            Serial.println("[mDNS] gateway.local IP has not changed.");
+          }
+        } else {
+          Serial.println("[mDNS] gateway.local query failed.");
+        }
+      }
+    }
   }
 
   // Proses on-demand capture DI SINI (di main loop, bukan di WS callback)

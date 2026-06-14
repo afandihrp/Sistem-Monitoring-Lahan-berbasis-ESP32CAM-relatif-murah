@@ -54,12 +54,12 @@ function calculateNextFollowerAngle(deviceId, currentAngle, boxCoordinates, defa
 
   // Only adjust if the offset is significant to avoid unnecessary micro-adjustments
   // Increased deadband to 0.20 to prevent micro-adjustments to minor movements
-  if (Math.abs(offset) > 0.20) {
+  if (Math.abs(offset) > 0.25) {
     const angleValue = currentAngle !== undefined ? currentAngle : defaultAngle;
 
     // Constants for PD Controller
-    const Kp = 50;
-    const Kd = 10;
+    const Kp = 45;
+    const Kd = 2;
 
     // Map offset to angle adjustment. Left pan increases angle, Right pan decreases angle.
     // Kd dampens the speed as it approaches the target to reduce oscillation.

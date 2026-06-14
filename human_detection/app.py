@@ -133,6 +133,14 @@ async def handle_client(websocket, path=None):
                             }
                         device_state = states[device_id]
 
+                        if device_state['static_back'] is not None and device_state['static_back'].shape != gray_blurred.shape:
+                            print(f"[INFO] Static background shape mismatch for {device_id}. Resetting...")
+                            device_state['static_back'] = None
+
+                        if device_state['prev_frame'] is not None and device_state['prev_frame'].shape != gray_blurred.shape:
+                            print(f"[INFO] Previous frame shape mismatch for {device_id}. Resetting...")
+                            device_state['prev_frame'] = None
+
                         if annotate and 'last_boxes' in device_state and device_state['last_boxes']:
                             # Reuse bounding boxes from the stream frame trigger
                             koordinat_kotak = device_state['last_boxes']

@@ -10,7 +10,7 @@ NMS_THRESHOLD = 0.45
 NUM_THREADS = 2
 
 # WebSocket Client Configuration (Target Backend)
-BACKEND_HOST = "gateway.local"
+BACKEND_HOST = "localhost"
 BACKEND_PORT = 5000
 MAX_WS_SIZE = 20 * 1024 * 1024  # 20 MB
 
