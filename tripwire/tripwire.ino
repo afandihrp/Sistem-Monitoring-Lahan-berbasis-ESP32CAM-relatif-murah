@@ -6,8 +6,8 @@
 #define ADC_PIN 2
 
 // ================= WIFI =================
-const char *ssid = "BatuKhan";
-const char *password = "momoygemoy";
+const char *ssid = "Tenda03";
+const char *password = "BRHtenda68";
 
 // ================= GATEWAY (mDNS) =================
 const char *targetHostname = "gateway"; // Tanpa ".local"

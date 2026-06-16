@@ -171,13 +171,13 @@ void servoTask(void * pvParameters) {
     if (current != target) {
       int diff = target - current;
       int nextAngle = current;
-      if (abs(diff) <= 10) {
+      if (abs(diff) <=5) {
         nextAngle = target;
       } else {
         if (diff > 0) {
-          nextAngle += 10;
+          nextAngle += 5;
         } else {
-          nextAngle -= 10;
+          nextAngle -= 5;
         }
       }
 
@@ -210,6 +210,9 @@ IPAddress serverIP;
 unsigned long lastMdnsQuery = 0;
 WiFiUDP udp;
 bool udpStreamEnabled = false;
+bool udpInitialized = false;
+
+uint8_t* wsPacketBuffer = nullptr;
 
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
@@ -219,6 +222,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       isConnected = false;
       setTargetAngle(SERVO_POS_DEFAULT);
       isServoWaitingToReturn = false;
+      udpInitialized = false;
       break;
     case WStype_CONNECTED:
       Serial.printf("[WSc] Connected to url: %s\n", payload);
@@ -465,10 +469,22 @@ void setup() {
   if(psramFound())
   {
     Serial.println("psram enabled");
+    wsPacketBuffer = (uint8_t*)ps_malloc(1028);
+    if (wsPacketBuffer) {
+      Serial.println("[MEM] WebSocket packet buffer successfully allocated in PSRAM");
+    } else {
+      Serial.println("[ERR] Failed to allocate WebSocket packet buffer in PSRAM");
+    }
   }
   else 
   {
     Serial.println("psram are not enabled");
+    wsPacketBuffer = (uint8_t*)malloc(1028);
+    if (wsPacketBuffer) {
+      Serial.println("[MEM] WebSocket packet buffer successfully allocated in internal heap");
+    } else {
+      Serial.println("[ERR] Failed to allocate WebSocket packet buffer in internal heap");
+    }
   }
 
   // Check Pin 2 at boot to force launch the config portal
@@ -605,10 +621,11 @@ void setup() {
   if (serverIP.toString() != "0.0.0.0") {
     Serial.printf("Resolved gateway.local to: %s\n", serverIP.toString().c_str());
     connectWebSocket();
-    if (udp.begin(0)) {
-      Serial.println("[UDP] Local socket bound to ephemeral port");
+    if (udp.begin(3001)) {
+      Serial.println("[UDP] Local socket pre-bound to port 3001");
+      udpInitialized = true;
     } else {
-      Serial.println("[UDP] Failed to bind local socket!");
+      Serial.println("[UDP] Failed to pre-bind local socket!");
     }
   } else {
     Serial.println("mDNS resolution failed. WebSocket will not start.");
@@ -884,11 +901,20 @@ void loop() {
 
     // Kirim frame JPEG ke kiosk via WebSocket atau UDP
     if (udpStreamEnabled) {
+      if (!udpInitialized) {
+        if (udp.begin(3001)) {
+          Serial.println("[UDP] Local socket bound to port 3001");
+          udpInitialized = true;
+        } else {
+          Serial.println("[UDP] Failed to bind local socket!");
+        }
+      }
+      
       static uint8_t udpFrameId = 0;
       udpFrameId++;
       
       size_t totalLen = fb->len;
-      size_t maxChunkSize = 1400;
+      size_t maxChunkSize = 1024;
       uint8_t totalChunks = (totalLen + maxChunkSize - 1) / maxChunkSize;
       
       for (uint8_t chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
@@ -930,8 +956,12 @@ void loop() {
           chunkSize = maxChunkSize;
         }
         
-        // Stack-allocated packet buffer for header + chunk
-        uint8_t packet[1028]; // 4 bytes header + 1024 bytes max payload
+        // Use PSRAM-allocated packet buffer if available, fallback to stack-allocated buffer if null
+        uint8_t* packet = wsPacketBuffer;
+        uint8_t stackPacket[1028];
+        if (!packet) {
+          packet = stackPacket;
+        }
         packet[0] = wsFrameId;
         packet[1] = totalChunks;
         packet[2] = chunkIdx;

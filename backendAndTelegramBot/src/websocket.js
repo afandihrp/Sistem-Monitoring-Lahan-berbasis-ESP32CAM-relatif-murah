@@ -373,7 +373,7 @@ function triggerAiWorker() {
           if (!device.lastServoAdjustTime) {
             device.lastServoAdjustTime = 0;
           }
-          if (now - device.lastServoAdjustTime >= 100) {
+          if (now - device.lastServoAdjustTime >= 800) {
             const defaultAngle = getDefaultAngle(device.mac);
             const followResult = calculateNextFollowerAngle(deviceId, device.currentAngle, boxCoordinates, defaultAngle);
             if (followResult) {
@@ -1967,7 +1967,7 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
 const udpServer = dgram.createSocket('udp4');
 
 // Maps to hold incomplete frames for each camera (separated for UDP and WebSocket transport)
-// Key: deviceId, Value: { frameId, totalChunks, chunks: Map(chunkIdx -> Buffer), timestamp }
+// Key: deviceId, Value: Map(frameId -> { totalChunks, chunks: Map(chunkIdx -> Buffer), timestamp })
 const udpFrameAssemblies = new Map();
 const wsFrameAssemblies = new Map();
 
@@ -1980,17 +1980,22 @@ function processChunkedMessage(deviceId, remoteIp, msg, assembliesMap, onFrameCo
   const chunkIndex = msg[2];
   const chunkData = msg.subarray(4);
 
-  let assembly = assembliesMap.get(deviceId);
+  // Get or create the device's frames map
+  let deviceFrames = assembliesMap.get(deviceId);
+  if (!deviceFrames) {
+    deviceFrames = new Map();
+    assembliesMap.set(deviceId, deviceFrames);
+  }
 
-  // If no assembly exists, or it belongs to a new frame ID
-  if (!assembly || assembly.frameId !== frameId) {
+  // Get or create the specific frame assembly
+  let assembly = deviceFrames.get(frameId);
+  if (!assembly) {
     assembly = {
-      frameId: frameId,
       totalChunks: totalChunks,
       chunks: new Map(),
       timestamp: Date.now()
     };
-    assembliesMap.set(deviceId, assembly);
+    deviceFrames.set(frameId, assembly);
   }
 
   // Store the chunk
@@ -2012,7 +2017,16 @@ function processChunkedMessage(deviceId, remoteIp, msg, assembliesMap, onFrameCo
 
     if (isComplete) {
       const completedFrame = Buffer.concat(chunkBuffers);
-      assembliesMap.delete(deviceId); // Free assembly
+      // Clean up completed frame from active assemblies list
+      deviceFrames.delete(frameId);
+
+      // Clean up older frames for this device to prevent late packet interference
+      for (const [fid, fasm] of deviceFrames.entries()) {
+        if (fasm.timestamp < assembly.timestamp) {
+          deviceFrames.delete(fid);
+        }
+      }
+
       onFrameComplete(deviceId, remoteIp, completedFrame);
     }
   }
@@ -2021,16 +2035,22 @@ function processChunkedMessage(deviceId, remoteIp, msg, assembliesMap, onFrameCo
 // Periodic cleanup of incomplete frame assemblies to prevent memory leaks
 setInterval(() => {
   const now = Date.now();
-  for (const [deviceId, assembly] of udpFrameAssemblies.entries()) {
-    if (now - assembly.timestamp > 2000) { // Discard if no new chunk for 2 seconds
-      udpFrameAssemblies.delete(deviceId);
+  
+  const cleanupMap = (map) => {
+    for (const [deviceId, deviceFrames] of map.entries()) {
+      for (const [frameId, assembly] of deviceFrames.entries()) {
+        if (now - assembly.timestamp > 2000) { // Discard if no new chunk for 2 seconds
+          deviceFrames.delete(frameId);
+        }
+      }
+      if (deviceFrames.size === 0) {
+        map.delete(deviceId);
+      }
     }
-  }
-  for (const [deviceId, assembly] of wsFrameAssemblies.entries()) {
-    if (now - assembly.timestamp > 2000) { // Discard if no new chunk for 2 seconds
-      wsFrameAssemblies.delete(deviceId);
-    }
-  }
+  };
+
+  cleanupMap(udpFrameAssemblies);
+  cleanupMap(wsFrameAssemblies);
 }, 5000);
 
 udpServer.on('message', (msg, rinfo) => {

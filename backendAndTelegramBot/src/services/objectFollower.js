@@ -52,9 +52,8 @@ function calculateNextFollowerAngle(deviceId, currentAngle, boxCoordinates, defa
   // Save current state for next frame
   previousState.set(deviceId, { lastOffset: offset, lastTime: now });
 
-  // Only adjust if the offset is significant to avoid unnecessary micro-adjustments
-  // Increased deadband to 0.20 to prevent micro-adjustments to minor movements
-  if (Math.abs(offset) > 0.25) {
+  // Only adjust if the offset is significant (reduced deadband to 0.05 for active centering)
+  if (Math.abs(offset) > 0.10) {
     const angleValue = currentAngle !== undefined ? currentAngle : defaultAngle;
 
     // Constants for PD Controller
