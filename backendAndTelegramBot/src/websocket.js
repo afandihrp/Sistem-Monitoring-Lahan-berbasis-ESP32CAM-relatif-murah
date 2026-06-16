@@ -2,9 +2,6 @@ const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
 const checkDiskSpace = require('check-disk-space').default;
-const { exec } = require('child_process');
-const util = require('util');
-const execPromise = util.promisify(exec);
 const dgram = require('dgram');
 
 const { yoloClient, pixelClient, aiClient } = require('./services/aiClient');
@@ -1549,26 +1546,15 @@ function initWebSocket(server) {
   });
 
   // Heartbeat interval check setiap 5 detik
-  const interval = setInterval(async function ping() {
-    const promises = Array.from(wss.clients).map(async (ws) => {
+  const interval = setInterval(function ping() {
+    wss.clients.forEach((ws) => {
       if (ws.path && ws.path.startsWith('/camera')) {
-        // ICMP ping check instead of stream-activity check
-        let isAlive = false;
-        try {
-          await execPromise(`ping -c 1 -W 5 ${ws.remoteIp}`);
-          isAlive = true;
-        } catch (error) {
-          isAlive = false;
-        }
-
-        if (isAlive) {
-          ws.failedPingCount = 0;
-        } else {
+        if (ws.isAlive === false) {
           ws.failedPingCount = (ws.failedPingCount || 0) + 1;
-          console.log(`[Heartbeat] Camera ICMP ping failed for ${ws.remoteIp} (Failures: ${ws.failedPingCount}/5)`);
+          console.log(`[Heartbeat] Camera WebSocket ping failed for ${ws.remoteIp} (Failures: ${ws.failedPingCount}/5)`);
 
           if (ws.failedPingCount >= 5) {
-            console.log(`[Heartbeat] Camera ICMP ping threshold exceeded: ${ws.path}. Terminating.`);
+            console.log(`[Heartbeat] Camera WebSocket ping threshold exceeded: ${ws.path}. Terminating.`);
             const deviceId = `cam_${ws.remoteIp.replace(/\./g, '_')}`;
             const device = devices.get(deviceId);
             if (device) {
@@ -1610,7 +1596,12 @@ function initWebSocket(server) {
             }
             return ws.terminate();
           }
+        } else {
+          ws.failedPingCount = 0;
         }
+
+        ws.isAlive = false;
+        ws.ping();
       } else {
         // Standard WS heartbeat for Kiosks
         // We only ping every 30s (6 cycles of 5s) to save bandwidth
@@ -1628,12 +1619,6 @@ function initWebSocket(server) {
         }
       }
     });
-
-    try {
-      await Promise.all(promises);
-    } catch (e) {
-      console.error('[Heartbeat] Concurrent heartbeat execution error:', e);
-    }
   }, 5000);
 
   aiClient.onStatusChange((isConnected) => {

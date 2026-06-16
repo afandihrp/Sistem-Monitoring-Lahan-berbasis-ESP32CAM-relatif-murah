@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import DateSorter from './DateSorter.vue'
 import PlaybackView from './PlaybackView.vue'
+import ImageViewer from './ImageViewer.vue'
 
 const activeTab = ref('events')
 
@@ -69,6 +70,15 @@ const getFormattedDateForBatch = () => {
   const d = props.selectedDate;
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+const viewerOpen = ref(false)
+const viewerInitialIndex = ref(0)
+
+const openViewer = (event) => {
+  const index = props.events.findIndex(e => e.id === event.id)
+  viewerInitialIndex.value = index !== -1 ? index : 0
+  viewerOpen.value = true
+}
 </script>
 
 <template>
@@ -89,7 +99,7 @@ const getFormattedDateForBatch = () => {
           <span class="badge bg-slate-700 text-secondary border border-slate-600 extra-small mt-1" style="width: fit-content;">{{ events.length }} on {{ selectedDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) }}</span>
         </div>
         
-        <button v-if="events.length > 0" @click="emit('deleteBatch', getFormattedDateForBatch())" class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size: 0.65rem;" title="Hapus semua rekaman di tanggal ini">
+        <button v-if="events.length > 0" @click="emit('deleteBatch', getFormattedDateForBatch())" class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size: 0.65rem;" title="Delete all today's recorded footage">
           <i class="bi bi-trash3-fill"></i> Clear Day
         </button>
       </div>
@@ -123,7 +133,7 @@ const getFormattedDateForBatch = () => {
             <span class="text-truncate">{{ event.location }}</span>
           </div>
           <div v-if="event.imageUrl" class="mt-2 ps-3 pe-1 text-center">
-            <img :src="getImageUrl(event.imageUrl)" @error="handleImageError" class="img-fluid rounded border border-slate-700" style="height: auto; max-height: 350px; width: auto;" alt="Snapshot" loading="lazy" />
+            <img :src="getImageUrl(event.imageUrl)" @error="handleImageError" @click="openViewer(event)" class="img-fluid rounded border border-slate-700" style="height: auto; max-height: 350px; width: auto; cursor: pointer;" alt="Snapshot" loading="lazy" />
           </div>
         </div>
       </div>
@@ -143,11 +153,20 @@ const getFormattedDateForBatch = () => {
       <span class="text-secondary small">Page {{ currentEventPage }} of {{ totalPages }}</span>
       <button @click="emit('nextPage')" :disabled="currentEventPage === totalPages" class="btn btn-sm btn-outline-secondary">Next <i class="bi bi-chevron-right"></i></button>
     </div>
+
+    <Teleport to="body">
+      <ImageViewer 
+        v-if="viewerOpen" 
+        :events="events" 
+        :initialIndex="viewerInitialIndex" 
+        @close="viewerOpen = false" 
+      />
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
-.hover-bg:hover { background-color: rgba(255, 255, 255, 0.03) !important; }
+.hover-bg:hover { background-color: rgba(255, 255, 255, 0.3) !important; }
 .extra-small { font-size: 0.7rem; }
 .font-monospace { font-family: 'JetBrains Mono', ui-monospace, monospace !important; }
 .last-child-border-0:last-child { border-bottom: none !important; }
