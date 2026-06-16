@@ -95,11 +95,11 @@ onUnmounted(() => {
 
 const getSignalDbText = (bar) => {
   const dbmMap = {
-    5: '-50 dBm (Excellent)',
-    4: '-60 dBm (Good)',
-    3: '-70 dBm (Fair)',
-    2: '-80 dBm (Weak)',
-    1: '-90 dBm (Very Weak)'
+    5: '< 30 dBm (Excellent)',
+    4: '< 40 dBm (Good)',
+    3: '< 50 dBm (Fair)',
+    2: '< 60 dBm (Weak)',
+    1: '> 60 dBm (Very Weak)'
   };
   return dbmMap[bar];
 }

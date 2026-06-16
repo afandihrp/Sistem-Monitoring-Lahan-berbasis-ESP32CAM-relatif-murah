@@ -8,11 +8,11 @@ defineProps({
 
 const getNominalDbm = (bars) => {
   const mapping = {
-    5: -50,
-    4: -60,
-    3: -70,
-    2: -80,
-    1: -90
+    5: -25,
+    4: -35,
+    3: -45,
+    2: -55,
+    1: -65
   };
   return mapping[bars] || 'N/A';
 }

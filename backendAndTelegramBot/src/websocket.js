@@ -859,12 +859,13 @@ function getPirAngle(mac, sensor) {
 }
 
 function getSignalBars(rssi) {
-  if (rssi >= -55) return 5;
-  if (rssi >= -65) return 4;
-  if (rssi >= -75) return 3;
-  if (rssi >= -85) return 2;
-  if (rssi >= -95) return 1;
-  return 0;
+  if (rssi === null || rssi === undefined || isNaN(rssi)) return 0;
+  const absRssi = Math.abs(rssi);
+  if (absRssi < 30) return 5;
+  if (absRssi < 40) return 4;
+  if (absRssi < 50) return 3;
+  if (absRssi < 60) return 2;
+  return 1;
 }
 
 function heartbeat() {
