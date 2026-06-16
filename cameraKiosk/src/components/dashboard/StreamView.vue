@@ -129,18 +129,18 @@ const handleSaveSystemConfig = (config) => {
     <section class="stream-section bg-black position-relative flex-grow-1">
       <!-- Header Stream (Absolute agar video bisa full edge-to-edge) -->
       <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-between align-items-center z-2">
-        <span v-if="currentStream.status === 'Online' && viewMode !== 'multiple'" class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
-          <span class="spinner-grow spinner-grow-sm" style="width: 0.8rem; height: 0.8rem;" role="status"></span>
+        <span v-if="currentStream.status === 'Online' && viewMode !== 'multiple'" class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-2 px-2 py-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">
+          <span class="spinner-grow spinner-grow-sm" style="width: 0.6rem; height: 0.6rem;" role="status"></span>
           LIVE FEED
         </span>
-        <span v-else-if="viewMode !== 'multiple'" class="badge rounded-pill bg-secondary text-white border border-secondary border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
-          <i class="bi bi-camera-video-off-fill fs-6"></i>
+        <span v-else-if="viewMode !== 'multiple'" class="badge rounded-pill bg-secondary text-white border border-secondary border-opacity-25 d-flex align-items-center gap-2 px-2 py-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">
+          <i class="bi bi-camera-video-off-fill" style="font-size: 0.7rem;"></i>
           OFFLINE
         </span>
         
         <div v-if="viewMode !== 'multiple'" class="d-flex align-items-center gap-2 gap-sm-3">
           <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black; font-size: 0.8rem;">
-            <span class="d-none d-sm-inline">ESP32-CAM</span> [{{ currentStream.ip }}]
+            [{{ currentStream.ip }}]
           </span>
         </div>
       </div>
@@ -170,14 +170,14 @@ const handleSaveSystemConfig = (config) => {
             <div v-for="device in onlineDevices" :key="device.id" class="grid-item bg-black position-relative">
               <!-- Grid Header -->
               <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-between align-items-center z-2">
-                <span class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-2 px-3 py-1 fs-6">
-                  <span class="spinner-grow spinner-grow-sm" style="width: 0.8rem; height: 0.8rem;" role="status"></span>
+                <span class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-2 px-2 py-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">
+                  <span class="spinner-grow spinner-grow-sm" style="width: 0.6rem; height: 0.6rem;" role="status"></span>
                   LIVE FEED
                 </span>
                 
                 <div class="d-flex align-items-center gap-2 gap-sm-3">
                   <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black; font-size: 0.8rem;">
-                    <span class="d-none d-sm-inline">ESP32-CAM</span> [{{ device.ip }}]
+                    [{{ device.ip }}]
                   </span>
                 </div>
               </div>
