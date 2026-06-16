@@ -21,6 +21,10 @@ const props = defineProps({
   detectionMode: {
     type: String,
     default: 'AI'
+  },
+  showFpsMeter: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -158,7 +162,7 @@ onUnmounted(() => {
     </canvas>
 
     <!-- FPS Meter Badge Overlay -->
-    <div v-if="imageSrc" class="fps-meter">
+    <div v-if="imageSrc && showFpsMeter" class="fps-meter">
       <span class="fps-dot"></span>
       <span>{{ fps }} FPS</span>
     </div>

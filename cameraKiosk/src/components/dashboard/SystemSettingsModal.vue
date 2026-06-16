@@ -27,6 +27,7 @@ const props = defineProps({
       pixelMotionRecordingEnabled: true,
       pixelMotionCaptureDelay: 100,
       webSoundEnabled: true,
+      showFpsMeter: true,
       // AI Parameters
       pirAiDetection: true,
       pirAiRecording: true,
@@ -79,6 +80,7 @@ const pixelMotionCaptureDelay = ref(props.initialConfig.pixelMotionCaptureDelay 
 
 // Other Settings state
 const webSoundEnabled = ref(props.initialConfig.webSoundEnabled !== undefined ? props.initialConfig.webSoundEnabled : true)
+const showFpsMeter = ref(props.initialConfig.showFpsMeter !== undefined ? props.initialConfig.showFpsMeter : true)
 
 // AI configurator specific states
 const pirAiDetection = ref(props.initialConfig.pirAiDetection !== undefined ? props.initialConfig.pirAiDetection : true)
@@ -227,6 +229,7 @@ const saveConfig = () => {
     pixelMotionRecordingEnabled: pixelMotionRecordingEnabled.value,
     pixelMotionCaptureDelay: pixelMotionCaptureDelay.value,
     webSoundEnabled: webSoundEnabled.value,
+    showFpsMeter: showFpsMeter.value,
     udpStreamEnabled: udpStreamEnabled.value,
     // AI Parameters
     pirAiDetection: pirAiDetection.value,
@@ -764,6 +767,19 @@ const saveConfig = () => {
                 <span class="text-slate-500" style="font-size: 0.7rem;">Stream binary frames via UDP to port 3001 instead of WebSockets (reduces latency)</span>
               </div>
               <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="udpStreamSwitch" v-model="udpStreamEnabled">
+            </div>
+          </div>
+
+          <!-- FPS Meter Toggle -->
+          <div class="p-3 bg-slate-800 rounded border border-slate-700">
+            <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
+              <div>
+                <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="fpsMeterSwitch">
+                  Show FPS Meter
+                </label>
+                <span class="text-slate-500" style="font-size: 0.7rem;">Display the real-time frame rate (FPS) overlay on video feeds</span>
+              </div>
+              <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="fpsMeterSwitch" v-model="showFpsMeter">
             </div>
           </div>
 

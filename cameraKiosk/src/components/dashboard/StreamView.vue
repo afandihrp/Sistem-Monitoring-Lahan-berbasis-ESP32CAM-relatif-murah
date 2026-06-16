@@ -155,6 +155,7 @@ const handleSaveSystemConfig = (config) => {
             :boxes="liveBoxes"
             :aiEnabled="aiEnabled"
             :detectionMode="systemConfig.cameraDetectionMode"
+            :showFpsMeter="systemConfig.showFpsMeter"
           />
           <!-- Offline Overlay -->
           <div v-if="currentStream.status !== 'Online'" 
@@ -190,6 +191,7 @@ const handleSaveSystemConfig = (config) => {
                   :boxes="cameraBoxes[device.id]"
                   :aiEnabled="aiEnabled"
                   :detectionMode="systemConfig.cameraDetectionMode"
+                  :showFpsMeter="systemConfig.showFpsMeter"
                 />
               </div>
             </div>
@@ -213,7 +215,7 @@ const handleSaveSystemConfig = (config) => {
           <div class="col-md-6 d-flex flex-column gap-2">
             <label class="text-secondary small fw-bold text-uppercase d-flex align-items-center gap-2" style="font-size: 0.65rem;">
               Camera Switch <span class="text-info font-monospace">[{{ currentStream.ip || 'N/A' }}]</span>
-              <button v-if="currentStream.status === 'Online' && currentStream.mac && currentStream.mac !== 'Unknown MAC'"
+              <button v-if="currentStream.mac && currentStream.mac !== 'Unknown MAC'"
                       @click="showCameraConfig = true" 
                       class="btn btn-sm btn-link p-0 text-slate-500 hover-info" 
                       title="Camera Sensor Configuration">
