@@ -212,6 +212,13 @@ WiFiUDP udp;
 bool udpStreamEnabled = false;
 bool udpInitialized = false;
 
+// UDP health monitoring and adaptive fallback control
+bool udpFallbackActive = false;
+unsigned long udpFailCount = 0;
+unsigned long udpRetryTime = 0;
+const unsigned long UDP_RETRY_INTERVAL = 15000;
+const unsigned long UDP_TIMEOUT_MS = 2000;
+
 uint8_t* wsPacketBuffer = nullptr;
 
 
@@ -433,7 +440,13 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
                 while (start < cmd.length() && (cmd[start] == ' ' || cmd[start] == '\t' || cmd[start] == '"')) {
                   start++;
                 }
-                udpStreamEnabled = (cmd.substring(start, start + 4).indexOf("true") != -1);
+                bool nextUdp = (cmd.substring(start, start + 4).indexOf("true") != -1);
+                if (nextUdp != udpStreamEnabled) {
+                  udpStreamEnabled = nextUdp;
+                  // Reset fallback variables when user manually toggles settings
+                  udpFallbackActive = false;
+                  udpFailCount = 0;
+                }
               }
             }
             Serial.printf("[WSc] System settings updated: pirEnabled=%d, pirCooldown=%d, udpStreamEnabled=%d\n", cam_pirEnabled, cam_pirCooldown, udpStreamEnabled);
@@ -899,8 +912,23 @@ void loop() {
       return;
     }
 
-    // Kirim frame JPEG ke kiosk via WebSocket atau UDP
+    // Kirim frame JPEG ke kiosk via WebSocket atau UDP dengan adaptive fallback
+    bool useUdp = false;
     if (udpStreamEnabled) {
+      if (udpFallbackActive) {
+        // Jika sedang fallback, periksa apakah sudah waktunya mencoba UDP lagi
+        if (millis() > udpRetryTime) {
+          useUdp = true;
+        } else {
+          useUdp = false; // Tetap gunakan WebSocket
+        }
+      } else {
+        useUdp = true;
+      }
+    }
+
+    bool sentViaUdp = false;
+    if (useUdp) {
       if (!udpInitialized) {
         if (udp.begin(3001)) {
           Serial.println("[UDP] Local socket bound to port 3001");
@@ -910,38 +938,82 @@ void loop() {
         }
       }
       
-      static uint8_t udpFrameId = 0;
-      udpFrameId++;
-      
-      size_t totalLen = fb->len;
-      size_t maxChunkSize = 1024;
-      uint8_t totalChunks = (totalLen + maxChunkSize - 1) / maxChunkSize;
-      
-      for (uint8_t chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
-        size_t offset = chunkIdx * maxChunkSize;
-        size_t chunkSize = totalLen - offset;
-        if (chunkSize > maxChunkSize) {
-          chunkSize = maxChunkSize;
+      if (udpInitialized) {
+        static uint8_t udpFrameId = 0;
+        udpFrameId++;
+        
+        size_t totalLen = fb->len;
+        size_t maxChunkSize = 1024;
+        uint8_t totalChunks = (totalLen + maxChunkSize - 1) / maxChunkSize;
+        bool frameSentOk = true;
+        unsigned long sendStart = millis();
+        
+        for (uint8_t chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
+          size_t offset = chunkIdx * maxChunkSize;
+          size_t chunkSize = totalLen - offset;
+          if (chunkSize > maxChunkSize) {
+            chunkSize = maxChunkSize;
+          }
+          
+          if (udp.beginPacket(serverIP, 3001) != 1) {
+            frameSentOk = false;
+            break;
+          }
+          
+          // Write header (4 bytes): [frameId, totalChunks, chunkIdx, reserved]
+          uint8_t header[4];
+          header[0] = udpFrameId;
+          header[1] = totalChunks;
+          header[2] = chunkIdx;
+          header[3] = 0;
+          udp.write(header, 4);
+          
+          // Write chunk data
+          udp.write(fb->buf + offset, chunkSize);
+          
+          if (udp.endPacket() != 1) {
+            frameSentOk = false;
+            break;
+          }
+          
+          // Deteksi timeout transmisi akibat buffer WiFi macet
+          if (millis() - sendStart > UDP_TIMEOUT_MS) {
+            Serial.println("[UDP] Frame transmission timed out (WiFi congestion)!");
+            frameSentOk = false;
+            break;
+          }
+          
+          // Berikan delay yang dinamis berdasarkan kekuatan sinyal agar antrian TX WiFi tidak kepenuhan
+          long rssi = WiFi.RSSI();
+          int chunkDelay = 1;
+          if (rssi < -65) {
+            chunkDelay = 5;
+          } else if (rssi < -55) {
+            chunkDelay = 3;
+          }
+          delay(chunkDelay);
         }
         
-        udp.beginPacket(serverIP, 3001);
-        
-        // Write header (4 bytes): [frameId, totalChunks, chunkIdx, reserved]
-        uint8_t header[4];
-        header[0] = udpFrameId;
-        header[1] = totalChunks;
-        header[2] = chunkIdx;
-        header[3] = 0;
-        udp.write(header, 4);
-        
-        // Write chunk data
-        udp.write(fb->buf + offset, chunkSize);
-        udp.endPacket();
-        
-        // Yield to the RTOS scheduler to allow LwIP/WiFi task to process the packet
-        delay(1);
+        if (!frameSentOk) {
+          udpFailCount++;
+          Serial.printf("[UDP] Frame send failed! Fail count: %lu/3\n", udpFailCount);
+          if (udpFailCount >= 3) {
+            udpFallbackActive = true;
+            udpRetryTime = millis() + UDP_RETRY_INTERVAL;
+            Serial.printf("[UDP] 3 consecutive failures. Falling back to WebSocket streaming for %lu ms.\n", UDP_RETRY_INTERVAL);
+          }
+        } else {
+          udpFailCount = 0;
+          if (udpFallbackActive) {
+            udpFallbackActive = false;
+            Serial.println("[UDP] Stream successfully recovered! Switching back to UDP.");
+          }
+          sentViaUdp = true;
+        }
       }
-    } else {
+    }
+
+    if (!sentViaUdp) {
       static uint8_t wsFrameId = 0;
       wsFrameId++;
       

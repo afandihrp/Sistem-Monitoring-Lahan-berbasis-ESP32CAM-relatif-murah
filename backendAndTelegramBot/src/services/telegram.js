@@ -776,7 +776,9 @@ bot.action(/^dismiss_tw:(.+)$/, async (ctx) => {
 
     // Hentikan spam interval jika ada
     if (activeTripwireSpams.has(sensorId)) {
-      clearInterval(activeTripwireSpams.get(sensorId));
+      const state = activeTripwireSpams.get(sensorId);
+      state.active = false; // Langsung memutus eksekusi dalam queue (batal ngantri)
+      clearTimeout(state.timer);
       activeTripwireSpams.delete(sensorId);
 
       await ctx.answerCbQuery('✅ Alert berhasil dimatikan.', { show_alert: true });
@@ -807,33 +809,53 @@ function triggerTripwireAlert(location, sensor) {
   console.log(`[Telegram] Memulai spam tripwire alert untuk ${sensor} di ${location}`);
 
   // Mengirim setiap 2 detik sesuai permintaan user
-  // (Peringatan: jika memicu rate-limit error 429 dari Telegram, ubah ke 5000 ms)
   const intervalMs = 2000;
 
   const { Markup } = require('telegraf');
 
-  const intervalId = setInterval(async () => {
-    if (registeredChatIds.length === 0) return;
+  // Inisialisasi state object
+  const state = { active: true, timer: null };
+  activeTripwireSpams.set(sensor, state);
 
-    const message = `🚨 *PERINGATAN KRITIS: TRIPWIRE TERPUTUS!* 🚨\n\n📍 *Lokasi:* ${location}\n🛡️ *Sensor:* ${sensor}\n⚠️ *Indikasi:* Kabel terputus / Tegangan 0 Volt / Kerusakan\n⏰ *Waktu:* ${new Date().toLocaleTimeString('id-ID')} (WIB)`;
+  const loop = async () => {
+    // Jika keburu di-dismiss sebelum jalan, batalkan!
+    if (!state.active) return;
 
-    const keyboard = Markup.inlineKeyboard([
-      Markup.button.callback('🔕 Matikan Alert (Dismiss)', `dismiss_tw:${sensor}`)
-    ]);
+    if (registeredChatIds.length > 0) {
+      const message = `🚨 *PERINGATAN KRITIS: TRIPWIRE TERPUTUS!* 🚨\n\n📍 *Lokasi:* ${location}\n🛡️ *Sensor:* ${sensor}\n⚠️ *Indikasi:* Kabel terputus (Tegangan Drop <= 1.0V)\n⏰ *Waktu:* ${new Date().toLocaleTimeString('id-ID')} (WIB)`;
 
-    for (const chatId of registeredChatIds) {
-      try {
-        await bot.telegram.sendMessage(chatId, message, {
-          parse_mode: 'Markdown',
-          ...keyboard
-        });
-      } catch (err) {
-        console.error(`[Telegram] Gagal mengirim spam alert ke ${chatId}:`, err.message);
+      const keyboard = Markup.inlineKeyboard([
+        Markup.button.callback('🔕 Matikan Alert (Dismiss)', `dismiss_tw:${sensor}`)
+      ]);
+
+      // Kirim pesan ke semua grup/user yang terdaftar
+      for (const chatId of registeredChatIds) {
+        // Cek LAGI di dalam loop. Jika user mencet dismiss saat sistem sedang menunggu antrian
+        // API Telegram membalas pesan sebelumnya, sistem akan "batal ngantri" dan break!
+        if (!state.active) {
+          console.log(`[Telegram] Pengiriman dibatalkan di tengah antrian (dismissed).`);
+          break;
+        }
+
+        try {
+          await bot.telegram.sendMessage(chatId, message, {
+            parse_mode: 'Markdown',
+            ...keyboard
+          });
+        } catch (err) {
+          console.error(`[Telegram] Gagal mengirim spam alert ke ${chatId}:`, err.message);
+        }
       }
     }
-  }, intervalMs);
 
-  activeTripwireSpams.set(sensor, intervalId);
+    // Jika belum di-dismiss, jadwalkan putaran berikutnya
+    if (state.active) {
+      state.timer = setTimeout(loop, intervalMs);
+    }
+  };
+
+  // Jalankan iterasi pertama
+  loop();
 }
 
 module.exports = { initTelegramBot, sendMotionAlert, sendMotionVideoAlert, notifyCaptureResult, registerExpectedPhoto, triggerTripwireAlert };

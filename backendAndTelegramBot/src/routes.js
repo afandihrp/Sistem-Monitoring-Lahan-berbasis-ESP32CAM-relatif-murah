@@ -40,7 +40,7 @@ function createRouter(wss) {
         type: 'tripwire alert',
         sensor: sensor,
         location: location,
-        message: '0 Volt Detected!',
+        message: 'Voltage Drop Detected (<= 1.0V)!',
         timestamp: new Date().toISOString()
       });
 

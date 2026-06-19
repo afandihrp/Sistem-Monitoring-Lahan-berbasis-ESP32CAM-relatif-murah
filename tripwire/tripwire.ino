@@ -3,16 +3,16 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 
-#define ADC_PIN 2
+#define ADC_PIN 0 // Menggunakan pin 0
 
 // ================= WIFI =================
-const char *ssid = "Tenda03";
-const char *password = "BRHtenda68";
+const char *ssid = "BatuKhan";
+const char *password = "momoygemoy";
 
 // ================= GATEWAY (mDNS) =================
 const char *targetHostname = "gateway"; // Tanpa ".local"
-String resolvedGatewayIP = ""; // Menyimpan IP hasil resolve
-const int backendPort = 3000;  // GANTI dengan port backend Node.js Anda
+String resolvedGatewayIP = "";          // Menyimpan IP hasil resolve
+const int backendPort = 3000; // GANTI dengan port backend Node.js Anda
 
 // ================= IDENTITAS NODE =================
 const String nodeLocation = "Pagar_Utara";
@@ -24,12 +24,17 @@ const int ADC_MAX = 4095;
 
 // ================= THRESHOLD =================
 // Sesuaikan jika hasil pengujian berubah
-const float CUT_THRESHOLD = 2.0;
+const float CUT_THRESHOLD =
+    1.0; // Ambang batas 1.0V (tengah-tengah antara normal 2V dan putus 0V)
 
 // ================= DEBOUNCE =================
-const int REQUIRED_CONSECUTIVE_READS = 5;
+const int REQUIRED_CONSECUTIVE_READS =
+    4; // Harus 4x berturut-turut putus (1 detik) untuk mengirim alert
+const int REQUIRED_CONSECUTIVE_NORMAL =
+    4; // Harus 4x berturut-turut normal (1 detik) untuk me-reset status
 
 int cutCounter = 0;
+int normalCounter = 0;
 bool alertSent = false;
 
 // ================= WIFI =================
@@ -82,53 +87,59 @@ void sendAlert(float voltage) {
     return;
   }
 
-  WiFiClientSecure client;
-  client.setInsecure(); // Bypass validasi sertifikat lokal
-
+  // --- PERCOBAAN 1: HTTP ---
+  WiFiClient clientHttp;
   HTTPClient http;
+  
+  String urlHttp = "http://" + resolvedGatewayIP + ":" + String(backendPort) +
+                   "/api/tripwire" + "?location=" + nodeLocation +
+                   "&sensor=" + sensorName;
 
-  // Membuat URL HTTPS yang sesuai dengan backend Express Anda
-  String url = "https://" + resolvedGatewayIP + ":" + String(backendPort) +
-               "/api/tripwire" + "?location=" + nodeLocation +
-               "&sensor=" + sensorName;
+  Serial.print("Mencoba HTTP -> ");
+  Serial.println(urlHttp);
 
-  /* * Opsional: Jika Anda ingin tetap mengirim data voltage ke backend,
-   * Anda bisa menambahkannya di akhir URL seperti ini:
-   * "&voltage=" + String(voltage, 2);
-   * Walaupun backend saat ini belum membacanya, data tetap akan terkirim.
-   */
-
-  Serial.print("Sending Alert -> ");
-  Serial.println(url);
-
-  http.begin(client, url);
-
-  // Melakukan HTTP GET request sesuai dengan `router.get` di backend
+  http.begin(clientHttp, urlHttp);
   int httpCode = http.GET();
-
+  
   Serial.print("HTTP Response: ");
   Serial.println(httpCode);
 
   if (httpCode > 0) {
     String payload = http.getString();
     Serial.println("Response dari Server: " + payload);
+    http.end();
+    return; // Berhasil, keluar dari fungsi
   }
-
   http.end();
-}
 
-// ================= READ ADC =================
-float readVoltage() {
-  long sum = 0;
+  // --- PERCOBAAN 2: HTTPS (Jika HTTP Gagal) ---
+  Serial.println("Koneksi HTTP Gagal. Mencoba HTTPS...");
+  WiFiClientSecure clientHttps;
+  clientHttps.setInsecure(); // Bypass validasi sertifikat lokal
 
-  for (int i = 0; i < 20; i++) {
-    sum += analogRead(ADC_PIN);
-    delay(5);
+  HTTPClient https;
+  
+  String urlHttps = "https://" + resolvedGatewayIP + ":" + String(backendPort) +
+                    "/api/tripwire" + "?location=" + nodeLocation +
+                    "&sensor=" + sensorName;
+
+  Serial.print("Mencoba HTTPS -> ");
+  Serial.println(urlHttps);
+
+  https.begin(clientHttps, urlHttps);
+  int httpsCode = https.GET();
+  
+  Serial.print("HTTPS Response: ");
+  Serial.println(httpsCode);
+
+  if (httpsCode > 0) {
+    String payload = https.getString();
+    Serial.println("Response dari Server: " + payload);
+  } else {
+    Serial.println("Koneksi HTTP maupun HTTPS Gagal total.");
   }
-
-  int rawADC = sum / 20;
-
-  return ((float)rawADC / ADC_MAX) * VREF;
+  
+  https.end();
 }
 
 // ================= SETUP =================
@@ -162,13 +173,16 @@ void setup() {
 
 // ================= LOOP =================
 void loop() {
-  float voltage = readVoltage();
+  // Teknik membacanya pake yang di voltage_divider_sensing (pin 0)
+  int adc0 = analogRead(ADC_PIN);
+  float voltage = ((float)adc0 / ADC_MAX) * VREF;
 
-  Serial.print("Voltage: ");
-  Serial.println(voltage, 3);
+  Serial.printf("P0=%4d | Voltage=%.3f\n", adc0, voltage);
 
-  if (voltage >= CUT_THRESHOLD) {
+  if (voltage <=
+      CUT_THRESHOLD) { // Diubah ke <= karena tegangan menjadi 0V saat putus
     cutCounter++;
+    normalCounter = 0; // Reset counter normal karena tegangan drop
 
     Serial.print("Cut Counter: ");
     Serial.println(cutCounter);
@@ -181,9 +195,19 @@ void loop() {
       alertSent = true;
     }
   } else {
-    cutCounter = 0;
-    alertSent = false;
+    normalCounter++;
+    cutCounter = 0; // Reset counter putus karena tegangan normal
+
+    // Reset status alert hanya jika tegangan benar-benar stabil normal selama
+    // beberapa waktu (debounce recovery)
+    if (normalCounter >= REQUIRED_CONSECUTIVE_NORMAL) {
+      if (alertSent) {
+        Serial.println("SYSTEM RECOVERED - NORMAL (Alert Reset)");
+        alertSent = false;
+      }
+      normalCounter = REQUIRED_CONSECUTIVE_NORMAL; // Mencegah overflow
+    }
   }
 
-  delay(500);
+  delay(250);
 }
