@@ -5,9 +5,9 @@ const fs = require('fs');
 const path = require('path');
 
 const { initWebSocket } = require('./src/websocket');
-const createRouter = require('./src/routes');
+const createRouter = require('./src/routes/index');
 const { publishService } = require('./src/services/mdns');
-const { initTelegramBot } = require('./src/services/telegram');
+const { initTelegramBot } = require('./src/telegram/index');
 
 const app = express();
 const port = 3000;
