@@ -1,5 +1,8 @@
 # Backend Architecture Documentation - Gateway OS
 
+> [!IMPORTANT]
+> **DEVELOPMENT RULE:** You MUST always edit and update this file (`backend.md`) whenever you modify the structure of the backend system, add new modules/files, or rename components. Keep this documentation updated to ensure the single source of truth remains accurate!
+
 This document maps out the modular structure of the Gateway OS backend. Every developer working on this project must follow the rules described at the bottom to ensure the documentation remains synchronized with codebase modifications.
 
 ---

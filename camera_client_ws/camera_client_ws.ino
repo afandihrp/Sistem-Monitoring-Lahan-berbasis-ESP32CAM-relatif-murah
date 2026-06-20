@@ -56,6 +56,14 @@ volatile bool pendingRightMotion = false;
 // Flash LED GPIO (AI Thinker ESP32-CAM: GPIO 4)
 #define FLASH_GPIO_NUM 4
 
+// LED Notification states
+enum LedNotificationState {
+  LED_STATE_OFF = 0,
+  LED_STATE_CONNECTING_WIFI = 1,
+  LED_STATE_FINDING_MDNS = 2
+};
+volatile int ledNotificationState = LED_STATE_OFF;
+
 // Flag untuk on-demand capture via Telegram
 String pendingCaptureLabel = "";
 
@@ -64,6 +72,8 @@ volatile int pendingServoAngle = -1;
 
 unsigned long servoReturnTime = 0;
 bool isServoWaitingToReturn = false;
+
+volatile bool pendingConnectionRestart = false;
 
 // State variables for deferred motion capture (move first, then capture)
 bool triggerCaptureAfterMove = false;
@@ -200,6 +210,63 @@ void setTargetAngle(int angle) {
 
   if (servoTaskHandle != NULL) {
     vTaskResume(servoTaskHandle);
+  }
+}
+
+void ledTask(void * pvParameters) {
+  int lastWrittenState = -1;
+  for (;;) {
+    int state = __atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST);
+    if (state == 1) {
+      lastWrittenState = 1;
+      // 1 slow blink: 1000ms ON (10% PWM), 1000ms OFF
+      ledcWrite(FLASH_GPIO_NUM, 25);
+      for (int i = 0; i < 10; i++) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != 1) break;
+      }
+      state = __atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST);
+      ledcWrite(FLASH_GPIO_NUM, 0);
+      if (state == 1) {
+        for (int i = 0; i < 10; i++) {
+          vTaskDelay(pdMS_TO_TICKS(100));
+          if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != 1) break;
+        }
+      }
+    } else if (state == 2) {
+      lastWrittenState = 2;
+      // 2 fast blink: ON 200ms (10% PWM), OFF 200ms, ON 200ms, OFF 200ms, Pause 1000ms
+      ledcWrite(FLASH_GPIO_NUM, 25);
+      for (int i = 0; i < 2; i++) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != 2) break;
+      }
+      ledcWrite(FLASH_GPIO_NUM, 0);
+      for (int i = 0; i < 2; i++) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != 2) break;
+      }
+      if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) == 2) {
+        ledcWrite(FLASH_GPIO_NUM, 25);
+        for (int i = 0; i < 2; i++) {
+          vTaskDelay(pdMS_TO_TICKS(100));
+          if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != 2) break;
+        }
+        ledcWrite(FLASH_GPIO_NUM, 0);
+        for (int i = 0; i < 10; i++) {
+          vTaskDelay(pdMS_TO_TICKS(100));
+          if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != 2) break;
+        }
+      } else {
+        ledcWrite(FLASH_GPIO_NUM, 0);
+      }
+    } else {
+      if (lastWrittenState != 0) {
+        ledcWrite(FLASH_GPIO_NUM, 0);
+        lastWrittenState = 0;
+      }
+      vTaskDelay(pdMS_TO_TICKS(100));
+    }
   }
 }
 
@@ -446,6 +513,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
                   // Reset fallback variables when user manually toggles settings
                   udpFallbackActive = false;
                   udpFailCount = 0;
+                  pendingConnectionRestart = true;
                 }
               }
             }
@@ -545,6 +613,17 @@ void setup() {
     0
   );
 
+  // Create FreeRTOS task for LED blinking notifications (Pinned to Core 0)
+  xTaskCreatePinnedToCore(
+    ledTask,
+    "ledTask",
+    2048,
+    NULL,
+    1,
+    NULL,
+    0
+  );
+
   // Tambahkan delay 1 detik agar tegangan listrik (power supply) stabil kembali 
   // setelah servo menarik arus besar. Ini mencegah error inisialisasi I2C kamera (Error 0x106).
   delay(1000);
@@ -588,6 +667,9 @@ void setup() {
   Serial.println("Camera ready: Pre-allocated FHD, Streaming at HVGA.");
 
 
+  // Set state to WiFi connecting blinking pattern
+  __atomic_store_n(&ledNotificationState, LED_STATE_CONNECTING_WIFI, __ATOMIC_SEQ_CST);
+
   // Initialize WiFiManager
   WiFiManager wm;
   
@@ -611,6 +693,9 @@ void setup() {
   }
   
   Serial.println("\nWiFi connected");
+
+  // Set state to mDNS finding blinking pattern
+  __atomic_store_n(&ledNotificationState, LED_STATE_FINDING_MDNS, __ATOMIC_SEQ_CST);
 
   // Resolve gateway.local via mDNS
   if (!MDNS.begin("esp32-cam")) {
@@ -643,6 +728,9 @@ void setup() {
   } else {
     Serial.println("mDNS resolution failed. WebSocket will not start.");
   }
+
+  // Set state to OFF (normal operations)
+  __atomic_store_n(&ledNotificationState, LED_STATE_OFF, __ATOMIC_SEQ_CST);
 }
 
 // Fungsi capture & upload yang bisa dipanggil dari PIR maupun on-demand
@@ -806,6 +894,11 @@ unsigned long lastPinDebug = 0;
 
 void loop() {
   if (WiFi.status() == WL_CONNECTED) {
+    if (pendingConnectionRestart) {
+      pendingConnectionRestart = false;
+      Serial.println("[WSc] Restarting WebSocket connection due to UDP stream mode change...");
+      webSocket.disconnect();
+    }
     webSocket.loop();
 
     // If WebSocket is disconnected, try to resolve gateway.local via mDNS periodically
@@ -813,7 +906,9 @@ void loop() {
       if (millis() - lastMdnsQuery > 10000) {
         lastMdnsQuery = millis();
         Serial.println("[mDNS] WebSocket disconnected. Querying gateway.local...");
+        __atomic_store_n(&ledNotificationState, LED_STATE_FINDING_MDNS, __ATOMIC_SEQ_CST);
         IPAddress newIP = MDNS.queryHost("gateway", 3000);
+        __atomic_store_n(&ledNotificationState, LED_STATE_OFF, __ATOMIC_SEQ_CST);
         if (newIP.toString() != "0.0.0.0") {
           if (newIP != serverIP) {
             Serial.printf("[mDNS] gateway.local IP changed from %s to %s\n", serverIP.toString().c_str(), newIP.toString().c_str());

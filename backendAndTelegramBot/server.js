@@ -1,6 +1,7 @@
 require('dotenv/config');
 const express = require('express');
 const https = require('https');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
@@ -11,6 +12,7 @@ const { initTelegramBot } = require('./src/telegram/index');
 
 const app = express();
 const port = 3000;
+const httpPort = 3005;
 
 // Path to SSL certificates
 const options = {
@@ -20,6 +22,9 @@ const options = {
 
 // Create HTTPS server
 const server = https.createServer(options, app);
+
+// Create HTTP server
+const httpServer = http.createServer(app);
 
 // CORS middleware
 app.use((req, res, next) => {
@@ -34,7 +39,7 @@ app.use((req, res, next) => {
 });
 
 // Initialize WebSocket server
-const wss = initWebSocket(server);
+const wss = initWebSocket([server, httpServer]);
 
 // Serve data directory
 app.use('/data', express.static(path.join(__dirname, '../data')));
@@ -50,4 +55,8 @@ server.listen(port, '0.0.0.0', () => {
 
   // Publish mDNS service for gateway.local
   publishService('gateway', 'https', port, 'gateway.local');
+});
+
+httpServer.listen(httpPort, '0.0.0.0', () => {
+  console.log(`HTTP Server running at http://0.0.0.0:${httpPort}/`);
 });

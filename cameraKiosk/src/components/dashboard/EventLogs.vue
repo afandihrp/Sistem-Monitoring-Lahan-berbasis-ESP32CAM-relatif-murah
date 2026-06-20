@@ -12,7 +12,8 @@ const props = defineProps({
   paginatedEvents: { type: Array, required: true },
   currentEventPage: { type: Number, required: true },
   totalPages: { type: Number, required: true },
-  windowWidth: { type: Number, required: true }
+  windowWidth: { type: Number, required: true },
+  backendUrl: { type: String, default: '' }
 })
 
 // Sudah ditambahkan deleteSingle dan deleteBatch
@@ -49,7 +50,8 @@ const formatEventTime = (timestamp) => {
 const getImageUrl = (url) => {
   if (!url) return '';
   if (url.startsWith('http')) return url.replace('gateway.local', window.location.hostname);
-  return `https://${window.location.hostname}:3000${url}`;
+  const base = props.backendUrl || `https://${window.location.hostname}:3000`;
+  return `${base}${url}`;
 }
 
 const handleImageError = (e) => {
@@ -145,7 +147,7 @@ const openViewer = (event) => {
     </div>
 
     <div v-else class="flex-grow-1 overflow-hidden">
-      <PlaybackView :events="events" />
+      <PlaybackView :events="events" :backendUrl="backendUrl" />
     </div>
     
     <div v-if="windowWidth <= 1000 && activeTab === 'events'" class="bg-slate-800 p-2 border-top border-slate-700 d-flex justify-content-between align-items-center">
@@ -159,6 +161,7 @@ const openViewer = (event) => {
         v-if="viewerOpen" 
         :events="events" 
         :initialIndex="viewerInitialIndex" 
+        :backendUrl="backendUrl"
         @close="viewerOpen = false" 
       />
     </Teleport>

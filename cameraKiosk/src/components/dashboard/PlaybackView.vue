@@ -5,6 +5,10 @@ const props = defineProps({
   events: {
     type: Array,
     default: () => []
+  },
+  backendUrl: {
+    type: String,
+    default: ''
   }
 })
 
@@ -29,7 +33,8 @@ const getFullVideoUrl = (url) => {
   if (url.startsWith('http')) {
     return url.replace('gateway.local', window.location.hostname)
   }
-  return `https://${window.location.hostname}:3000${url}`
+  const base = props.backendUrl || `https://${window.location.hostname}:3000`
+  return `${base}${url}`
 }
 
 // Parse real recordings list from events prop

@@ -80,9 +80,34 @@ watch(aiEnabled, (enabled) => {
   }
 })
 
+const backendBaseUrl = ref(`https://${window.location.hostname}:3000`)
+const backendWsUrl = ref(`wss://${window.location.hostname}:3000`)
+
+const detectBackend = async () => {
+  if (window.location.protocol === 'http:') {
+    const httpUrl = `http://${window.location.hostname}:3005`
+    const wsUrl = `ws://${window.location.hostname}:3005`
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 1500)
+      const response = await fetch(`${httpUrl}/`, { signal: controller.signal })
+      clearTimeout(timeoutId)
+      if (response.ok) {
+        backendBaseUrl.value = httpUrl
+        backendWsUrl.value = wsUrl
+        console.log('[Backend] Using HTTP protocol on port 3005')
+        return
+      }
+    } catch (e) {
+      console.log('[Backend] HTTP check failed, falling back to HTTPS:', e)
+    }
+  }
+  backendBaseUrl.value = `https://${window.location.hostname}:3000`
+  backendWsUrl.value = `wss://${window.location.hostname}:3000`
+}
+
 const connectWS = () => {
-  const backendUrl = `wss://${window.location.hostname}:3000`
-  ws = new WebSocket(backendUrl)
+  ws = new WebSocket(backendWsUrl.value)
 
   ws.onopen = () => {
     console.log('Connected to WebSocket server')
@@ -210,7 +235,7 @@ const connectWS = () => {
         // Peringatan suara jika AI mendeteksi orang atau sensor PIR (left, middle, right) aktif
         const isPirSensor = data.sensor === 'left' || data.sensor === 'middle' || data.sensor === 'right';
         if (((data.sensor === 'AI_Person_Detection' && aiEnabled.value) || isPirSensor) && systemConfig.value.webSoundEnabled) {
-          const alarmAudio = new Audio(`https://${window.location.hostname}:3000/data/alarm.mp3`);
+          const alarmAudio = new Audio(`${backendBaseUrl.value}/data/alarm.mp3`);
           alarmAudio.play().catch(err => console.log('Autoplay audio blocked:', err));
         }
       } else if (data.type === 'motion_image_update') {
@@ -223,7 +248,7 @@ const connectWS = () => {
         
         // Peringatan suara jika dari upload gambar terdapat orang
         if (data.humanPresence && aiEnabled.value && systemConfig.value.webSoundEnabled) {
-          const alarmAudio = new Audio(`https://${window.location.hostname}:3000/data/alarm.mp3`);
+          const alarmAudio = new Audio(`${backendBaseUrl.value}/data/alarm.mp3`);
           alarmAudio.play().catch(err => console.log('Autoplay audio blocked:', err));
         }
       } else if (data.type === 'historical_logs') {
@@ -269,7 +294,8 @@ const handleRequestCameraConfig = (event) => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
+  await detectBackend()
   connectWS()
   window.addEventListener('request_servo_config', handleRequestServoConfig);
   window.addEventListener('request_camera_config', handleRequestCameraConfig);
@@ -298,7 +324,7 @@ const handleDateSelected = (date) => {
 
 const triggerCameraAction = async (direction) => {
   try {
-    const response = await fetch(`https://${window.location.hostname}:3000/action?do=${direction}`)
+    const response = await fetch(`${backendBaseUrl.value}/action?do=${direction}`)
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
   } catch (error) {
     console.error(`Failed to trigger camera action ${direction}:`, error)
@@ -460,6 +486,7 @@ const effectiveWindowWidth = computed(() => {
           :currentEventPage="currentEventPage" 
           :totalPages="totalPages" 
           :windowWidth="effectiveWindowWidth"
+          :backendUrl="backendBaseUrl"
           @nextPage="nextPage"
           @prevPage="prevPage"
           @dateSelected="handleDateSelected"

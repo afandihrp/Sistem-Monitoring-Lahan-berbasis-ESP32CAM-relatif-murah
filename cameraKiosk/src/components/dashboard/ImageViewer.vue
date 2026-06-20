@@ -3,7 +3,8 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   events: { type: Array, required: true },
-  initialIndex: { type: Number, default: 0 }
+  initialIndex: { type: Number, default: 0 },
+  backendUrl: { type: String, default: '' }
 })
 
 const emit = defineEmits(['close'])
@@ -25,7 +26,8 @@ const currentEvent = computed(() => props.events[currentIndex.value])
 const getImageUrl = (url) => {
   if (!url) return '';
   if (url.startsWith('http')) return url.replace('gateway.local', window.location.hostname);
-  return `https://${window.location.hostname}:3000${url}`;
+  const base = props.backendUrl || `https://${window.location.hostname}:3000`;
+  return `${base}${url}`;
 }
 
 const nextImage = () => {

@@ -49,9 +49,21 @@ function heartbeat() {
   this.isAlive = true;
 }
 
-function initWebSocket(server) {
-  const wss = new WebSocketServer({ server });
+function initWebSocket(servers) {
+  const wss = new WebSocketServer({ noServer: true });
   state.wssInstance = wss;
+
+  const handleUpgrade = (request, socket, head) => {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  };
+
+  if (Array.isArray(servers)) {
+    servers.forEach(s => s.on('upgrade', handleUpgrade));
+  } else if (servers) {
+    servers.on('upgrade', handleUpgrade);
+  }
 
   wss.on('connection', (ws, req) => {
     const isCamera = req.url.startsWith('/camera');
