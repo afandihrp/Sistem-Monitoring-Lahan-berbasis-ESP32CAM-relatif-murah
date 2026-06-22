@@ -1,13 +1,12 @@
 #include <WiFi.h>
 #include <WebSocketsClient.h>
-#include <ESPmDNS.h>
 #include <HTTPClient.h>
-#include <WiFiClientSecure.h>
 #include "esp_camera.h"
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
 #include <WiFiManager.h>
 #include <WiFiUdp.h>
+#include <Preferences.h>
 
 // AI Thinker ESP32-CAM Pinout
 #define PWDN_GPIO_NUM     32
@@ -60,7 +59,7 @@ volatile bool pendingRightMotion = false;
 enum LedNotificationState {
   LED_STATE_OFF = 0,
   LED_STATE_CONNECTING_WIFI = 1,
-  LED_STATE_FINDING_MDNS = 2
+  LED_STATE_FINDING_SERVER = 2
 };
 volatile int ledNotificationState = LED_STATE_OFF;
 
@@ -219,8 +218,8 @@ void ledTask(void * pvParameters) {
     int state = __atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST);
     if (state == 1) {
       lastWrittenState = 1;
-      // 1 slow blink: 1000ms ON (10% PWM), 1000ms OFF
-      ledcWrite(FLASH_GPIO_NUM, 25);
+      // 1 slow blink: 1000ms ON (3% PWM), 1000ms OFF
+      ledcWrite(FLASH_GPIO_NUM, 8);
       for (int i = 0; i < 10; i++) {
         vTaskDelay(pdMS_TO_TICKS(100));
         if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != 1) break;
@@ -235,8 +234,8 @@ void ledTask(void * pvParameters) {
       }
     } else if (state == 2) {
       lastWrittenState = 2;
-      // 2 fast blink: ON 200ms (10% PWM), OFF 200ms, ON 200ms, OFF 200ms, Pause 1000ms
-      ledcWrite(FLASH_GPIO_NUM, 25);
+      // 2 fast blink: ON 200ms (3% PWM), OFF 200ms, ON 200ms, OFF 200ms, Pause 1000ms
+      ledcWrite(FLASH_GPIO_NUM, 8);
       for (int i = 0; i < 2; i++) {
         vTaskDelay(pdMS_TO_TICKS(100));
         if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != 2) break;
@@ -247,7 +246,7 @@ void ledTask(void * pvParameters) {
         if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != 2) break;
       }
       if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) == 2) {
-        ledcWrite(FLASH_GPIO_NUM, 25);
+        ledcWrite(FLASH_GPIO_NUM, 8);
         for (int i = 0; i < 2; i++) {
           vTaskDelay(pdMS_TO_TICKS(100));
           if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != 2) break;
@@ -273,8 +272,10 @@ void ledTask(void * pvParameters) {
 WebSocketsClient webSocket;
 bool isConnected = false;
 unsigned long lastSignalSent = 0;
+unsigned long lastWsActivity = 0;
 IPAddress serverIP;
-unsigned long lastMdnsQuery = 0;
+unsigned long lastDiscoveryQuery = 0;
+String globalCustomSubnet = "192.168.1";
 WiFiUDP udp;
 bool udpStreamEnabled = false;
 bool udpInitialized = false;
@@ -285,8 +286,41 @@ unsigned long udpFailCount = 0;
 unsigned long udpRetryTime = 0;
 const unsigned long UDP_RETRY_INTERVAL = 15000;
 const unsigned long UDP_TIMEOUT_MS = 2000;
+const unsigned long WS_LIVENESS_TIMEOUT_MS = 30000;
 
 uint8_t* wsPacketBuffer = nullptr;
+
+void markWebSocketAlive() {
+  lastWsActivity = millis();
+}
+
+void forceWebSocketReconnect(const char* reason) {
+  if (!isConnected) return;
+  Serial.printf("[WSc] Connection considered stale (%s). Forcing reconnect...\n", reason);
+  isConnected = false;
+  lastWsActivity = 0;
+  udpInitialized = false;
+  webSocket.disconnect();
+  lastDiscoveryQuery = 0;
+}
+
+bool sendWsText(String message, const char* context) {
+  bool sent = webSocket.sendTXT(message);
+  if (!sent) {
+    Serial.printf("[WSc] Failed to send text message (%s).\n", context);
+    forceWebSocketReconnect(context);
+  }
+  return sent;
+}
+
+bool sendWsBinary(uint8_t* payload, size_t length, const char* context) {
+  bool sent = webSocket.sendBIN(payload, length);
+  if (!sent) {
+    Serial.printf("[WSc] Failed to send binary chunk (%s).\n", context);
+    forceWebSocketReconnect(context);
+  }
+  return sent;
+}
 
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
@@ -294,16 +328,21 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
     case WStype_DISCONNECTED:
       Serial.println("[WSc] Disconnected!");
       isConnected = false;
+      lastWsActivity = 0;
       setTargetAngle(SERVO_POS_DEFAULT);
       isServoWaitingToReturn = false;
       udpInitialized = false;
+      __atomic_store_n(&ledNotificationState, LED_STATE_FINDING_SERVER, __ATOMIC_SEQ_CST);
       break;
     case WStype_CONNECTED:
       Serial.printf("[WSc] Connected to url: %s\n", payload);
       isConnected = true;
+      markWebSocketAlive();
+      __atomic_store_n(&ledNotificationState, LED_STATE_OFF, __ATOMIC_SEQ_CST);
       break;
     case WStype_TEXT:
       Serial.printf("[WSc] get text: %s\n", payload);
+      markWebSocketAlive();
       {
         String cmd = String((char*)payload);
         // Set flag saja, JANGAN panggil captureAndUpload langsung dari sini!
@@ -523,9 +562,17 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       break;
     case WStype_BIN:
       // Binary data received from server (not expected from camera usually)
+      markWebSocketAlive();
+      break;
+    case WStype_PING:
+      markWebSocketAlive();
+      break;
+    case WStype_PONG:
+      markWebSocketAlive();
       break;
     case WStype_ERROR:
       Serial.printf("[WSc] Error: %s\n", payload);
+      forceWebSocketReconnect("websocket error");
       break;
   }
 }
@@ -537,10 +584,104 @@ void connectWebSocket() {
 
   // Connect to WebSocket using the resolved IP and query string path
   webSocket.disconnect();
-  webSocket.beginSSL(serverIP.toString().c_str(), 3000, path.c_str(), "", "");
+  webSocket.begin(serverIP.toString().c_str(), 3000, path.c_str());
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000);
-  Serial.printf("[WSc] WebSocket initialized connecting to %s:3000%s\n", serverIP.toString().c_str(), path.c_str());
+  webSocket.enableHeartbeat(10000, 3000, 2);
+  Serial.printf("[WSc] WebSocket initialized connecting to ws://%s:3000%s\n", serverIP.toString().c_str(), path.c_str());
+}
+
+IPAddress discoverBackendIP() {
+  IPAddress foundIP;
+  foundIP.fromString("0.0.0.0");
+  
+  WiFiUDP discUdp;
+  if(discUdp.begin(3005)) {
+    String localIP = WiFi.localIP().toString();
+    String localSubnet = localIP.substring(0, localIP.lastIndexOf('.'));
+    
+    // Tier 1: Local Subnet Scan
+    Serial.printf("[DISC] Tier 1: Scanning local subnet %s.x on port 3005\n", localSubnet.c_str());
+    for(int i = 1; i < 255; i++) {
+      IPAddress target;
+      target.fromString(localSubnet + "." + String(i));
+      discUdp.beginPacket(target, 3005);
+      discUdp.print("discovery_ping");
+      discUdp.endPacket();
+      
+      if(discUdp.parsePacket()) {
+        char packetBuffer[255];
+        int len = discUdp.read(packetBuffer, 255);
+        if (len > 0) packetBuffer[len] = 0;
+        if(String(packetBuffer) == "discovery_ack") {
+          foundIP = discUdp.remoteIP();
+          Serial.printf("[DISC] Success! Backend found at %s via Local Subnet Scan\n", foundIP.toString().c_str());
+          break;
+        }
+      }
+      delay(5);
+    }
+    
+    if (foundIP.toString() == "0.0.0.0") {
+      unsigned long startWait = millis();
+      while(millis() - startWait < 2000) {
+        if(discUdp.parsePacket()) {
+          char packetBuffer[255];
+          int len = discUdp.read(packetBuffer, 255);
+          if (len > 0) packetBuffer[len] = 0;
+          if(String(packetBuffer) == "discovery_ack") {
+            foundIP = discUdp.remoteIP();
+            Serial.printf("[DISC] Success! Backend found at %s via Local Subnet Scan (Wait Phase)\n", foundIP.toString().c_str());
+            break;
+          }
+        }
+        delay(10);
+      }
+    }
+    
+    // Tier 2: Custom Subnet Scan
+    if(foundIP.toString() == "0.0.0.0") {
+      Serial.printf("[DISC] Tier 2: Scanning custom subnet %s.x on port 3005\n", globalCustomSubnet.c_str());
+      for(int i = 1; i < 255; i++) {
+        IPAddress target;
+        target.fromString(globalCustomSubnet + "." + String(i));
+        discUdp.beginPacket(target, 3005);
+        discUdp.print("discovery_ping");
+        discUdp.endPacket();
+        
+        if(discUdp.parsePacket()) {
+          char packetBuffer[255];
+          int len = discUdp.read(packetBuffer, 255);
+          if (len > 0) packetBuffer[len] = 0;
+          if(String(packetBuffer) == "discovery_ack") {
+            foundIP = discUdp.remoteIP();
+            Serial.printf("[DISC] Success! Backend found at %s via Custom Subnet Scan\n", foundIP.toString().c_str());
+            break;
+          }
+        }
+        delay(5);
+      }
+      
+      if (foundIP.toString() == "0.0.0.0") {
+        unsigned long startWait = millis();
+        while(millis() - startWait < 2000) {
+          if(discUdp.parsePacket()) {
+            char packetBuffer[255];
+            int len = discUdp.read(packetBuffer, 255);
+            if (len > 0) packetBuffer[len] = 0;
+            if(String(packetBuffer) == "discovery_ack") {
+              foundIP = discUdp.remoteIP();
+              Serial.printf("[DISC] Success! Backend found at %s via Custom Subnet Scan (Wait Phase)\n", foundIP.toString().c_str());
+              break;
+            }
+          }
+          delay(10);
+        }
+      }
+    }
+    discUdp.stop();
+  }
+  return foundIP;
 }
 
 void setup() {
@@ -673,6 +814,13 @@ void setup() {
   // Initialize WiFiManager
   WiFiManager wm;
   
+  Preferences preferences;
+  preferences.begin("network", false);
+  globalCustomSubnet = preferences.getString("customSubnet", "192.168.1");
+  
+  WiFiManagerParameter custom_subnet("subnet", "Main Subnet (e.g. 192.168.1)", globalCustomSubnet.c_str(), 16);
+  wm.addParameter(&custom_subnet);
+  
   // Set timeouts to prevent hanging
   wm.setConnectTimeout(20); // 20 seconds max to try connecting to saved WiFi
   wm.setConfigPortalTimeout(180); // 3 minutes max in captive portal before auto-restarting
@@ -692,32 +840,18 @@ void setup() {
       ESP.restart();
   }
   
+  preferences.putString("customSubnet", custom_subnet.getValue());
+  globalCustomSubnet = custom_subnet.getValue();
+  preferences.end();
+  
   Serial.println("\nWiFi connected");
 
-  // Set state to mDNS finding blinking pattern
-  __atomic_store_n(&ledNotificationState, LED_STATE_FINDING_MDNS, __ATOMIC_SEQ_CST);
+  // Set state to server finding blinking pattern
+  __atomic_store_n(&ledNotificationState, LED_STATE_FINDING_SERVER, __ATOMIC_SEQ_CST);
 
-  // Resolve gateway.local via mDNS
-  if (!MDNS.begin("esp32-cam")) {
-    Serial.println("Error setting up MDNS responder!");
-  }
-  
-  // Wait a moment for MDNS service to initialize and UDP sockets to settle
-  delay(2000);
-  
-  Serial.println("Resolving gateway.local...");
-  serverIP = MDNS.queryHost("gateway", 3000);
-  
-  int mdnsAttempts = 0;
-  while (serverIP.toString() == "0.0.0.0" && mdnsAttempts < 10) {
-    Serial.println("mDNS query failed, retrying...");
-    delay(2000);
-    serverIP = MDNS.queryHost("gateway", 3000);
-    mdnsAttempts++;
-  }
+  serverIP = discoverBackendIP();
   
   if (serverIP.toString() != "0.0.0.0") {
-    Serial.printf("Resolved gateway.local to: %s\n", serverIP.toString().c_str());
     connectWebSocket();
     if (udp.begin(3001)) {
       Serial.println("[UDP] Local socket pre-bound to port 3001");
@@ -726,7 +860,7 @@ void setup() {
       Serial.println("[UDP] Failed to pre-bind local socket!");
     }
   } else {
-    Serial.println("mDNS resolution failed. WebSocket will not start.");
+    Serial.println("[ERR] All discovery methods failed. WebSocket will not start.");
   }
 
   // Set state to OFF (normal operations)
@@ -797,10 +931,9 @@ void captureAndUpload(String label) {
 
   // === STEP 3: Upload ke server ===
   if (WiFi.status() == WL_CONNECTED) {
-    WiFiClientSecure client;
-    client.setInsecure();
+    WiFiClient client;
     HTTPClient http;
-    String uploadUrl = "https://" + serverIP.toString() + ":3000/upload?sensor=" + label + "&ip=" + WiFi.localIP().toString();
+    String uploadUrl = "http://" + serverIP.toString() + ":3000/upload?sensor=" + label + "&ip=" + WiFi.localIP().toString();
     Serial.println("[5] Posting to: " + uploadUrl);
     http.setTimeout(20000);
     http.begin(client, uploadUrl);
@@ -830,7 +963,7 @@ void pirTask(void * pvParameters) {
   bool local_prev_right = false;
 
   for (;;) {
-    if (!cam_pirEnabled) {
+    if (!cam_pirEnabled || !isConnected) {
       vTaskDelay(pdMS_TO_TICKS(500));
       continue;
     }
@@ -901,27 +1034,34 @@ void loop() {
     }
     webSocket.loop();
 
-    // If WebSocket is disconnected, try to resolve gateway.local via mDNS periodically
+    if (isConnected && lastWsActivity > 0 && millis() - lastWsActivity > WS_LIVENESS_TIMEOUT_MS) {
+      forceWebSocketReconnect("heartbeat timeout");
+    }
+
+    // If WebSocket is disconnected, try to discover backend IP periodically via UDP unicast
     if (!isConnected) {
-      if (millis() - lastMdnsQuery > 10000) {
-        lastMdnsQuery = millis();
-        Serial.println("[mDNS] WebSocket disconnected. Querying gateway.local...");
-        __atomic_store_n(&ledNotificationState, LED_STATE_FINDING_MDNS, __ATOMIC_SEQ_CST);
-        IPAddress newIP = MDNS.queryHost("gateway", 3000);
-        __atomic_store_n(&ledNotificationState, LED_STATE_OFF, __ATOMIC_SEQ_CST);
+      if (millis() - lastDiscoveryQuery > 10000) {
+        lastDiscoveryQuery = millis();
+        Serial.println("[DISC] WebSocket disconnected. Sweeping network for backend...");
+        IPAddress newIP = discoverBackendIP();
+        
         if (newIP.toString() != "0.0.0.0") {
           if (newIP != serverIP) {
-            Serial.printf("[mDNS] gateway.local IP changed from %s to %s\n", serverIP.toString().c_str(), newIP.toString().c_str());
+            Serial.printf("[DISC] Backend IP changed from %s to %s\n", serverIP.toString().c_str(), newIP.toString().c_str());
             serverIP = newIP;
-            connectWebSocket();
-          } else {
-            Serial.println("[mDNS] gateway.local IP has not changed.");
           }
+          // Always try reconnecting if discovered
+          connectWebSocket();
         } else {
-          Serial.println("[mDNS] gateway.local query failed.");
+          Serial.println("[DISC] Backend discovery failed during reconnect.");
         }
       }
     }
+  }
+
+  if (!isConnected) {
+    delay(50);
+    return;
   }
 
   // Proses on-demand capture DI SINI (di main loop, bukan di WS callback)
@@ -960,7 +1100,7 @@ void loop() {
     Serial.printf("Motion detected: %s\n", detectedSensor.c_str());
     if (WiFi.status() == WL_CONNECTED) {
       String msg = "{\"type\":\"motion\",\"sensor\":\"" + detectedSensor + "\"}";
-      webSocket.sendTXT(msg);
+      sendWsText(msg, "motion event");
     }
     triggerCaptureAfterMove = true;
     captureLabelAfterMove = detectedSensor;
@@ -995,7 +1135,7 @@ void loop() {
       lastSignalSent = millis();
       long rssi = WiFi.RSSI();
       String msg = "{\"type\":\"signal\",\"rssi\":" + String(rssi) + "}";
-      webSocket.sendTXT(msg);
+      sendWsText(msg, "signal heartbeat");
       Serial.printf("Signal: %ld dBm\n", rssi);
     }
 
@@ -1135,7 +1275,9 @@ void loop() {
         packet[3] = 0;
         memcpy(packet + 4, fb->buf + offset, chunkSize);
         
-        webSocket.sendBIN(packet, 4 + chunkSize);
+        if (!sendWsBinary(packet, 4 + chunkSize, "stream frame")) {
+          break;
+        }
         
         // Yield to allow the network stack to transmit chunks sequentially
         delay(1);
@@ -1144,4 +1286,3 @@ void loop() {
     esp_camera_fb_return(fb);
   }
 }
-

@@ -1,7 +1,6 @@
 #include <ESPmDNS.h> // Tambahkan library mDNS
 #include <HTTPClient.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
 
 #define ADC_PIN 0 // Menggunakan pin 0
 
@@ -107,39 +106,11 @@ void sendAlert(float voltage) {
   if (httpCode > 0) {
     String payload = http.getString();
     Serial.println("Response dari Server: " + payload);
-    http.end();
-    return; // Berhasil, keluar dari fungsi
-  }
-  http.end();
-
-  // --- PERCOBAAN 2: HTTPS (Jika HTTP Gagal) ---
-  Serial.println("Koneksi HTTP Gagal. Mencoba HTTPS...");
-  WiFiClientSecure clientHttps;
-  clientHttps.setInsecure(); // Bypass validasi sertifikat lokal
-
-  HTTPClient https;
-  
-  String urlHttps = "https://" + resolvedGatewayIP + ":" + String(backendPort) +
-                    "/api/tripwire" + "?location=" + nodeLocation +
-                    "&sensor=" + sensorName;
-
-  Serial.print("Mencoba HTTPS -> ");
-  Serial.println(urlHttps);
-
-  https.begin(clientHttps, urlHttps);
-  int httpsCode = https.GET();
-  
-  Serial.print("HTTPS Response: ");
-  Serial.println(httpsCode);
-
-  if (httpsCode > 0) {
-    String payload = https.getString();
-    Serial.println("Response dari Server: " + payload);
   } else {
-    Serial.println("Koneksi HTTP maupun HTTPS Gagal total.");
+    Serial.println("Koneksi HTTP Gagal.");
   }
   
-  https.end();
+  http.end();
 }
 
 // ================= SETUP =================

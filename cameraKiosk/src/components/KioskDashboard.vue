@@ -80,30 +80,30 @@ watch(aiEnabled, (enabled) => {
   }
 })
 
-const backendBaseUrl = ref(`https://${window.location.hostname}:3000`)
-const backendWsUrl = ref(`wss://${window.location.hostname}:3000`)
+const backendBaseUrl = ref(`http://${window.location.hostname}:3000`)
+const backendWsUrl = ref(`ws://${window.location.hostname}:3000`)
 
 const detectBackend = async () => {
-  if (window.location.protocol === 'http:') {
-    const httpUrl = `http://${window.location.hostname}:3005`
-    const wsUrl = `ws://${window.location.hostname}:3005`
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 1500)
-      const response = await fetch(`${httpUrl}/`, { signal: controller.signal })
-      clearTimeout(timeoutId)
-      if (response.ok) {
-        backendBaseUrl.value = httpUrl
-        backendWsUrl.value = wsUrl
-        console.log('[Backend] Using HTTP protocol on port 3005')
-        return
-      }
-    } catch (e) {
-      console.log('[Backend] HTTP check failed, falling back to HTTPS:', e)
+  // Try port 3005 first (backward compatibility if needed, or if that's the preferred HTTP port)
+  const httpUrl = `http://${window.location.hostname}:3005`
+  const wsUrl = `ws://${window.location.hostname}:3005`
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 1500)
+    const response = await fetch(`${httpUrl}/`, { signal: controller.signal })
+    clearTimeout(timeoutId)
+    if (response.ok) {
+      backendBaseUrl.value = httpUrl
+      backendWsUrl.value = wsUrl
+      console.log('[Backend] Using HTTP protocol on port 3005')
+      return
     }
+  } catch (e) {
+    console.log('[Backend] Port 3005 check failed, using default port 3000:', e)
   }
-  backendBaseUrl.value = `https://${window.location.hostname}:3000`
-  backendWsUrl.value = `wss://${window.location.hostname}:3000`
+  // Default to 3000
+  backendBaseUrl.value = `http://${window.location.hostname}:3000`
+  backendWsUrl.value = `ws://${window.location.hostname}:3000`
 }
 
 const connectWS = () => {

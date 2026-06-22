@@ -33,7 +33,7 @@ const getFullVideoUrl = (url) => {
   if (url.startsWith('http')) {
     return url.replace('gateway.local', window.location.hostname)
   }
-  const base = props.backendUrl || `https://${window.location.hostname}:3000`
+  const base = props.backendUrl || `http://${window.location.hostname}:3000`
   return `${base}${url}`
 }
 

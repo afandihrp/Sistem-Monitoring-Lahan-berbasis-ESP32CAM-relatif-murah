@@ -1,27 +1,21 @@
 require('dotenv/config');
 const express = require('express');
-const https = require('https');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
 const { initWebSocket } = require('./src/websocket');
 const createRouter = require('./src/routes/index');
-const { publishService } = require('./src/services/mdns');
 const { initTelegramBot } = require('./src/telegram/index');
+const { initUdpDiscovery } = require('./src/services/udp_discovery');
+const { publishService } = require('./src/services/mdns');
 
 const app = express();
 const port = 3000;
 const httpPort = 3005;
 
-// Path to SSL certificates
-const options = {
-  key: fs.readFileSync(path.join(__dirname, 'server.key')),
-  cert: fs.readFileSync(path.join(__dirname, 'server.cert'))
-};
-
-// Create HTTPS server
-const server = https.createServer(options, app);
+// Remove HTTPS server, use HTTP instead
+const server = http.createServer(app);
 
 // Create HTTP server
 const httpServer = http.createServer(app);
@@ -48,15 +42,18 @@ app.use('/data', express.static(path.join(__dirname, '../data')));
 app.use('/', createRouter(wss));
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`HTTPS Server running at https://0.0.0.0:${port}/`);
+  console.log(`HTTP Server running at http://0.0.0.0:${port}/`);
   
   // Initialize Telegram Bot
   initTelegramBot();
-
-  // Publish mDNS service for gateway.local
-  publishService('gateway', 'https', port, 'gateway.local');
+  
+  // Publish mDNS so frontends can discover via gateway.local
+  publishService('gateway', 'http', port, 'gateway.local');
 });
 
 httpServer.listen(httpPort, '0.0.0.0', () => {
   console.log(`HTTP Server running at http://0.0.0.0:${httpPort}/`);
+  
+  // Initialize UDP Discovery
+  initUdpDiscovery(httpPort);
 });
