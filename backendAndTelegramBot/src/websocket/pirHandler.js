@@ -117,9 +117,10 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
     if (shouldRunPirSnapshotAI(aiSettings)) {
       try {
         let result;
-        const activeClient = getActiveAiClient();
+        // Always use YOLO (forVerification = true) for single snapshots to detect persons reliably
+        const activeClient = getActiveAiClient(true);
         const extraHeader = getDeviceHeader(deviceId);
-        result = await activeClient.sendRequest(imageBuffer, true, 10000, extraHeader);
+        result = await activeClient.sendRequest(imageBuffer, { annotate: true, forceYolo: true }, 10000, extraHeader);
 
         if (result) {
           aiDetails = {

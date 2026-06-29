@@ -2,7 +2,7 @@ Saat Ditest di Laptop PC (pc_env) atau Di-deploy ke Raspberry Pi 3 (ai_env):
 
 Pastikan Anda menggunakan Google LiteRT (ai-edge-litert) yang hemat memori dan sepenuhnya mendukung Python 3.13+:
 
-    pip install opencv-python-headless numpy websockets ai-edge-litert
+    pip install opencv-python-headless numpy websockets ai-edge-litert openvino
 
 
 Install Ultralytics (on your PC/Server or Pi if it has enough space):

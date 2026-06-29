@@ -22,7 +22,10 @@ function getDeviceHeader(deviceId) {
   return header;
 }
 
-function getActiveAiClient() {
+function getActiveAiClient(forVerification = false) {
+  if (forVerification) return yoloClient;
+  const mode = state.globalSystemConfig.cameraDetectionMode;
+  if (mode === 'Pixel' || mode === 'Hybrid') return pixelClient;
   return yoloClient;
 }
 
@@ -66,8 +69,10 @@ function stopAiRecording(deviceId, reason) {
   // If stopped due to fixed-duration timer, apply a cooldown so the recording
   // doesn't immediately re-trigger if the person is still in frame.
   const isPixelMode = (state.globalSystemConfig.cameraDetectionMode === 'Pixel');
+  const isHybridMode = (state.globalSystemConfig.cameraDetectionMode === 'Hybrid');
+  const isPixelOrHybrid = isPixelMode || isHybridMode;
   const isFixedDuration = (state.globalStreamAiRecording !== 'continuous' && state.globalStreamAiRecording !== true && state.globalStreamAiRecording !== 'off');
-  const isRecordingActive = isPixelMode 
+  const isRecordingActive = isPixelOrHybrid 
     ? (isFixedDuration && state.globalSystemConfig.pixelMotionRecordingEnabled) 
     : isFixedDuration;
   if (isRecordingActive) {
@@ -117,9 +122,9 @@ function stopAiRecording(deviceId, reason) {
     renderVideo(framesToRender, outputFilename, state.globalMaxDuration)
       .then(videoPath => {
         const isStreamAi = (sensorName === 'AI_Person_Detection');
-        const isStreamPixel = (sensorName === 'Pixel_Motion_Detection');
+        const isStreamPixelOrHybrid = (sensorName === 'Pixel_Motion_Detection' || sensorName === 'Hybrid_Motion_Detection');
         const shouldNotifyTelegram = !device.telegramAlertsMuted && 
-          (isStreamPixel ? state.globalSystemConfig.telegramAlertMotion : (!isStreamAi || state.globalStreamAiTelegram));
+          (isStreamPixelOrHybrid ? state.globalSystemConfig.telegramAlertMotion : (!isStreamAi || state.globalStreamAiTelegram));
 
         if (shouldNotifyTelegram) {
           if (device.latestSnapshotFilename) {
@@ -174,28 +179,36 @@ function triggerAiWorker() {
   if (!device || device.status !== 'Online' || !shouldWorkerProcessFrame(device, { 
     globalAiEnabled: state.globalAiEnabled, 
     globalPirAiRecording: state.globalPirAiRecording, 
-    globalObjectTracking: state.globalObjectTracking 
+    globalObjectTracking: state.globalObjectTracking,
+    cameraDetectionMode: state.globalSystemConfig.cameraDetectionMode
   })) {
     isAiWorkerRunning = false;
     setImmediate(triggerAiWorker);
     return;
   }
 
-  detectStreamAI(deviceId, frameBuffer).then(result => {
+  detectStreamAI(deviceId, frameBuffer).then(async result => {
     isAiWorkerRunning = false;
 
     if (result && result.status === 'success') {
-      const boxCoordinates = result.koordinat_kotak;
-      const personDetected = result.ada_orang;
+      let boxCoordinates = result.koordinat_kotak;
+      let personDetected = result.ada_orang;
 
+      // Instantly update boxes so the frontend shows the Pixel boundary boxes immediately
       device.latestBoxes = boxCoordinates;
 
+      const isPixelMode = (state.globalSystemConfig.cameraDetectionMode === 'Pixel');
+      const isHybridMode = (state.globalSystemConfig.cameraDetectionMode === 'Hybrid');
+      const isPixelOrHybrid = isPixelMode || isHybridMode;
+
+      device.latestBoxes = boxCoordinates;
+      device.personDetected = personDetected;
       // Logika Perekaman AI
       if (personDetected) {
         if (device.aiStopTimer) {
           clearTimeout(device.aiStopTimer);
           device.aiStopTimer = null;
-          console.log(`[AI Record] Person detected again. Cancelled stop recording timer for ${deviceId}.`);
+          // console.log(`[AI Record] Person detected again. Cancelled stop recording timer for ${deviceId}.`);
         }
 
         // Object Follower: track human if AI is online and tracking is enabled
@@ -234,76 +247,107 @@ function triggerAiWorker() {
           device.lastTimePersonSeen = Date.now();
           console.log(`[AI Hold] Person detected on PIR-active camera ${deviceId}. Extending hold.`);
         } else {
-          const isPixelMode = (state.globalSystemConfig.cameraDetectionMode === 'Pixel');
           const isRecordingEnabled = (state.globalStreamAiRecording !== 'off' && state.globalStreamAiRecording !== false);
-          const isEnabled = isPixelMode 
+          const isEnabled = isPixelOrHybrid 
             ? (state.globalSystemConfig.telegramAlertMotion || state.globalSystemConfig.pixelMotionCaptureEnabled) 
             : (isRecordingEnabled || state.globalStreamAiTelegram || state.globalSystemConfig.streamAiCaptureEnabled);
           
           const isCoolingDown = device.aiRecordCooldownUntil && Date.now() < device.aiRecordCooldownUntil;
           if (!device.isRecordingAi && isEnabled && !isCoolingDown) {
-            console.log(`[AI Record] ${isPixelMode ? 'Motion' : 'Person'} detected on ${deviceId}. Starting stream event...`);
- 
-            // Evaluate Telegram Cooldown
-            const now = Date.now();
-            const intervalMs = state.globalTelegramInterval * 1000;
-            if (!device.lastTelegramAlertTime || (now - device.lastTelegramAlertTime >= intervalMs)) {
-              device.lastTelegramAlertTime = now;
-              device.telegramAlertsMuted = false;
-            } else {
-              console.log(`[Telegram] Live stream alerts throttled (cooldown active) for device ${deviceId}`);
-              device.telegramAlertsMuted = true;
-            }
- 
+            console.log(`[AI Record] ${isPixelOrHybrid ? 'Motion' : 'Person'} detected on ${deviceId}. Starting stream event...`);
+            
+            // Mark as recording to prevent other frames from triggering this block during the delay
             device.isRecordingAi = true;
-            device.aiSensorName = isPixelMode ? 'Pixel_Motion_Detection' : 'AI_Person_Detection';
+            device.aiSensorName = isHybridMode ? 'Hybrid_Motion_Detection' : (isPixelMode ? 'Pixel_Motion_Detection' : 'AI_Person_Detection');
             device.lastTimePersonSeen = Date.now();
- 
-            // Start recording with the triggering scanned frame (if recording is enabled)
-            const shouldRecord = isPixelMode 
-              ? (isRecordingEnabled && state.globalSystemConfig.pixelMotionRecordingEnabled) 
-              : isRecordingEnabled;
-            device.rollingBuffer = shouldRecord ? [frameBuffer] : [];
 
-            // Schedule the duration timer if a fixed duration is chosen (not continuous/off)
-            if (shouldRecord && state.globalStreamAiRecording !== 'continuous' && state.globalStreamAiRecording !== true) {
-              const durationSec = parseInt(state.globalStreamAiRecording, 10);
-              if (!isNaN(durationSec) && durationSec > 0) {
-                console.log(`[AI Record] Scheduling stop in ${durationSec} seconds for ${deviceId} (fixed duration).`);
-                if (device.aiDurationTimer) clearTimeout(device.aiDurationTimer);
-                device.aiDurationTimer = setTimeout(() => {
-                  console.log(`[AI Record] ${durationSec} seconds elapsed for ${deviceId} (fixed duration). Stopping recording.`);
-                  stopAiRecording(deviceId);
-                }, durationSec * 1000);
+            (async () => {
+              // 1. Wait for Capture Delay (Allows object to move to center)
+              const captureDelay = (state.globalSystemConfig.pixelMotionCaptureDelay !== undefined) 
+                ? state.globalSystemConfig.pixelMotionCaptureDelay 
+                : 100;
+              
+              if (captureDelay > 0) {
+                await new Promise(resolve => setTimeout(resolve, captureDelay));
               }
-            }
- 
-             // Asynchronously process the trigger snapshot using the stream frameBuffer (No ESP32-CAM capture requested)
-             const shouldCapture = isPixelMode 
-               ? state.globalSystemConfig.pixelMotionCaptureEnabled 
-               : state.globalSystemConfig.streamAiCaptureEnabled;
-             if (shouldCapture) {
-               // Broadcast motion_event IMMEDIATELY to trigger Kiosk alarm sound and UI entry placeholder
-               const payload = JSON.stringify({
-                 type: 'motion_event',
-                 sensor: device.aiSensorName,
-                 location: device.ip,
-                 deviceId: deviceId,
-                 timestamp: new Date().toISOString()
-               });
- 
-               state.broadcastToKiosks(payload);
- 
-               (async () => {
-                  // Wait dynamic delay to allow the moving object/person to enter the image frame fully
-                  const captureDelay = (state.globalSystemConfig.pixelMotionCaptureDelay !== undefined) 
-                    ? state.globalSystemConfig.pixelMotionCaptureDelay 
-                    : 100;
-                  if (captureDelay > 0) {
-                    await new Promise(resolve => setTimeout(resolve, captureDelay));
-                  }
 
-                  const targetFrame = device.latestFrame || frameBuffer;
+              const targetFrame = device.latestFrame || frameBuffer;
+
+              // 2. Hybrid Validation: Confirm with YOLO
+              let hybridBoxes = boxCoordinates;
+              if (isHybridMode) {
+                console.log(`[Hybrid Mode] Capture delay elapsed. Verifying motion with YOLO on ${deviceId}...`);
+                try {
+                  const activeClient = getActiveAiClient(true);
+                  const extraHeader = getDeviceHeader(deviceId);
+                  const yoloResult = await activeClient.sendRequest(targetFrame, { annotate: false, forceYolo: true }, 5000, extraHeader);
+                  if (yoloResult && yoloResult.status === 'success' && yoloResult.ada_orang) {
+                    console.log(`[Hybrid Mode] YOLO verification SUCCESS! Person confirmed.`);
+                    hybridBoxes = yoloResult.koordinat_kotak;
+                    // Update latestBoxes dynamically to the YOLO verified boxes for UI consistency
+                    device.latestBoxes = hybridBoxes;
+                  } else {
+                    console.log(`[Hybrid Mode] YOLO verification failed (no person). Discarding event.`);
+                    device.isRecordingAi = false;
+                    device.rollingBuffer = [];
+                    return; // Abort
+                  }
+                } catch (err) {
+                  console.warn(`[Hybrid Mode] YOLO verification failed: ${err.message}`);
+                  device.isRecordingAi = false;
+                  device.rollingBuffer = [];
+                  return; // Abort on error to be safe
+                }
+              }
+
+              // Evaluate Telegram Cooldown
+              const now = Date.now();
+              const intervalMs = state.globalTelegramInterval * 1000;
+              if (!device.lastTelegramAlertTime || (now - device.lastTelegramAlertTime >= intervalMs)) {
+                device.lastTelegramAlertTime = now;
+                device.telegramAlertsMuted = false;
+              } else {
+                console.log(`[Telegram] Live stream alerts throttled (cooldown active) for device ${deviceId}`);
+                device.telegramAlertsMuted = true;
+              }
+
+              // Initialize Video Recording variables
+              const shouldRecord = isPixelOrHybrid 
+                ? (isRecordingEnabled && state.globalSystemConfig.pixelMotionRecordingEnabled) 
+                : isRecordingEnabled;
+              
+              if (!shouldRecord) {
+                // If we aren't recording video, clear the rolling buffer pre-roll
+                device.rollingBuffer = [];
+              }
+
+              // Schedule the duration timer if a fixed duration is chosen (not continuous/off)
+              if (shouldRecord && state.globalStreamAiRecording !== 'continuous' && state.globalStreamAiRecording !== true) {
+                const durationSec = parseInt(state.globalStreamAiRecording, 10);
+                if (!isNaN(durationSec) && durationSec > 0) {
+                  console.log(`[AI Record] Scheduling stop in ${durationSec} seconds for ${deviceId} (fixed duration).`);
+                  if (device.aiDurationTimer) clearTimeout(device.aiDurationTimer);
+                  device.aiDurationTimer = setTimeout(() => {
+                    console.log(`[AI Record] ${durationSec} seconds elapsed for ${deviceId} (fixed duration). Stopping recording.`);
+                    stopAiRecording(deviceId);
+                  }, durationSec * 1000);
+                }
+              }
+
+              const shouldCapture = isPixelOrHybrid 
+                ? state.globalSystemConfig.pixelMotionCaptureEnabled 
+                : state.globalSystemConfig.streamAiCaptureEnabled;
+              
+              if (shouldCapture) {
+                // Broadcast motion_event to trigger Kiosk alarm sound and UI entry placeholder
+                const payload = JSON.stringify({
+                  type: 'motion_event',
+                  sensor: device.aiSensorName,
+                  location: device.ip,
+                  deviceId: deviceId,
+                  timestamp: new Date().toISOString()
+                });
+                state.broadcastToKiosks(payload);
                   const timestamp = Date.now();
                   const sensor = device.aiSensorName;
                   const remoteIp = device.ip;
@@ -316,13 +360,13 @@ function triggerAiWorker() {
                   const imageUrl = `/data/photos/${filename}`;
      
                   let imageToSave = targetFrame;
-                  let humanPresence = true;
+                  let humanPresence = (!isPixelOrHybrid || isHybridMode); // True for Standard AI and Hybrid YOLO, false for pure Pixel
                   let aiDetails = {
                     status: 'success',
-                    message: isPixelMode ? 'Gerakan terdeteksi!' : 'Orang terdeteksi!',
-                    person_detected: !isPixelMode,
-                    motion_detected: isPixelMode,
-                    person_count: !isPixelMode ? (result.jumlah_orang || (boxCoordinates ? boxCoordinates.length : 1)) : 0,
+                    message: isPixelOrHybrid ? 'Gerakan terdeteksi!' : 'Orang terdeteksi!',
+                    person_detected: !isPixelOrHybrid || isHybridMode, // Hybrid effectively detected a person
+                    motion_detected: isPixelOrHybrid,
+                    person_count: (!isPixelOrHybrid || isHybridMode) ? (result.jumlah_orang || (boxCoordinates ? boxCoordinates.length : 1)) : 0,
                     motion_count: isPixelMode ? (boxCoordinates ? boxCoordinates.length : 1) : 0,
                     box_coordinates: boxCoordinates
                   };
@@ -331,17 +375,19 @@ function triggerAiWorker() {
                   try {
                     console.log(`[AI Record] Requesting annotated snapshot from stream frame for ${deviceId}...`);
                     let aiResult;
-                    const activeClient = getActiveAiClient();
+                    // For Hybrid snapshot annotation, use YOLO active client with forceYolo true.
+                    const activeClient = isHybridMode ? getActiveAiClient(true) : getActiveAiClient();
                     const extraHeader = getDeviceHeader(deviceId);
-                    aiResult = await activeClient.sendRequest(targetFrame, true, 10000, extraHeader);
+                    const reqOptions = isHybridMode ? { annotate: true, forceYolo: true } : true;
+                    aiResult = await activeClient.sendRequest(targetFrame, reqOptions, 10000, extraHeader);
                     if (aiResult && aiResult.annotated_image) {
                       imageToSave = Buffer.from(aiResult.annotated_image, 'base64');
                       aiDetails = {
                         status: aiResult.status,
                         message: aiResult.pesan,
-                        person_detected: !isPixelMode ? aiResult.ada_orang : false,
-                        motion_detected: isPixelMode ? aiResult.ada_orang : false,
-                        person_count: !isPixelMode ? aiResult.jumlah_orang : 0,
+                        person_detected: (!isPixelOrHybrid || isHybridMode) ? aiResult.ada_orang : false,
+                        motion_detected: isPixelOrHybrid ? aiResult.ada_orang : false,
+                        person_count: (!isPixelOrHybrid || isHybridMode) ? aiResult.jumlah_orang : 0,
                         motion_count: isPixelMode ? (aiResult.koordinat_kotak ? aiResult.koordinat_kotak.length : 0) : 0,
                         box_coordinates: aiResult.koordinat_kotak
                       };
@@ -354,7 +400,7 @@ function triggerAiWorker() {
                   fs.writeFileSync(filepath, imageToSave);
      
                   // Send motion alert to Telegram immediately on detect
-                  const shouldTelegramAlert = isPixelMode ? state.globalSystemConfig.telegramAlertMotion : state.globalStreamAiTelegram;
+                  const shouldTelegramAlert = isPixelOrHybrid ? state.globalSystemConfig.telegramAlertMotion : state.globalStreamAiTelegram;
                   if (!device.telegramAlertsMuted && shouldTelegramAlert) {
                     console.log(`[Telegram] Sending stream snapshot alert immediately on detect for ${deviceId}`);
                     sendMotionAlert(`IP: ${remoteIp}`, sensor, filename);
@@ -392,27 +438,26 @@ function triggerAiWorker() {
      
                   state.broadcastToKiosks(updatePayload);
                   state.broadcastToKiosks(payloadLogs);
-                })().catch(err => {
-                  console.error('[AI Record] Error in background stream frame processing:', err);
-                });
-             } else {
-               console.log(`[AI Record] Image capture disabled for Pixel mode on ${deviceId}. Skipping image save & Telegram alerts.`);
-             }
+              } else {
+                console.log(`[AI Record] Image capture disabled for Pixel/Hybrid mode on ${deviceId}. Skipping image save & Telegram alerts.`);
+              }
+            })().catch(err => {
+              console.error('[AI Record] Error in background stream frame processing:', err);
+            });
           } else {
             device.lastTimePersonSeen = Date.now();
           }
         }
       } else {
         if (device.isRecordingAi && !device.aiStopTimer) {
-          const isPixelMode = (state.globalSystemConfig.cameraDetectionMode === 'Pixel');
           const isRecordingEnabled = (state.globalStreamAiRecording !== 'off' && state.globalStreamAiRecording !== false);
-          const isRecordingActive = isPixelMode 
+          const isRecordingActive = isPixelOrHybrid 
             ? (isRecordingEnabled && state.globalSystemConfig.pixelMotionRecordingEnabled) 
             : isRecordingEnabled;
           if (device.isPirActive || !isRecordingActive || state.globalStreamAiRecording === 'continuous' || state.globalStreamAiRecording === true) {
-            console.log(`[AI Record] No ${isPixelMode ? 'motion' : 'person'} detected on ${deviceId}. Scheduling stop in 3 seconds...`);
+            // console.log(`[AI Record] No ${isPixelOrHybrid ? 'motion' : 'person'} detected on ${deviceId}. Scheduling stop in 3 seconds...`);
             device.aiStopTimer = setTimeout(() => {
-              console.log(`[AI Record] 3 seconds elapsed with no ${isPixelMode ? 'motion' : 'person'} detected on ${deviceId}. Stopping recording.`);
+              console.log(`[AI Record] 3 seconds elapsed with no ${isPixelOrHybrid ? 'motion' : 'person'} detected on ${deviceId}. Stopping recording.`);
               stopAiRecording(deviceId);
             }, 3000);
           }
@@ -481,7 +526,7 @@ function handleIncomingCameraFrame(deviceId, remoteIp, message) {
     // Unified rolling buffer for both standard AI and PIR recordings
     // Skip frame accumulation during live stream events if stream recording is disabled
     const isAiSensor = (device.aiSensorName === 'AI_Person_Detection');
-    const isPixelSensor = (device.aiSensorName === 'Pixel_Motion_Detection');
+    const isPixelSensor = (device.aiSensorName === 'Pixel_Motion_Detection' || device.aiSensorName === 'Hybrid_Motion_Detection');
     const isRecordingEnabled = (state.globalStreamAiRecording !== 'off' && state.globalStreamAiRecording !== false);
     const shouldRecordFrames = !device.isRecordingAi || 
       (isAiSensor && isRecordingEnabled) || 

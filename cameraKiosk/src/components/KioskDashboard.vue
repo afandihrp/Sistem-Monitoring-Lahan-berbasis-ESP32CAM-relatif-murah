@@ -232,9 +232,10 @@ const connectWS = () => {
           imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Capturing+Image...'
         })
         
-        // Peringatan suara jika AI mendeteksi orang atau sensor PIR (left, middle, right) aktif
+        // Peringatan suara jika AI mendeteksi orang, Pixel mendeteksi gerakan, atau sensor PIR aktif
         const isPirSensor = data.sensor === 'left' || data.sensor === 'middle' || data.sensor === 'right';
-        if (((data.sensor === 'AI_Person_Detection' && aiEnabled.value) || isPirSensor) && systemConfig.value.webSoundEnabled) {
+        const isStreamSensor = data.sensor === 'AI_Person_Detection' || data.sensor === 'Pixel_Motion_Detection' || data.sensor === 'Hybrid_Motion_Detection';
+        if ((isStreamSensor || isPirSensor) && systemConfig.value.webSoundEnabled) {
           const alarmAudio = new Audio(`${backendBaseUrl.value}/data/alarm.mp3`);
           alarmAudio.play().catch(err => console.log('Autoplay audio blocked:', err));
         }
@@ -244,12 +245,6 @@ const connectWS = () => {
           events.value[eventIndex].imageUrl = data.imageUrl;
           events.value[eventIndex].humanPresence = data.humanPresence;
           events.value[eventIndex].aiDetails = data.aiDetails;
-        }
-        
-        // Peringatan suara jika dari upload gambar terdapat orang
-        if (data.humanPresence && aiEnabled.value && systemConfig.value.webSoundEnabled) {
-          const alarmAudio = new Audio(`${backendBaseUrl.value}/data/alarm.mp3`);
-          alarmAudio.play().catch(err => console.log('Autoplay audio blocked:', err));
         }
       } else if (data.type === 'historical_logs') {
         events.value = data.logs.map((log, index) => {

@@ -146,7 +146,7 @@ watch(streamAiDetection, (newVal) => {
 })
 
 watch(pixelMotionRecordingEnabled, (newVal) => {
-  if (cameraDetectionMode.value === 'Pixel') {
+  if (cameraDetectionMode.value === 'Pixel' || cameraDetectionMode.value === 'Hybrid') {
     if (newVal) {
       streamAiRecording.value = lastStreamAiRecordingDuration.value || 'continuous'
     } else {
@@ -159,7 +159,7 @@ watch(pixelMotionRecordingEnabled, (newVal) => {
 })
 
 watch(cameraDetectionMode, (newMode) => {
-  if (newMode === 'Pixel') {
+  if (newMode === 'Pixel' || newMode === 'Hybrid') {
     if (pixelMotionRecordingEnabled.value) {
       streamAiRecording.value = lastStreamAiRecordingDuration.value || 'continuous'
     } else {
@@ -169,12 +169,16 @@ watch(cameraDetectionMode, (newMode) => {
       streamAiRecording.value = 'off'
     }
   }
+
+  if (newMode === 'Hybrid') {
+    objectTracking.value = false
+  }
 })
 
 // Helper to manage unified video recording duration
 const updateRecordingDuration = (dur) => {
   const isRecordingActive = streamAiRecording.value !== 'off' || 
-    (cameraDetectionMode.value === 'Pixel' && pixelMotionRecordingEnabled.value)
+    ((cameraDetectionMode.value === 'Pixel' || cameraDetectionMode.value === 'Hybrid') && pixelMotionRecordingEnabled.value)
 
   if (dur === 'continuous') {
     if (isRecordingActive) {
@@ -380,9 +384,9 @@ const saveConfig = () => {
               <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
                 <div>
                   <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="tgMotionSwitch">
-                    Pixel Motion Triggers
+                    Pixel / Hybrid Motion Triggers
                   </label>
-                  <span class="text-slate-500" style="font-size: 0.7rem;">Send general motion warnings (non-AI differencing)</span>
+                  <span class="text-slate-500" style="font-size: 0.7rem;">Send general motion or verified hybrid warnings</span>
                 </div>
                 <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="tgMotionSwitch" v-model="telegramAlertMotion">
               </div>
@@ -433,8 +437,8 @@ const saveConfig = () => {
             <!-- Mode Toggle: AI vs Pixel Comparison -->
             <div class="p-3 bg-slate-800 rounded border border-slate-700">
               <label class="text-slate-300 small fw-bold text-uppercase mb-2 d-block">Detection Engine Mode</label>
-              <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Select whether to run YOLO neural network or cheap pixel differencing</span>
-              <div class="d-flex gap-2">
+              <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Select whether to run YOLO neural network, cheap pixel differencing, or a Hybrid of both</span>
+              <div class="d-flex gap-2 flex-wrap">
                 <button 
                   type="button"
                   :disabled="!cameraDetectionEnabled"
@@ -453,14 +457,23 @@ const saveConfig = () => {
                 >
                   <i class="bi bi-image me-1"></i>Pixel Comparison
                 </button>
+                <button 
+                  type="button"
+                  :disabled="!cameraDetectionEnabled"
+                  @click="cameraDetectionMode = 'Hybrid'" 
+                  :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', cameraDetectionMode === 'Hybrid' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+                  style="font-size: 0.75rem;"
+                >
+                  <i class="bi bi-diagram-3 me-1"></i>Hybrid
+                </button>
               </div>
             </div>
 
             <!-- AI (YOLO) specific configs -->
-            <div v-if="cameraDetectionMode === 'AI'" class="d-flex flex-column gap-3">
+            <div v-if="cameraDetectionMode === 'AI' || cameraDetectionMode === 'Hybrid'" class="d-flex flex-column gap-3 mt-3">
               
-              <!-- Stream Camera AI Detection & Recording Box -->
-              <div class="p-3 bg-slate-800 rounded border border-slate-700">
+              <!-- Stream Camera AI Detection & Recording Box (Hidden in Hybrid since Hybrid uses Pixel config) -->
+              <div v-if="cameraDetectionMode === 'AI'" class="p-3 bg-slate-800 rounded border border-slate-700">
                 <!-- Parent Switch: Detection -->
                 <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
                   <div>
@@ -531,7 +544,7 @@ const saveConfig = () => {
               </div>
 
               <!-- AI Camera Object Tracking Switch -->
-              <div class="p-3 bg-slate-800 rounded border border-slate-700">
+              <div v-if="cameraDetectionMode === 'AI'" class="p-3 bg-slate-800 rounded border border-slate-700">
                 <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="aiTrackingSwitch">
@@ -546,7 +559,7 @@ const saveConfig = () => {
             </div>
 
             <!-- Pixel Comparison specific configs -->
-            <div v-else class="d-flex flex-column gap-3">
+            <div v-if="cameraDetectionMode === 'Pixel' || cameraDetectionMode === 'Hybrid'" class="d-flex flex-column gap-3">
               <div class="p-3 bg-slate-800 rounded border border-slate-700">
                 <label class="text-slate-300 small fw-bold text-uppercase mb-3 d-block">Detection Tuner Parameters</label>
 
@@ -687,7 +700,7 @@ const saveConfig = () => {
                 </div>
 
                 <!-- Motion Tracking Switch -->
-                <div class="form-check form-switch d-flex justify-content-between align-items-center p-0 mt-3 pt-3 border-top border-slate-700 border-opacity-50">
+                <div v-if="cameraDetectionMode === 'Pixel'" class="form-check form-switch d-flex justify-content-between align-items-center p-0 mt-3 pt-3 border-top border-slate-700 border-opacity-50">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="pixelTrackingSwitch">
                       Motion Tracking

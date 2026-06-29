@@ -97,7 +97,9 @@ async def handle_client(websocket, path=None):
                     # Bytes 6 to 6 + deviceId length: deviceId string
                     # Bytes 6 + deviceId length+: raw binary JPEG image
                     req_id = int.from_bytes(message[0:4], byteorder='big')
-                    annotate = message[4] == 1
+                    annotate_flag = message[4]
+                    annotate = annotate_flag in (1, 3)
+                    force_yolo = annotate_flag in (2, 3)
                     dev_id_len = message[5]
                     device_id = message[6:6+dev_id_len].decode('utf-8')
                     img_bytes = message[6+dev_id_len:]
@@ -115,8 +117,11 @@ async def handle_client(websocket, path=None):
 
                     # Cek mode deteksi aktif dari config
                     mode = getattr(config, "CAMERA_DETECTION_MODE", "AI")
+                    
+                    if force_yolo:
+                        mode = "AI"
 
-                    if mode == "Pixel":
+                    if mode == "Pixel" or mode == "Hybrid":
                         # Pixel Comparison Motion Detection logic
                         orig_h, orig_w = img.shape[:2]
 
@@ -292,7 +297,7 @@ async def handle_client(websocket, path=None):
 
                     # Bersihkan sisa memori RAM untuk performa optimal di Raspberry Pi
                     del img_bytes, nparr, img
-                    if mode == "Pixel":
+                    if mode == "Pixel" or mode == "Hybrid":
                         if 'gray' in locals():
                             del gray
                         if 'gray_blurred' in locals():
@@ -358,6 +363,10 @@ async def main():
             await asyncio.sleep(3)
 
 if __name__ == '__main__':
+    import sys
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

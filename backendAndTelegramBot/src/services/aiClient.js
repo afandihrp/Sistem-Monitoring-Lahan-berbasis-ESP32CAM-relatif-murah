@@ -100,7 +100,7 @@ class AIClient {
     }
   }
 
-  sendRequest(imageBuffer, annotate = false, timeoutMs = 10000, extraHeaderBuffer = null) {
+  sendRequest(imageBuffer, options = false, timeoutMs = 10000, extraHeaderBuffer = null) {
     return new Promise((resolve, reject) => {
       if (!this.isConnected || this.ws.readyState !== WebSocket.OPEN) {
         return reject(new Error('AI Client is not connected to Python server'));
@@ -108,14 +108,23 @@ class AIClient {
 
       const requestId = ++this.requestIdCounter;
 
+      // Parse options
+      const annotate = typeof options === 'boolean' ? options : !!options.annotate;
+      const forceYolo = typeof options === 'object' ? !!options.forceYolo : false;
+      
+      let flag = 0;
+      if (annotate && forceYolo) flag = 3;
+      else if (forceYolo) flag = 2;
+      else if (annotate) flag = 1;
+
       // Construct binary payload:
       // Bytes 0-3: requestId (UInt32BE)
-      // Byte 4: annotate flag (UInt8)
+      // Byte 4: flag (UInt8)
       // Optional extraHeaderBuffer
       // Bytes+: raw binary JPEG image buffer
       const header = Buffer.alloc(5);
       header.writeUInt32BE(requestId, 0);
-      header.writeUInt8(annotate ? 1 : 0, 4);
+      header.writeUInt8(flag, 4);
       
       const payload = extraHeaderBuffer
         ? Buffer.concat([header, extraHeaderBuffer, imageBuffer])
@@ -153,7 +162,7 @@ class AIClient {
 }
 
 const yoloClient = new AIClient(5000);
-const pixelClient = yoloClient; // Alias to yoloClient (port 5000)
+const pixelClient = yoloClient; // Alias back to port 5000
 
 module.exports = {
   yoloClient,

@@ -23,11 +23,11 @@
  * @returns {boolean}
  */
 function shouldEnqueueStreamFrame(device, { globalAiEnabled, globalStreamAiDetection, globalPirAiRecording, globalObjectTracking, cameraDetectionMode }) {
-  // If global AI is disabled, do not queue
-  if (!globalAiEnabled) return false;
+  // If AI processing is globally disabled, skip entirely unless we're in Pixel or Hybrid mode which doesn't need YOLO (but pixel stream still runs logic)
+  if (!globalAiEnabled && cameraDetectionMode !== 'Pixel' && cameraDetectionMode !== 'Hybrid') return false;
 
-  // In Pixel mode, we always process stream frames as long as global detection is enabled
-  if (cameraDetectionMode === 'Pixel') return true;
+  // In Pixel/Hybrid mode, we ALWAYS process every frame using pixel motion diff
+  if (cameraDetectionMode === 'Pixel' || cameraDetectionMode === 'Hybrid') return true;
 
   // Normal stream AI path
   if (globalStreamAiDetection) return true;
@@ -71,9 +71,9 @@ function shouldRunPirSnapshotAI({ globalAiEnabled, globalPirAiDetection, globalP
  * @param {boolean} settings.globalObjectTracking
  * @returns {boolean}
  */
-function shouldWorkerProcessFrame(device, { globalAiEnabled, globalPirAiRecording, globalObjectTracking }) {
+function shouldWorkerProcessFrame(device, { globalAiEnabled, globalPirAiRecording, globalObjectTracking, cameraDetectionMode }) {
+  if (cameraDetectionMode === 'Pixel' || cameraDetectionMode === 'Hybrid') return true;
   if (globalAiEnabled) return true;
-  if (globalAiEnabled && globalObjectTracking) return true;
   if (device && device.isPirActive && device.isRecordingAi && globalPirAiRecording) return true;
   return false;
 }
