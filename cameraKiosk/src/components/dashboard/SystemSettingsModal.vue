@@ -1,5 +1,8 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { locale } = useI18n()
 
 const props = defineProps({
   initialConfig: {
@@ -254,7 +257,7 @@ const saveConfig = () => {
       <!-- Modal Header -->
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h6 class="text-white mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">
-          <i class="bi bi-sliders2-vertical me-2 text-info"></i>System Settings
+          <i class="bi bi-sliders2-vertical me-2 text-info"></i>{{ $t('settings.title') }}
         </h6>
         <button @click="emit('close')" class="btn-close btn-close-white shadow-none"></button>
       </div>
@@ -265,25 +268,25 @@ const saveConfig = () => {
           @click="activeTab = 'pir'"
           :class="['tab-btn pb-2 fw-bold text-uppercase', activeTab === 'pir' ? 'active text-info' : 'text-slate-400']"
         >
-          <i class="bi bi-broadcast me-1"></i>PIR Sensor
+          <i class="bi bi-broadcast me-1"></i>{{ $t('settings.tabs.pir') }}
         </button>
         <button 
           @click="activeTab = 'telegram'"
           :class="['tab-btn pb-2 fw-bold text-uppercase', activeTab === 'telegram' ? 'active text-info' : 'text-slate-400']"
         >
-          <i class="bi bi-telegram me-1"></i>Telegram
+          <i class="bi bi-telegram me-1"></i>{{ $t('settings.tabs.telegram') }}
         </button>
         <button 
           @click="activeTab = 'camera_detection'"
           :class="['tab-btn pb-2 fw-bold text-uppercase', activeTab === 'camera_detection' ? 'active text-info' : 'text-slate-400']"
         >
-          <i class="bi bi-camera-video me-1"></i>Camera Detection
+          <i class="bi bi-camera-video me-1"></i>{{ $t('settings.tabs.camera') }}
         </button>
         <button 
           @click="activeTab = 'other'"
           :class="['tab-btn pb-2 fw-bold text-uppercase', activeTab === 'other' ? 'active text-info' : 'text-slate-400']"
         >
-          <i class="bi bi-gear-fill me-1"></i>Other
+          <i class="bi bi-gear-fill me-1"></i>{{ $t('settings.tabs.other') }}
         </button>
       </div>
 
@@ -298,9 +301,9 @@ const saveConfig = () => {
             <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
               <div>
                 <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="pirMasterSwitch">
-                  Enable PIR Sensor
+                   {{ $t('settings.pir.enable') }}
                 </label>
-                <span class="text-slate-500" style="font-size: 0.7rem;">Activate physical hardware PIR sensor monitoring</span>
+                <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.pir.enableDesc') }}</span>
               </div>
               <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="pirMasterSwitch" v-model="pirEnabled">
             </div>
@@ -309,8 +312,8 @@ const saveConfig = () => {
           <!-- Trigger Cooldown Selection (Active when PIR sensor is enabled) -->
           <div class="p-3 bg-slate-800 rounded border border-slate-700 transition-all"
                :style="{ opacity: pirEnabled ? 1 : 0.4, pointerEvents: pirEnabled ? 'auto' : 'none' }">
-            <label class="text-slate-300 small fw-bold text-uppercase mb-2 d-block">Trigger Cooldown Interval</label>
-            <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Minimum time between hardware PIR detection triggers</span>
+            <label class="text-slate-300 small fw-bold text-uppercase mb-2 d-block">{{ $t('settings.pir.cooldown') }}</label>
+            <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">{{ $t('settings.pir.cooldownDesc') }}</span>
             <div class="d-flex gap-1 justify-content-between flex-wrap">
               <button 
                 v-for="val in [10, 30, 60, 120, 300]" 
@@ -334,9 +337,9 @@ const saveConfig = () => {
             <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
               <div>
                 <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="pirRecordSwitch">
-                  Record Video
+                  {{ $t('settings.pir.record') }}
                 </label>
-                <span class="text-slate-500" style="font-size: 0.7rem;">Record a video clip automatically on PIR trigger events</span>
+                <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.pir.recordDesc') }}</span>
               </div>
               <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="pirRecordSwitch" v-model="pirRecordVideo" :disabled="!pirEnabled">
             </div>
@@ -349,16 +352,16 @@ const saveConfig = () => {
         <div v-if="activeTab === 'telegram'" class="tab-pane-content d-flex flex-column gap-3">
           
           <div class="p-3 bg-slate-800 rounded border border-slate-700">
-            <label class="text-slate-300 small fw-bold text-uppercase mb-3 d-block">Alert Event Subscriptions</label>
+            <label class="text-slate-300 small fw-bold text-uppercase mb-3 d-block">{{ $t('settings.telegram.subscriptions') }}</label>
             <div class="d-flex flex-column gap-3">
               
               <!-- PIR Alerts Toggle -->
               <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
                 <div>
                   <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="tgPirSwitch">
-                    PIR Sensor Triggers
+                    {{ $t('settings.telegram.pirTriggers') }}
                   </label>
-                  <span class="text-slate-500" style="font-size: 0.7rem;">Send instant snapshots to Telegram on PIR activity</span>
+                  <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.telegram.pirTriggersDesc') }}</span>
                 </div>
                 <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="tgPirSwitch" v-model="telegramAlertPir">
               </div>
@@ -370,9 +373,9 @@ const saveConfig = () => {
               <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
                 <div>
                   <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="tgAiSwitch">
-                    AI Detection Triggers
+                    {{ $t('settings.telegram.aiTriggers') }}
                   </label>
-                  <span class="text-slate-500" style="font-size: 0.7rem;">Send alarm clip summaries on verified human detections</span>
+                  <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.telegram.aiTriggersDesc') }}</span>
                 </div>
                 <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="tgAiSwitch" v-model="streamAiTelegram">
               </div>
@@ -384,9 +387,9 @@ const saveConfig = () => {
               <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
                 <div>
                   <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="tgMotionSwitch">
-                    Pixel / Hybrid Motion Triggers
+                    {{ $t('settings.telegram.motionTriggers') }}
                   </label>
-                  <span class="text-slate-500" style="font-size: 0.7rem;">Send general motion or verified hybrid warnings</span>
+                  <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.telegram.motionTriggersDesc') }}</span>
                 </div>
                 <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="tgMotionSwitch" v-model="telegramAlertMotion">
               </div>
@@ -396,8 +399,8 @@ const saveConfig = () => {
 
           <!-- Notification Cool-off Setting (Global) -->
           <div class="p-3 bg-slate-800 rounded border border-slate-700">
-            <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block" style="font-size: 0.7rem;">Notification Cool-off</label>
-            <span class="text-slate-500 d-block mb-3" style="font-size: 0.65rem;">Minimum time between consecutive Telegram alerts (global)</span>
+            <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block" style="font-size: 0.7rem;">{{ $t('settings.telegram.cooloff') }}</label>
+            <span class="text-slate-500 d-block mb-3" style="font-size: 0.65rem;">{{ $t('settings.telegram.cooloffDesc') }}</span>
             <div class="d-flex gap-1 justify-content-between flex-wrap">
               <button 
                 v-for="val in [10, 20, 30, 60, 120, 180]" 
@@ -422,9 +425,9 @@ const saveConfig = () => {
             <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
               <div>
                 <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="cameraDetectionMasterSwitch">
-                  Enable Camera Detection
+                  {{ $t('settings.camera.enable') }}
                 </label>
-                <span class="text-slate-500" style="font-size: 0.7rem;">Activate real-time frame detection alerts</span>
+                <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.camera.enableDesc') }}</span>
               </div>
               <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="cameraDetectionMasterSwitch" v-model="cameraDetectionEnabled">
             </div>
@@ -436,8 +439,8 @@ const saveConfig = () => {
 
             <!-- Mode Toggle: AI vs Pixel Comparison -->
             <div class="p-3 bg-slate-800 rounded border border-slate-700">
-              <label class="text-slate-300 small fw-bold text-uppercase mb-2 d-block">Detection Engine Mode</label>
-              <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Select whether to run YOLO neural network, cheap pixel differencing, or a Hybrid of both</span>
+              <label class="text-slate-300 small fw-bold text-uppercase mb-2 d-block">{{ $t('settings.camera.engineMode') }}</label>
+              <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">{{ $t('settings.camera.engineModeDesc') }}</span>
               <div class="d-flex gap-2 flex-wrap">
                 <button 
                   type="button"
@@ -446,7 +449,7 @@ const saveConfig = () => {
                   :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', cameraDetectionMode === 'AI' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
                   style="font-size: 0.75rem;"
                 >
-                  <i class="bi bi-cpu me-1"></i>AI (YOLO)
+                  <i class="bi bi-cpu me-1"></i>{{ $t('settings.camera.modeAi') }}
                 </button>
                 <button 
                   type="button"
@@ -455,7 +458,7 @@ const saveConfig = () => {
                   :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', cameraDetectionMode === 'Pixel' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
                   style="font-size: 0.75rem;"
                 >
-                  <i class="bi bi-image me-1"></i>Pixel Comparison
+                  <i class="bi bi-image me-1"></i>{{ $t('settings.camera.modePixel') }}
                 </button>
                 <button 
                   type="button"
@@ -464,7 +467,7 @@ const saveConfig = () => {
                   :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', cameraDetectionMode === 'Hybrid' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
                   style="font-size: 0.75rem;"
                 >
-                  <i class="bi bi-diagram-3 me-1"></i>Hybrid
+                  <i class="bi bi-diagram-3 me-1"></i>{{ $t('settings.camera.modeHybrid') }}
                 </button>
               </div>
             </div>
@@ -478,9 +481,9 @@ const saveConfig = () => {
                 <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="aiStreamDetSwitch">
-                      Stream Camera Detection
+                      {{ $t('settings.camera.streamAi') }}
                     </label>
-                    <span class="text-slate-500" style="font-size: 0.7rem;">Enables AI object detection on live stream frames</span>
+                    <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.camera.streamAiDesc') }}</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="aiStreamDetSwitch" v-model="streamAiDetection" :disabled="!cameraDetectionEnabled">
                 </div>
@@ -492,9 +495,9 @@ const saveConfig = () => {
                 <div v-if="streamAiDetection" class="form-check form-switch d-flex justify-content-between align-items-center p-0 ms-3">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="aiStreamCaptureSwitch">
-                      Capture Stream Camera
+                      {{ $t('settings.camera.captureStream') }}
                     </label>
-                    <span class="text-slate-500 d-block" style="font-size: 0.7rem;">Capture and save snapshot to gallery when human is detected</span>
+                    <span class="text-slate-500 d-block" style="font-size: 0.7rem;">{{ $t('settings.camera.captureStreamDesc') }}</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="aiStreamCaptureSwitch" v-model="streamAiCaptureEnabled" :disabled="!cameraDetectionEnabled || !streamAiDetection">
                 </div>
@@ -506,9 +509,9 @@ const saveConfig = () => {
                 <div v-if="streamAiDetection" class="form-check form-switch d-flex justify-content-between align-items-center p-0 ms-3">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="aiStreamRecSwitch">
-                      Stream Camera Recording
+                      {{ $t('settings.camera.recStream') }}
                     </label>
-                    <span class="text-slate-500 d-block" style="font-size: 0.7rem;">Record video clip when human is detected on stream</span>
+                    <span class="text-slate-500 d-block" style="font-size: 0.7rem;">{{ $t('settings.camera.recStreamDesc') }}</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="aiStreamRecSwitch" v-model="streamAiRecordingSwitch" :disabled="!cameraDetectionEnabled || !streamAiDetection">
                 </div>
@@ -521,9 +524,9 @@ const saveConfig = () => {
                 <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="aiPirDetSwitch">
-                      PIR Sensor AI Detection
+                      {{ $t('settings.camera.pirAi') }}
                     </label>
-                    <span class="text-slate-500" style="font-size: 0.7rem;">Enables AI object detection on PIR sensor events</span>
+                    <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.camera.pirAiDesc') }}</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="aiPirDetSwitch" v-model="pirAiDetection" :disabled="!cameraDetectionEnabled">
                 </div>
@@ -535,9 +538,9 @@ const saveConfig = () => {
                 <div v-if="pirAiDetection" class="form-check form-switch d-flex justify-content-between align-items-center p-0 ms-3">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="aiPirRecSwitch">
-                      PIR Sensor AI Recording
+                      {{ $t('settings.camera.pirAiRec') }}
                     </label>
-                    <span class="text-slate-500" style="font-size: 0.7rem;">Continuous recording as long as there is an object detected</span>
+                    <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.camera.pirAiRecDesc') }}</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="aiPirRecSwitch" v-model="pirAiRecording" :disabled="!cameraDetectionEnabled || !pirAiDetection">
                 </div>
@@ -548,9 +551,9 @@ const saveConfig = () => {
                 <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="aiTrackingSwitch">
-                      AI Camera Object Tracking
+                      {{ $t('settings.camera.aiTracking') }}
                     </label>
-                    <span class="text-slate-500" style="font-size: 0.7rem;">Camera servo follows detected human objects</span>
+                    <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.camera.aiTrackingDesc') }}</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="aiTrackingSwitch" v-model="objectTracking" :disabled="!cameraDetectionEnabled">
                 </div>
@@ -561,15 +564,15 @@ const saveConfig = () => {
             <!-- Pixel Comparison specific configs -->
             <div v-if="cameraDetectionMode === 'Pixel' || cameraDetectionMode === 'Hybrid'" class="d-flex flex-column gap-3">
               <div class="p-3 bg-slate-800 rounded border border-slate-700">
-                <label class="text-slate-300 small fw-bold text-uppercase mb-3 d-block">Detection Tuner Parameters</label>
+                <label class="text-slate-300 small fw-bold text-uppercase mb-3 d-block">{{ $t('settings.camera.tunerParams') }}</label>
 
                 <!-- Image Capture Switch -->
                 <div class="form-check form-switch d-flex justify-content-between align-items-center p-0 mb-4 pb-3 border-bottom border-slate-700 border-opacity-50">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="pixelCaptureSwitch">
-                      Capture Motion Image
+                      {{ $t('settings.camera.captureMotion') }}
                     </label>
-                    <span class="text-slate-500 d-block" style="font-size: 0.6rem;">Capture and save snapshot to gallery when motion is detected</span>
+                    <span class="text-slate-500" style="font-size: 0.6rem;">{{ $t('settings.camera.captureMotionDesc') }}</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="pixelCaptureSwitch" v-model="pixelMotionCaptureEnabled" :disabled="!cameraDetectionEnabled">
                 </div>
@@ -577,27 +580,27 @@ const saveConfig = () => {
                 <!-- Capture Delay Slider (Child of Capture Motion Image) -->
                 <div class="mb-4 pb-3 border-bottom border-slate-700 border-opacity-50 ms-3 transition-opacity" :class="{ 'opacity-50': !pixelMotionCaptureEnabled }">
                   <div class="d-flex justify-content-between align-items-center mb-1">
-                    <label class="text-slate-300 small fw-bold text-uppercase">Capture Delay</label>
+                    <label class="text-slate-300 small fw-bold text-uppercase">{{ $t('settings.camera.captureDelay') }}</label>
                     <span class="text-info font-monospace small fw-bold">{{ pixelMotionCaptureDelay }} ms</span>
                   </div>
                   <input type="range" class="form-range custom-slider" min="0" max="1000" step="50" v-model.number="pixelMotionCaptureDelay" :disabled="!cameraDetectionEnabled || !pixelMotionCaptureEnabled">
-                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">Delay in milliseconds before capturing the snapshot image</span>
+                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">{{ $t('settings.camera.captureDelayDesc') }}</span>
                 </div>
 
                 <!-- Record Motion Video Switch (Child of Capture Motion Image) -->
                 <div class="form-check form-switch d-flex justify-content-between align-items-center p-0 mb-4 pb-3 border-bottom border-slate-700 border-opacity-50 ms-3 transition-opacity" :class="{ 'opacity-50': !pixelMotionCaptureEnabled }">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="pixelRecordSwitch">
-                      Record Motion Video
+                      {{ $t('settings.camera.recordMotion') }}
                     </label>
-                    <span class="text-slate-500 d-block" style="font-size: 0.6rem;">Record and save video clip when motion is detected</span>
+                    <span class="text-slate-500" style="font-size: 0.6rem;">{{ $t('settings.camera.recordMotionDesc') }}</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="pixelRecordSwitch" v-model="pixelMotionRecordingEnabled" :disabled="!cameraDetectionEnabled || !pixelMotionCaptureEnabled">
                 </div>
                 
                 <!-- Comparison Mode Selection -->
                 <div class="mb-4">
-                  <label class="text-slate-400 small d-block mb-2">Comparison Mode</label>
+                  <label class="text-slate-400 small d-block mb-2">{{ $t('settings.camera.compMode') }}</label>
                   <div class="d-flex gap-2">
                     <button 
                       type="button"
@@ -606,7 +609,7 @@ const saveConfig = () => {
                       :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', pixelMotionMode === 0 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
                       style="font-size: 0.7rem;"
                     >
-                      Static Reference
+                      {{ $t('settings.camera.modeStaticRef') }}
                     </button>
                     <button 
                       type="button"
@@ -615,15 +618,15 @@ const saveConfig = () => {
                       :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', pixelMotionMode === 1 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
                       style="font-size: 0.7rem;"
                     >
-                      Frame-to-Frame
+                      {{ $t('settings.camera.modeF2f') }}
                     </button>
                   </div>
-                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">Static compares to background; F2F compares consecutive frames</span>
+                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">{{ $t('settings.camera.compModeDesc') }}</span>
                 </div>
 
                 <!-- Static Reset Interval (Only for Static Reference Mode) -->
                 <div v-if="pixelMotionMode === 0" class="mb-4">
-                  <label class="text-slate-400 small d-block mb-2">Static Reset Interval</label>
+                  <label class="text-slate-400 small d-block mb-2">{{ $t('settings.camera.staticReset') }}</label>
                   <div class="d-flex gap-2">
                     <button 
                       v-for="val in [1, 2, 3]"
@@ -634,22 +637,22 @@ const saveConfig = () => {
                       :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', pixelMotionResetInterval === val ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
                       style="font-size: 0.7rem;"
                     >
-                      {{ val }} Sec
+                      {{ val }} {{ locale === 'id' ? 'Detik' : 'Sec' }}
                     </button>
                   </div>
-                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">Periodically rebuilds the static background reference after 1, 2, or 3 seconds to adapt to rapid lighting changes</span>
+                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">{{ $t('settings.camera.staticResetDesc') }}</span>
                 </div>
 
                 <!-- Motion Sensitivity Options -->
                 <div class="mb-4">
-                  <label class="text-slate-400 small d-block mb-2">Motion Sensitivity</label>
+                  <label class="text-slate-400 small d-block mb-2">{{ $t('settings.camera.motionSens') }}</label>
                   <div class="d-flex gap-2">
                     <button 
                       v-for="preset in [
-                        { label: 'High', value: 10 },
-                        { label: 'Medium', value: 20 },
-                        { label: 'Low', value: 30 },
-                        { label: 'Extra Low', value: 40 }
+                        { label: $t('settings.camera.sensHigh'), value: 10 },
+                        { label: $t('settings.camera.sensMedium'), value: 20 },
+                        { label: $t('settings.camera.sensLow'), value: 30 },
+                        { label: $t('settings.camera.sensExtraLow'), value: 40 }
                       ]"
                       :key="preset.value"
                       type="button"
@@ -661,20 +664,16 @@ const saveConfig = () => {
                       {{ preset.label }}
                     </button>
                   </div>
-                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">Higher sensitivity (lower threshold value) makes the detector more reactive to minor pixel changes</span>
+                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">{{ $t('settings.camera.motionSensDesc') }}</span>
                 </div>
-
-
-
-
 
                 <!-- Merge Boxes Switch -->
                 <div class="form-check form-switch d-flex justify-content-between align-items-center p-0 mt-3 pt-3 border-top border-slate-700 border-opacity-50">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="pixelMergeSwitch">
-                      Merge Bounding Boxes
+                      {{ $t('settings.camera.mergeBoxes') }}
                     </label>
-                    <span class="text-slate-500 d-block" style="font-size: 0.6rem;">Combine all separate motion rectangles into a single outer box</span>
+                    <span class="text-slate-500" style="font-size: 0.6rem;">{{ $t('settings.camera.mergeBoxesDesc') }}</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="pixelMergeSwitch" v-model="pixelMotionMerge" :disabled="!cameraDetectionEnabled">
                 </div>
@@ -682,30 +681,30 @@ const saveConfig = () => {
                 <!-- Minimum Contour Size Slider (Child of Merge Bounding Boxes) -->
                 <div v-if="pixelMotionMerge" class="mt-3 ps-3 border-start border-slate-700 border-2 ms-2 transition-all duration-300">
                   <div class="d-flex justify-content-between align-items-center mb-1">
-                    <label class="text-slate-400 small">Min Contour Size</label>
+                    <label class="text-slate-400 small">{{ $t('settings.camera.minContour') }}</label>
                     <span class="text-info font-monospace small fw-bold">{{ pixelMotionMinSize }} px</span>
                   </div>
                   <input type="range" class="form-range custom-slider" min="2" max="150" step="1" v-model.number="pixelMotionMinSize" :disabled="!cameraDetectionEnabled">
-                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">Minimum width or height of a motion block to trigger the combined merge box</span>
+                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">{{ $t('settings.camera.minContourDesc') }}</span>
                 </div>
 
                 <!-- Clustering Distance Slider (Child of Merge Bounding Boxes) -->
                 <div v-if="!pixelMotionMerge" class="mt-3 ps-3 border-start border-slate-700 border-2 ms-2 transition-all duration-300">
                   <div class="d-flex justify-content-between align-items-center mb-1">
-                    <label class="text-slate-400 small">Clustering Distance</label>
+                    <label class="text-slate-400 small">{{ $t('settings.camera.clusterDist') }}</label>
                     <span class="text-info font-monospace small fw-bold">{{ pixelMotionClusterDist }} px</span>
                   </div>
                   <input type="range" class="form-range custom-slider" min="10" max="500" step="5" v-model.number="pixelMotionClusterDist" :disabled="!cameraDetectionEnabled">
-                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">Distance threshold in pixels to group adjacent motion boxes</span>
+                  <span class="text-slate-500 d-block mt-1" style="font-size: 0.6rem;">{{ $t('settings.camera.clusterDistDesc') }}</span>
                 </div>
 
                 <!-- Motion Tracking Switch -->
                 <div v-if="cameraDetectionMode === 'Pixel'" class="form-check form-switch d-flex justify-content-between align-items-center p-0 mt-3 pt-3 border-top border-slate-700 border-opacity-50">
                   <div>
                     <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="pixelTrackingSwitch">
-                      Motion Tracking
+                      {{ $t('settings.camera.motionTracking') }}
                     </label>
-                    <span class="text-slate-500 d-block" style="font-size: 0.6rem;">Camera servo follows detected motion bounding boxes</span>
+                    <span class="text-slate-500 d-block" style="font-size: 0.6rem;">{{ $t('settings.camera.motionTrackingDesc') }}</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="pixelTrackingSwitch" v-model="objectTracking" :disabled="!cameraDetectionEnabled">
                 </div>
@@ -714,8 +713,8 @@ const saveConfig = () => {
 
             <!-- Video Recording Duration -->
             <div class="p-3 bg-slate-800 rounded border border-slate-700">
-              <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">Video Recording Duration</label>
-              <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Controls both AI Stream Recording and PIR Video Recording duration</span>
+              <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">{{ $t('settings.camera.recDuration') }}</label>
+              <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">{{ $t('settings.camera.recDurationDesc') }}</span>
               <div class="d-flex gap-1 justify-content-between flex-wrap">
                 <button 
                   v-for="dur in [10, 20, 30, 60, 'continuous']" 
@@ -726,15 +725,15 @@ const saveConfig = () => {
                   :class="['btn p-2 fw-bold duration-btn flex-grow-1', getRecordingDurationActive(dur) ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
                   style="font-size: 0.7rem; min-width: 50px;"
                 >
-                  {{ dur === 'continuous' ? 'Continuous' : `${dur}s` }}
+                  {{ dur === 'continuous' ? $t('settings.camera.durContinuous') : `${dur}s` }}
                 </button>
               </div>
             </div>
 
             <!-- Max Video Duration Compress -->
             <div class="p-3 bg-slate-800 rounded border border-slate-700">
-              <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">Max Video Duration Compress</label>
-              <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Compresses and speeds up output video if recording duration exceeds this limit</span>
+              <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">{{ $t('settings.camera.maxDuration') }}</label>
+              <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">{{ $t('settings.camera.maxDurationDesc') }}</span>
               <div class="d-flex gap-2 justify-content-between">
                 <button 
                   v-for="dur in [10, 20, 30]" 
@@ -762,9 +761,9 @@ const saveConfig = () => {
             <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
               <div>
                 <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="webSoundSwitch">
-                  Kiosk Web Alert Sound
+                  {{ $t('settings.other.webSound') }}
                 </label>
-                <span class="text-slate-500" style="font-size: 0.7rem;">Play alarm audio chime in browser on motion/AI detections</span>
+                <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.other.webSoundDesc') }}</span>
               </div>
               <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="webSoundSwitch" v-model="webSoundEnabled">
             </div>
@@ -775,9 +774,9 @@ const saveConfig = () => {
             <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
               <div>
                 <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="udpStreamSwitch">
-                  UDP Livestream Mode
+                  {{ $t('settings.other.udpStream') }}
                 </label>
-                <span class="text-slate-500" style="font-size: 0.7rem;">Stream binary frames via UDP to port 3001 instead of WebSockets (reduces latency)</span>
+                <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.other.udpStreamDesc') }}</span>
               </div>
               <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="udpStreamSwitch" v-model="udpStreamEnabled">
             </div>
@@ -788,9 +787,9 @@ const saveConfig = () => {
             <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
               <div>
                 <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="fpsMeterSwitch">
-                  Show FPS Meter
+                  {{ $t('settings.other.fpsMeter') }}
                 </label>
-                <span class="text-slate-500" style="font-size: 0.7rem;">Display the real-time frame rate (FPS) overlay on video feeds</span>
+                <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.other.fpsMeterDesc') }}</span>
               </div>
               <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="fpsMeterSwitch" v-model="showFpsMeter">
             </div>
@@ -803,7 +802,7 @@ const saveConfig = () => {
       <!-- Modal Footer -->
       <div class="d-flex gap-2 mt-4">
         <button @click="saveConfig" class="btn btn-info text-dark flex-grow-1 py-2 fw-bold text-uppercase" style="font-size: 0.75rem;">
-          Save Settings
+          {{ $t('settings.save') }}
         </button>
       </div>
 
@@ -913,6 +912,25 @@ const saveConfig = () => {
 }
 .tab-btn:hover {
   opacity: 0.85;
+}
+
+@media (max-width: 480px) {
+  .nav-tabs-custom {
+    gap: 0.85rem;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* IE and Edge */
+  }
+  .nav-tabs-custom::-webkit-scrollbar {
+    display: none; /* Safari and Chrome */
+  }
+  .tab-btn {
+    font-size: 0.72rem;
+    letter-spacing: 0.2px;
+    flex-shrink: 0;
+  }
 }
 
 /* Duration selection buttons */

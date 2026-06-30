@@ -131,11 +131,11 @@ const handleSaveSystemConfig = (config) => {
       <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-between align-items-center z-2">
         <span v-if="currentStream.status === 'Online' && viewMode !== 'multiple'" class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-2 px-2 py-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">
           <span class="spinner-grow spinner-grow-sm" style="width: 0.6rem; height: 0.6rem;" role="status"></span>
-          LIVE FEED
+          {{ $t('stream.liveFeed') }}
         </span>
         <span v-else-if="viewMode !== 'multiple'" class="badge rounded-pill bg-secondary text-white border border-secondary border-opacity-25 d-flex align-items-center gap-2 px-2 py-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">
           <i class="bi bi-camera-video-off-fill" style="font-size: 0.7rem;"></i>
-          OFFLINE
+          {{ $t('stream.offline') }}
         </span>
         
         <div v-if="viewMode !== 'multiple'" class="d-flex align-items-center gap-2 gap-sm-3">
@@ -161,7 +161,7 @@ const handleSaveSystemConfig = (config) => {
           <div v-if="currentStream.status !== 'Online'" 
                class="position-absolute top-50 start-50 translate-middle d-flex flex-column align-items-center text-secondary opacity-50">
             <i class="bi bi-camera-video-off" style="font-size: 6rem;"></i>
-            <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">Camera Offline</div>
+            <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">{{ $t('stream.cameraOffline') }}</div>
           </div>
         </template>
 
@@ -173,7 +173,7 @@ const handleSaveSystemConfig = (config) => {
               <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-between align-items-center z-2">
                 <span class="badge rounded-pill bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-2 px-2 py-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">
                   <span class="spinner-grow spinner-grow-sm" style="width: 0.6rem; height: 0.6rem;" role="status"></span>
-                  LIVE FEED
+                  {{ $t('stream.liveFeed') }}
                 </span>
                 
                 <div class="d-flex align-items-center gap-2 gap-sm-3">
@@ -199,7 +199,7 @@ const handleSaveSystemConfig = (config) => {
             <!-- Empty State -->
             <div v-if="onlineDevices.length === 0" class="position-absolute top-50 start-50 translate-middle text-secondary opacity-50 d-flex flex-column align-items-center">
               <i class="bi bi-camera-video-off" style="font-size: 6rem;"></i>
-              <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">No Online Cameras</div>
+              <div class="fw-bold text-uppercase mt-2" style="letter-spacing: 4px; font-size: 0.8rem;">{{ $t('stream.noOnlineCameras') }}</div>
             </div>
           </div>
         </template>
@@ -214,43 +214,43 @@ const handleSaveSystemConfig = (config) => {
           <!-- Camera Switch (Always visible on mobile panel) -->
           <div class="col-md-6 d-flex flex-column gap-2">
             <label class="text-secondary small fw-bold text-uppercase d-flex align-items-center gap-2" style="font-size: 0.65rem;">
-              Camera Switch <span class="text-info font-monospace">[{{ currentStream.ip || 'N/A' }}]</span>
+              {{ $t('stream.cameraSwitch') }} <span class="text-info font-monospace">[{{ currentStream.ip || 'N/A' }}]</span>
               <button v-if="currentStream.mac && currentStream.mac !== 'Unknown MAC'"
                       @click="showCameraConfig = true" 
                       class="btn btn-sm btn-link p-0 text-slate-500 hover-info" 
-                      title="Camera Sensor Configuration">
+                      :title="$t('stream.cameraSwitch')">
                 <i class="bi bi-sliders" style="font-size: 0.75rem;"></i>
               </button>
             </label>
             <div class="d-flex gap-2">
               <button @click="emit('triggerCameraAction', 'left')" 
                       class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
-                <i class="bi bi-chevron-left"></i> Left
+                <i class="bi bi-chevron-left"></i> {{ $t('stream.left') }}
               </button>
               <button @click="emit('triggerCameraAction', 'right')" 
                       class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
-                Right <i class="bi bi-chevron-right"></i>
+                {{ $t('stream.right') }} <i class="bi bi-chevron-right"></i>
               </button>
             </div>
           </div>
 
           <!-- View Mode Toggle & AI Control (Only visible and controllable on mobile screens) -->
           <div v-if="windowWidth <= 1000" class="col-md-6 d-flex flex-column gap-2">
-            <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Display & AI Controls</label>
+            <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">{{ $t('stream.displayAiControls') }}</label>
             <div class="d-flex gap-2">
               <!-- Single Toggle View Mode Button -->
               <button @click="emit('setViewMode', viewMode === 'single' ? 'multiple' : 'single')" 
                       class="btn btn-outline-primary flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2">
                 <i :class="viewMode === 'single' ? 'bi bi-grid-3x3-gap-fill' : 'bi bi-camera-fill'"></i>
-                {{ viewMode === 'single' ? 'Multiple View' : 'Single View' }}
+                {{ viewMode === 'single' ? $t('stream.multipleView') : $t('stream.singleView') }}
               </button>
 
               <!-- System Settings Configurator Trigger Button -->
               <button @click="showSystemConfig = true" 
                       class="btn btn-outline-info flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-2"
-                      title="System Settings">
+                      :title="$t('stream.settings')">
                 <i class="bi bi-sliders2-vertical me-1"></i>
-                Settings
+                {{ $t('stream.settings') }}
               </button>
             </div>
           </div>
@@ -260,8 +260,8 @@ const handleSaveSystemConfig = (config) => {
         <div class="d-flex flex-column gap-2">
           <div class="d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
-              <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">Servo (PTZ)</label>
-              <button @click="showConfig = true" class="btn btn-sm btn-link p-0 text-slate-500 hover-info" title="Servo Configuration">
+              <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">{{ $t('stream.servoPtz') }}</label>
+              <button @click="showConfig = true" class="btn btn-sm btn-link p-0 text-slate-500 hover-info" :title="$t('stream.servoPtz')">
                 <i class="bi bi-gear-fill" style="font-size: 0.75rem;"></i>
               </button>
             </div>

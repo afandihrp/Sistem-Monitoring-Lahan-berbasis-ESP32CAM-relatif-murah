@@ -1,5 +1,8 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps({
   mac: {
@@ -15,7 +18,10 @@ const servoConfig = ref({
   leftPirAngle: 45,
   middlePirAngle: 90,
   rightPirAngle: 135,
-  returnToDefaultDuration: 15
+  returnToDefaultDuration: 15,
+  manualSweepEnabled: false,
+  manualSweepAngle: 10,
+  manualSweepInterval: 1
 })
 
 const fetchServoConfig = () => {
@@ -33,7 +39,10 @@ const handleConfigReceived = (event) => {
       leftPirAngle: config.leftPirAngle ?? 45,
       middlePirAngle: config.middlePirAngle ?? 90,
       rightPirAngle: config.rightPirAngle ?? 135,
-      returnToDefaultDuration: config.returnToDefaultDuration ?? 15
+      returnToDefaultDuration: config.returnToDefaultDuration ?? 15,
+      manualSweepEnabled: config.manualSweepEnabled ?? false,
+      manualSweepAngle: config.manualSweepAngle ?? 10,
+      manualSweepInterval: config.manualSweepInterval ?? 1
     };
     console.log('Loaded saved servo config via WS for:', mac);
   }
@@ -99,15 +108,16 @@ const handleThumbEnd = () => {
     <div class="modal-content-custom bg-slate-900 border border-slate-700 rounded-3 shadow-lg p-4" style="max-width: 450px; width: 100%;">
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h6 class="text-white mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">
-          <i class="bi bi-gear-wide-connected me-2 text-info"></i>Servo Configuration
+          <i class="bi bi-gear-wide-connected me-2 text-info"></i>{{ t('servo.title') }}
         </h6>
         <button @click="emit('close')" class="btn-close btn-close-white shadow-none"></button>
       </div>
 
-      <!-- Default Angle -->
-      <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <label class="text-slate-300 small fw-bold">DEFAULT ANGLE</label>
+      <div class="modal-body-custom pe-1">
+        <!-- Default Angle -->
+        <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+          <label class="text-slate-300 small fw-bold">{{ t('servo.defaultAngle') }}</label>
           <span class="text-info font-monospace small">{{ servoConfig.defaultAngle }}°</span>
         </div>
         <input type="range" class="form-range custom-slider" min="0" max="180" v-model.number="servoConfig.defaultAngle">
@@ -115,8 +125,8 @@ const handleThumbEnd = () => {
 
       <!-- Return to Default Duration -->
       <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
-        <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">AUTO-RETURN DELAY</label>
-        <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Wait time before the servo automatically returns to its default angle</span>
+        <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">{{ t('servo.autoReturn') }}</label>
+        <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">{{ t('servo.autoReturnDesc') }}</span>
         
         <div class="d-flex gap-2 justify-content-between">
           <button 
@@ -124,49 +134,49 @@ const handleThumbEnd = () => {
             @click="servoConfig.returnToDefaultDuration = 3" 
             :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 3 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
             style="font-size: 0.75rem;">
-            3s
+            3{{ t('servo.sec') }}
           </button>
           <button 
             type="button"
             @click="servoConfig.returnToDefaultDuration = 5" 
             :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 5 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
             style="font-size: 0.75rem;">
-            5s
+            5{{ t('servo.sec') }}
           </button>
           <button 
             type="button"
             @click="servoConfig.returnToDefaultDuration = 15" 
             :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 15 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
             style="font-size: 0.75rem;">
-            15s
+            15{{ t('servo.sec') }}
           </button>
           <button 
             type="button"
             @click="servoConfig.returnToDefaultDuration = 30" 
             :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 30 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
             style="font-size: 0.75rem;">
-            30s
+            30{{ t('servo.sec') }}
           </button>
           <button 
             type="button"
             @click="servoConfig.returnToDefaultDuration = 60" 
             :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 60 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
             style="font-size: 0.75rem;">
-            60s
+            60{{ t('servo.sec') }}
           </button>
         </div>
       </div>
 
       <!-- PIR Mapping (Multi-Thumb Slider) -->
       <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
-        <label class="text-slate-300 small fw-bold mb-4 d-block">PIR SENSOR MAPPING</label>
+        <label class="text-slate-300 small fw-bold mb-4 d-block">{{ t('servo.pirMapping') }}</label>
         
         <div class="position-relative py-4 px-1">
           <!-- Labels -->
           <div class="d-flex justify-content-between position-absolute w-100 top-0 start-0 text-slate-500" style="font-size: 1rem; margin-top: -5px;">
-            <span :style="{ color: '#ef4444', fontWeight: 'bold', textShadow: '0 0 4px rgba(239, 68, 68, 0.4)' }">LEFT: {{ servoConfig.leftPirAngle }}°</span>
-            <span :style="{ color: '#22c55e', fontWeight: 'bold', textShadow: '0 0 4px rgba(34, 197, 94, 0.4)' }">MID: {{ servoConfig.middlePirAngle }}°</span>
-            <span :style="{ color: '#3b82f6', fontWeight: 'bold', textShadow: '0 0 4px rgba(59, 130, 246, 0.4)' }">RIGHT: {{ servoConfig.rightPirAngle }}°</span>
+            <span :style="{ color: '#ef4444', fontWeight: 'bold', textShadow: '0 0 4px rgba(239, 68, 68, 0.4)' }">{{ t('servo.left') }}: {{ servoConfig.leftPirAngle }}°</span>
+            <span :style="{ color: '#22c55e', fontWeight: 'bold', textShadow: '0 0 4px rgba(34, 197, 94, 0.4)' }">{{ t('servo.mid') }}: {{ servoConfig.middlePirAngle }}°</span>
+            <span :style="{ color: '#3b82f6', fontWeight: 'bold', textShadow: '0 0 4px rgba(59, 130, 246, 0.4)' }">{{ t('servo.right') }}: {{ servoConfig.rightPirAngle }}°</span>
           </div>
 
           <!-- Track -->
@@ -208,7 +218,7 @@ const handleThumbEnd = () => {
           
           <!-- FOV Visualizer -->
           <div class="position-relative mt-4 d-flex justify-content-center" style="height: 140px; overflow: hidden; border-bottom: 2px solid #334155; border-radius: 4px; background: rgba(0,0,0,0.2);">
-            <div class="position-absolute top-0 start-0 p-1 text-slate-500" style="font-size: 0.55rem; font-weight: bold; z-index: 5;">69° FOV ROTATION VISUALIZER</div>
+            <div class="position-absolute top-0 start-0 p-1 text-slate-500" style="font-size: 0.55rem; font-weight: bold; z-index: 5;">{{ t('servo.fovVisualizer') }}</div>
             
             <!-- Origin Point (Servo Center) -->
             <div class="position-absolute bottom-0" style="width: 12px; height: 12px; background: #cbd5e1; border-radius: 50%; z-index: 20; transform: translateY(50%); box-shadow: 0 0 10px #ffffff;"></div>
@@ -261,9 +271,63 @@ const handleThumbEnd = () => {
         </div>
       </div>
 
-      <div class="d-flex gap-2">
+      <!-- Manual Servo Sweep -->
+      <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
+        <div class="form-check form-switch d-flex justify-content-between align-items-center p-0 mb-3">
+          <div>
+            <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="manualSweepSwitch">
+              {{ t('servo.manualSweep') }}
+            </label>
+            <span class="text-slate-500" style="font-size: 0.7rem;">{{ t('servo.manualSweepDesc') }}</span>
+          </div>
+          <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="manualSweepSwitch" v-model="servoConfig.manualSweepEnabled">
+        </div>
+        
+        <div class="d-flex flex-column gap-3 transition-all"
+             :style="{ opacity: servoConfig.manualSweepEnabled ? 1 : 0.4, pointerEvents: servoConfig.manualSweepEnabled ? 'auto' : 'none' }">
+          
+          <div>
+            <label class="text-slate-400 small d-block mb-2 text-uppercase">{{ t('servo.sweepAngle') }}</label>
+            <div class="d-flex gap-2">
+              <button 
+                v-for="val in [10, 15, 20]" 
+                :key="'angle-'+val"
+                type="button"
+                :disabled="!servoConfig.manualSweepEnabled"
+                @click="servoConfig.manualSweepAngle = val" 
+                :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.manualSweepAngle === val ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+                style="font-size: 0.75rem;"
+              >
+                {{ val }}&deg;
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-slate-400 small d-block mb-2 text-uppercase">{{ t('servo.sweepInterval') }}</label>
+            <div class="d-flex gap-2">
+              <button 
+                v-for="val in [1, 3, 5]" 
+                :key="'interval-'+val"
+                type="button"
+                :disabled="!servoConfig.manualSweepEnabled"
+                @click="servoConfig.manualSweepInterval = val" 
+                :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.manualSweepInterval === val ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+                style="font-size: 0.75rem;"
+              >
+                {{ val }} {{ t('servo.min') }}
+              </button>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+      
+      </div>
+
+      <div class="d-flex gap-2 mt-2">
         <button @click="saveConfig" class="btn btn-primary flex-grow-1 py-2 fw-bold text-uppercase" style="font-size: 0.75rem;">
-          Save Settings
+          {{ t('servo.save') }}
         </button>
       </div>
     </div>
@@ -350,6 +414,28 @@ const handleThumbEnd = () => {
 .text-slate-300 { color: #cbd5e1; }
 .text-slate-600 { color: #475569; }
 
+/* Scrollable config body list */
+.modal-body-custom {
+  max-height: 400px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+}
+
+.modal-body-custom::-webkit-scrollbar {
+  width: 6px;
+}
+.modal-body-custom::-webkit-scrollbar-track {
+  background: transparent;
+}
+.modal-body-custom::-webkit-scrollbar-thumb {
+  background-color: #334155;
+  border-radius: 4px;
+}
+.modal-body-custom::-webkit-scrollbar-thumb:hover {
+  background-color: #475569;
+}
+
 .multi-range-track {
   touch-action: none;
 }
@@ -375,4 +461,31 @@ const handleThumbEnd = () => {
 .thumb.left { border: 4px solid #ef4444; }
 .thumb.middle { border: 4px solid #22c55e; }
 .thumb.right { border: 4px solid #3b82f6; }
+
+/* Custom Switch & Button Styling */
+.custom-switch {
+  width: 3.2em;
+  height: 1.6em;
+  cursor: pointer;
+  background-color: #334155;
+  border-color: #475569;
+}
+.custom-switch:focus {
+  box-shadow: none;
+  border-color: #475569;
+}
+.custom-switch:checked {
+  background-color: #06b6d4;
+  border-color: #0891b2;
+}
+.transition-all {
+  transition: opacity 0.2s ease, pointer-events 0.2s ease;
+}
+.duration-btn {
+  transition: all 0.2s ease;
+  border-radius: 6px;
+}
+.shadow-info {
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+}
 </style>

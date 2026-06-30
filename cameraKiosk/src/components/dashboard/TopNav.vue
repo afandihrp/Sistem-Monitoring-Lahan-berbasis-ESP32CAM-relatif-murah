@@ -1,4 +1,12 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
+
+const { locale } = useI18n()
+
+function toggleLanguage() {
+  locale.value = locale.value === 'id' ? 'en' : 'id'
+}
+
 defineProps({
   currentTime: {
     type: String,
@@ -39,17 +47,22 @@ defineEmits(['toggle-force-mobile'])
 </script>
 
 <template>
-  <nav class="navbar bg-slate-800 px-3 py-0 border-bottom border-slate-700 z-3" style="min-height: 45px;">
-    <div class="container-fluid p-0">
-      <a class="navbar-brand fw-bold d-flex align-items-center gap-2 m-0" href="#" style="font-size: 1.1rem;">
-        <i class="bi bi-shield-lock-fill text-primary fs-5"></i>
-        Gateway_OS
-      </a>
+  <nav class="navbar bg-slate-800 px-3 py-1 py-md-0 border-bottom border-slate-700 z-3 flex-shrink-0" style="min-height: 45px;">
+    <div class="container-fluid p-0 d-flex align-items-center justify-content-between flex-wrap" style="row-gap: 6px;">
+      <div class="d-flex align-items-center gap-2">
+        <a class="navbar-brand fw-bold d-flex align-items-center gap-2 m-0" href="#" style="font-size: 1.1rem;">
+          <i class="bi bi-shield-lock-fill text-primary fs-5"></i>
+          Gateway_OS
+        </a>
+        <button @click="toggleLanguage" class="btn btn-sm btn-outline-secondary border-slate-700 text-slate-300 px-2 py-1" style="font-size: 0.65rem; border: 1px solid rgba(148, 163, 184, 0.3);">
+          {{ locale === 'id' ? '🇮🇩 ID' : '🇬🇧 EN' }}
+        </button>
+      </div>
       <div class="d-flex align-items-center gap-3">
         
         <div v-if="storageData" class="d-flex flex-column justify-content-center border-end pe-3 me-1 border-slate-700" style="width: 110px;">
           <div class="d-flex justify-content-between mb-1" style="font-size: 0.6rem; font-weight: bold;">
-            <span class="text-secondary">STORAGE</span>
+            <span class="text-secondary">{{ $t('nav.storage') }}</span>
             <span :class="storageData.percentage >= 90 ? 'text-danger animate-pulse' : (storageData.percentage >= 70 ? 'text-warning' : 'text-success')">
               {{ storageData.percentage }}%
             </span>
@@ -79,29 +92,29 @@ defineEmits(['toggle-force-mobile'])
           style="font-size: 0.65rem; border: 1px solid rgba(148, 163, 184, 0.3);"
         >
           <i :class="isForceMobile ? 'bi bi-phone-fill me-1' : 'bi bi-pc-display me-1'"></i>
-          {{ isForceMobile ? 'Normal View' : 'Mobile View' }}
+          {{ isForceMobile ? $t('nav.normalView') : $t('nav.mobileView') }}
         </button>
         
         <div class="d-flex flex-column align-items-end justify-content-center text-secondary" style="font-size: 0.85rem; line-height: 1.2;">
           <span :class="wsStatus === 'Online' ? 'text-success' : 'text-danger'" class="fw-bold d-flex align-items-center gap-1" style="font-size: 0.8rem;">
             <i :class="wsStatus === 'Online' ? 'bi-broadcast text-success' : 'bi-broadcast-pin text-danger'"></i>
-            <span class="d-none d-sm-inline">WS:</span> {{ wsStatus }}
+            <span class="d-none d-sm-inline">WS:</span> {{ wsStatus === 'Online' ? $t('nav.wsOnline') : $t('nav.wsOffline') }}
           </span>
           <span v-if="!aiEnabled" class="fw-bold d-flex align-items-center gap-1 text-slate-400" style="font-size: 0.65rem; margin-top: 1px;">
             <i class="bi bi-eye-slash-fill text-slate-400"></i>
-            AI: DISABLED
+            AI: {{ $t('nav.aiDisabled') }}
           </span>
           <span v-else-if="!aiConnected" class="fw-bold d-flex align-items-center gap-1 text-danger" style="font-size: 0.65rem; margin-top: 1px;">
             <i class="bi bi-cloud-slash text-danger"></i>
-            AI: OFFLINE
+            AI: {{ $t('nav.aiOffline') }}
           </span>
           <span v-else-if="aiDetecting" class="fw-bold d-flex align-items-center gap-1 text-warning" style="font-size: 0.65rem; margin-top: 1px;">
             <i class="bi bi-eye-fill text-warning animate-pulse"></i>
-            AI: DETECTING
+            AI: {{ $t('nav.aiDetecting') }}
           </span>
           <span v-else class="fw-bold d-flex align-items-center gap-1 text-success" style="font-size: 0.65rem; margin-top: 1px;">
             <i class="bi bi-eye text-success"></i>
-            AI: SCANNING
+            AI: {{ $t('nav.aiScanning') }}
           </span>
         </div>
       </div>

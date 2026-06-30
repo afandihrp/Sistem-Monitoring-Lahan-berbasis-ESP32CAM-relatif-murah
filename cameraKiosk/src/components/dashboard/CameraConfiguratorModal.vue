@@ -142,7 +142,7 @@ const resetDials = () => {
     <div class="modal-content-custom bg-slate-900 border border-slate-700 rounded-3 shadow-lg p-4" style="max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto;">
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h6 class="text-white mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">
-          <i class="bi bi-sliders me-2 text-info"></i>Camera Configuration
+          <i class="bi bi-sliders me-2 text-info"></i>{{ $t('cameraConfig.title') }}
         </h6>
         <button @click="emit('close')" class="btn-close btn-close-white shadow-none"></button>
       </div>
@@ -150,30 +150,30 @@ const resetDials = () => {
       <div class="d-flex flex-column gap-3">
         <!-- Sensor Type Banner -->
         <div class="p-2 bg-slate-800 rounded border border-slate-700 text-center">
-          <span class="text-slate-400 small fw-bold font-monospace">TARGET SENSOR: AI-THINKER OV2640 / OV3660</span>
+          <span class="text-slate-400 small fw-bold font-monospace">{{ $t('cameraConfig.targetSensor') }}: AI-THINKER OV2640 / OV3660</span>
         </div>
 
         <!-- Format & Quality -->
         <div class="p-3 bg-slate-800 rounded-2 border border-slate-700">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <label class="text-slate-300 small fw-bold mb-0 text-uppercase">Resolution & Quality</label>
+            <label class="text-slate-300 small fw-bold mb-0 text-uppercase">{{ $t('cameraConfig.resAndQual') }}</label>
             <button @click="resetDials" class="btn btn-sm btn-outline-secondary py-0 px-2 text-uppercase font-monospace" style="font-size: 0.65rem; border-color: rgba(148, 163, 184, 0.3); color: #94a3b8;">
-              <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+              <i class="bi bi-arrow-counterclockwise me-1"></i>{{ $t('cameraConfig.reset') }}
             </button>
           </div>
           
           <div class="mb-3">
-            <label class="text-slate-400 small mb-1">Scale Mode</label>
+            <label class="text-slate-400 small mb-1">{{ $t('cameraConfig.scaleMode') }}</label>
             <select v-model="camConfig.scaleMode" class="form-select bg-slate-900 border-slate-700 text-white small">
-              <option value="static">Static (Single Configuration)</option>
-              <option value="dynamic">Dynamic (Signal Strength Based)</option>
+              <option value="static">{{ $t('cameraConfig.modeStatic') }}</option>
+              <option value="dynamic">{{ $t('cameraConfig.modeDynamic') }}</option>
             </select>
           </div>
 
           <!-- Static Mode Options -->
           <div v-if="camConfig.scaleMode === 'static'" class="row g-3">
             <div class="col-6">
-              <label class="text-slate-400 small mb-1">Resolution</label>
+              <label class="text-slate-400 small mb-1">{{ $t('cameraConfig.resolution') }}</label>
               <select v-model="camConfig.resolution" class="form-select bg-slate-900 border-slate-700 text-white font-monospace small">
                 <option v-for="opt in resolutionOptions" :key="opt.value" :value="opt.value">
                   {{ opt.label }}
@@ -182,7 +182,7 @@ const resetDials = () => {
             </div>
             <div class="col-6">
               <label class="text-slate-400 small mb-1 d-flex justify-content-between">
-                Quality <span>{{ camConfig.quality }}</span>
+                {{ $t('cameraConfig.quality') }} <span>{{ camConfig.quality }}</span>
               </label>
               <input type="range" class="form-range custom-slider mt-2" min="0" max="63" v-model.number="camConfig.quality">
             </div>
@@ -190,7 +190,7 @@ const resetDials = () => {
 
           <!-- Dynamic Mode Options (Nested inside the same container box) -->
           <div v-else class="d-flex flex-column gap-3 mt-3 pt-3 border-top border-slate-700 border-opacity-50">
-            <label class="text-slate-300 small fw-bold mb-0 text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.5px;">Bandwidth Scaling Options</label>
+            <label class="text-slate-300 small fw-bold mb-0 text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.5px;">{{ $t('cameraConfig.bandwidthScaling') }}</label>
             <div class="d-flex flex-column gap-3">
               <div v-for="bar in [5, 4, 3, 2, 1]" :key="bar" class="p-3 bg-slate-900 rounded border border-slate-700">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -203,7 +203,7 @@ const resetDials = () => {
                 </div>
                 <div class="row g-3">
                   <div class="col-6">
-                    <label class="text-slate-400 small mb-1">Resolution</label>
+                    <label class="text-slate-400 small mb-1">{{ $t('cameraConfig.resolution') }}</label>
                     <select v-model="camConfig['dynRes' + bar]" class="form-select bg-slate-900 border-slate-700 text-white font-monospace small">
                       <option v-for="opt in resolutionOptions" :key="opt.value" :value="opt.value">
                         {{ opt.label }}
@@ -212,7 +212,7 @@ const resetDials = () => {
                   </div>
                   <div class="col-6">
                     <label class="text-slate-400 small mb-1 d-flex justify-content-between">
-                      Quality <span>{{ camConfig['dynQual' + bar] }}</span>
+                      {{ $t('cameraConfig.quality') }} <span>{{ camConfig['dynQual' + bar] }}</span>
                     </label>
                     <input type="range" class="form-range custom-slider mt-2" min="0" max="63" v-model.number="camConfig['dynQual' + bar]">
                   </div>
@@ -224,11 +224,11 @@ const resetDials = () => {
 
         <!-- Image Tuning (Sliders) -->
         <div class="p-3 bg-slate-800 rounded-2 border border-slate-700">
-          <label class="text-slate-300 small fw-bold mb-3 d-block text-uppercase">Image Tuning</label>
+          <label class="text-slate-300 small fw-bold mb-3 d-block text-uppercase">{{ $t('cameraConfig.imageTuning') }}</label>
           
           <div class="mb-3">
             <div class="d-flex justify-content-between align-items-center mb-1">
-              <label class="text-slate-400 small">Brightness</label>
+              <label class="text-slate-400 small">{{ $t('cameraConfig.brightness') }}</label>
               <span class="text-info font-monospace small">{{ camConfig.brightness > 0 ? '+' : '' }}{{ camConfig.brightness }}</span>
             </div>
             <input type="range" class="form-range custom-slider" min="-2" max="2" v-model.number="camConfig.brightness">
@@ -236,7 +236,7 @@ const resetDials = () => {
 
           <div class="mb-3">
             <div class="d-flex justify-content-between align-items-center mb-1">
-              <label class="text-slate-400 small">Contrast</label>
+              <label class="text-slate-400 small">{{ $t('cameraConfig.contrast') }}</label>
               <span class="text-info font-monospace small">{{ camConfig.contrast > 0 ? '+' : '' }}{{ camConfig.contrast }}</span>
             </div>
             <input type="range" class="form-range custom-slider" min="-2" max="2" v-model.number="camConfig.contrast">
@@ -244,7 +244,7 @@ const resetDials = () => {
 
           <div>
             <div class="d-flex justify-content-between align-items-center mb-1">
-              <label class="text-slate-400 small">Saturation</label>
+              <label class="text-slate-400 small">{{ $t('cameraConfig.saturation') }}</label>
               <span class="text-info font-monospace small">{{ camConfig.saturation > 0 ? '+' : '' }}{{ camConfig.saturation }}</span>
             </div>
             <input type="range" class="form-range custom-slider" min="-2" max="2" v-model.number="camConfig.saturation">
@@ -253,18 +253,18 @@ const resetDials = () => {
 
         <!-- Filters & Switches -->
         <div class="p-3 bg-slate-800 rounded-2 border border-slate-700">
-          <label class="text-slate-300 small fw-bold mb-3 d-block text-uppercase">Filters & Exposure Controls</label>
+          <label class="text-slate-300 small fw-bold mb-3 d-block text-uppercase">{{ $t('cameraConfig.filtersExposure') }}</label>
           
           <div class="mb-3">
-            <label class="text-slate-400 small mb-1">Special Effect</label>
+            <label class="text-slate-400 small mb-1">{{ $t('cameraConfig.specialEffect') }}</label>
             <select v-model="camConfig.specialEffect" class="form-select bg-slate-900 border-slate-700 text-white small">
-              <option value="None">None (Normal)</option>
-              <option value="Negative">Negative</option>
-              <option value="Grayscale">Grayscale</option>
-              <option value="Red Tint">Red Tint</option>
-              <option value="Green Tint">Green Tint</option>
-              <option value="Blue Tint">Blue Tint</option>
-              <option value="Sepia">Sepia</option>
+              <option value="None">{{ $t('cameraConfig.effectNone') }}</option>
+              <option value="Negative">{{ $t('cameraConfig.effectNegative') }}</option>
+              <option value="Grayscale">{{ $t('cameraConfig.effectGrayscale') }}</option>
+              <option value="Red Tint">{{ $t('cameraConfig.effectRed') }}</option>
+              <option value="Green Tint">{{ $t('cameraConfig.effectGreen') }}</option>
+              <option value="Blue Tint">{{ $t('cameraConfig.effectBlue') }}</option>
+              <option value="Sepia">{{ $t('cameraConfig.effectSepia') }}</option>
             </select>
           </div>
 
@@ -292,13 +292,13 @@ const resetDials = () => {
           <!-- Mirror & Flip -->
           <div class="row g-3 mt-1">
             <div class="col-6 d-flex justify-content-between align-items-center p-2 px-3 bg-slate-900 rounded border border-slate-700 border-opacity-50">
-              <span class="text-slate-400 small">H-Mirror</span>
+              <span class="text-slate-400 small">{{ $t('cameraConfig.hmirror') }}</span>
               <div class="form-check form-switch p-0 m-0">
                 <input class="form-check-input ms-0" type="checkbox" role="switch" v-model="camConfig.hmirror">
               </div>
             </div>
             <div class="col-6 d-flex justify-content-between align-items-center p-2 px-3 bg-slate-900 rounded border border-slate-700 border-opacity-50">
-              <span class="text-slate-400 small">V-Flip</span>
+              <span class="text-slate-400 small">{{ $t('cameraConfig.vflip') }}</span>
               <div class="form-check form-switch p-0 m-0">
                 <input class="form-check-input ms-0" type="checkbox" role="switch" v-model="camConfig.vflip">
               </div>
@@ -308,18 +308,18 @@ const resetDials = () => {
 
         <!-- Hardware & Capture settings -->
         <div class="p-3 bg-slate-800 rounded-2 border border-slate-700">
-          <label class="text-slate-300 small fw-bold mb-3 d-block text-uppercase">Hardware & Capture Settings</label>
+          <label class="text-slate-300 small fw-bold mb-3 d-block text-uppercase">{{ $t('cameraConfig.hardwareCapture') }}</label>
           <div class="d-flex flex-column gap-3">
             <div>
               <div class="d-flex justify-content-between align-items-center mb-1">
-                <label class="text-slate-400 small">XCLK Frequency</label>
+                <label class="text-slate-400 small">{{ $t('cameraConfig.xclkFreq') }}</label>
                 <span class="text-info font-monospace small fw-bold">{{ xclkMHz }} MHz</span>
               </div>
               <input type="range" class="form-range custom-slider" min="1" max="21" step="1" v-model.number="xclkMHz">
             </div>
 
             <div class="d-flex justify-content-between align-items-center p-2 px-3 bg-slate-900 rounded border border-slate-700 border-opacity-50">
-              <span class="text-slate-400 small">Flash on Capture</span>
+              <span class="text-slate-400 small">{{ $t('cameraConfig.flashCapture') }}</span>
               <div class="form-check form-switch p-0 m-0">
                 <input class="form-check-input ms-0" type="checkbox" role="switch" v-model="camConfig.flashOnCapture">
               </div>
@@ -330,7 +330,7 @@ const resetDials = () => {
 
       <div class="d-flex gap-2 mt-4">
         <button @click="saveConfig" class="btn btn-primary flex-grow-1 py-2 fw-bold text-uppercase" style="font-size: 0.75rem;">
-          Save Camera Settings
+          {{ $t('cameraConfig.save') }}
         </button>
       </div>
     </div>
