@@ -600,8 +600,32 @@ IPAddress discoverBackendIP() {
     String localIP = WiFi.localIP().toString();
     String localSubnet = localIP.substring(0, localIP.lastIndexOf('.'));
     
-    // Tier 1: Local Subnet Scan
-    Serial.printf("[DISC] Tier 1: Scanning local subnet %s.x on port 3005\n", localSubnet.c_str());
+    // Tier 0: Subnet Broadcast Scan
+    Serial.println("[DISC] Tier 0: Scanning via Subnet Broadcast on port 3005");
+    IPAddress broadcastIP;
+    broadcastIP.fromString("255.255.255.255");
+    discUdp.beginPacket(broadcastIP, 3005);
+    discUdp.print("discovery_ping");
+    discUdp.endPacket();
+    
+    unsigned long startBroadcastWait = millis();
+    while(millis() - startBroadcastWait < 500) {
+      if(discUdp.parsePacket()) {
+        char packetBuffer[255];
+        int len = discUdp.read(packetBuffer, 255);
+        if (len > 0) packetBuffer[len] = 0;
+        if(String(packetBuffer) == "discovery_ack") {
+          foundIP = discUdp.remoteIP();
+          Serial.printf("[DISC] Success! Backend found at %s via Tier 0 Broadcast\n", foundIP.toString().c_str());
+          break;
+        }
+      }
+      delay(10);
+    }
+    
+    // Tier 1: Local Subnet Scan (if broadcast failed)
+    if (foundIP.toString() == "0.0.0.0") {
+      Serial.printf("[DISC] Tier 1: Scanning local subnet %s.x on port 3005\n", localSubnet.c_str());
     for(int i = 1; i < 255; i++) {
       IPAddress target;
       target.fromString(localSubnet + "." + String(i));
@@ -619,7 +643,7 @@ IPAddress discoverBackendIP() {
           break;
         }
       }
-      delay(5);
+      delay(40); // Increased delay to 40ms to prevent ARP cache overflow
     }
     
     if (foundIP.toString() == "0.0.0.0") {
@@ -637,6 +661,7 @@ IPAddress discoverBackendIP() {
         }
         delay(10);
       }
+    }
     }
     
     // Tier 2: Custom Subnet Scan
@@ -659,7 +684,7 @@ IPAddress discoverBackendIP() {
             break;
           }
         }
-        delay(5);
+        delay(40); // Increased delay to 40ms to prevent ARP cache overflow
       }
       
       if (foundIP.toString() == "0.0.0.0") {
@@ -862,9 +887,6 @@ void setup() {
   } else {
     Serial.println("[ERR] All discovery methods failed. WebSocket will not start.");
   }
-
-  // Set state to OFF (normal operations)
-  __atomic_store_n(&ledNotificationState, LED_STATE_OFF, __ATOMIC_SEQ_CST);
 }
 
 // Fungsi capture & upload yang bisa dipanggil dari PIR maupun on-demand
@@ -1041,9 +1063,10 @@ void loop() {
     // If WebSocket is disconnected, try to discover backend IP periodically via UDP unicast
     if (!isConnected) {
       if (millis() - lastDiscoveryQuery > 10000) {
-        lastDiscoveryQuery = millis();
         Serial.println("[DISC] WebSocket disconnected. Sweeping network for backend...");
+        __atomic_store_n(&ledNotificationState, LED_STATE_FINDING_SERVER, __ATOMIC_SEQ_CST);
         IPAddress newIP = discoverBackendIP();
+        lastDiscoveryQuery = millis(); // Reset timer AFTER the scan finishes
         
         if (newIP.toString() != "0.0.0.0") {
           if (newIP != serverIP) {
