@@ -223,6 +223,8 @@ function initWebSocket(servers) {
     ws.on('message', (message, isBinary) => {
       if (isCamera) {
         ws.lastDataReceived = Date.now(); // Proof of life via data stream (any message)
+        ws.isAlive = true;                // Reset liveness check on incoming data
+        ws.failedPingCount = 0;           // Clear failed pings
       }
 
       if (isBinary && isCamera) {
@@ -648,6 +650,13 @@ function initWebSocket(servers) {
   const interval = setInterval(async function ping() {
     const promises = Array.from(wss.clients).map(async (ws) => {
       if (ws.path && ws.path.startsWith('/camera')) {
+        // If we recently received data/messages, consider the socket alive and healthy
+        const timeSinceLastData = Date.now() - (ws.lastDataReceived || 0);
+        if (timeSinceLastData < 15000) {
+          ws.isAlive = true;
+          ws.failedPingCount = 0;
+        }
+
         if (ws.isAlive === false) {
           ws.failedPingCount = (ws.failedPingCount || 0) + 1;
           if (ws.failedPingCount >= 3) {
