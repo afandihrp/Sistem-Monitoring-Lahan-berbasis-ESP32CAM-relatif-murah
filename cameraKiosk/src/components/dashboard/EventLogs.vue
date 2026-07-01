@@ -1,8 +1,26 @@
 <script setup>
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import DateSorter from './DateSorter.vue'
 import PlaybackView from './PlaybackView.vue'
 import ImageViewer from './ImageViewer.vue'
+
+const { locale } = useI18n()
+
+const translateTrigger = (trigger) => {
+  if (!trigger) return '';
+  if (locale.value === 'id') {
+    return trigger
+      .replace('Motion', 'Gerakan')
+      .replace('Left', 'Kiri')
+      .replace('Middle', 'Tengah')
+      .replace('Right', 'Kanan')
+      .replace('Pixel_Motion_Detection', 'Deteksi Gerakan Pixel')
+      .replace('AI_Person_Detection', 'Deteksi Orang AI')
+      .replace('Hybrid_Motion_Detection', 'Deteksi Gerakan Hibrida');
+  }
+  return trigger;
+}
 
 const activeTab = ref('events')
 
@@ -40,10 +58,10 @@ const formatEventTime = (timestamp) => {
 
   const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   
-  if (isToday) return `Today, ${timeStr}`;
-  if (isYesterday) return `Yesterday, ${timeStr}`;
+  if (isToday) return `${locale.value === 'id' ? 'Hari ini' : 'Today'}, ${timeStr}`;
+  if (isYesterday) return `${locale.value === 'id' ? 'Kemarin' : 'Yesterday'}, ${timeStr}`;
   
-  const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const dateStr = date.toLocaleDateString(locale.value === 'id' ? 'id-ID' : 'en-US', { month: 'short', day: 'numeric' });
   return `${dateStr}, ${timeStr}`;
 }
 
@@ -88,21 +106,21 @@ const openViewer = (event) => {
     <div class="bg-slate-800 border-bottom border-slate-700 d-flex flex-column">
       <div v-if="windowWidth <= 1000" class="d-flex border-bottom border-slate-700 bg-slate-900">
         <button @click="activeTab = 'events'" :class="activeTab === 'events' ? 'border-primary text-primary font-bold active-tab' : 'border-transparent text-slate-400'" class="flex-grow-1 py-2 px-3 text-center border-bottom-2 small transition-all btn-tab">
-          <i class="bi bi-list-task me-1"></i> Events Logs
+          <i class="bi bi-list-task me-1"></i> {{ $t('events.title') }}
         </button>
         <button @click="activeTab = 'playback'" :class="activeTab === 'playback' ? 'border-primary text-primary font-bold active-tab' : 'border-transparent text-slate-400'" class="flex-grow-1 py-2 px-3 text-center border-bottom-2 small transition-all btn-tab">
-          <i class="bi bi-play-btn me-1"></i> Playback
+          <i class="bi bi-play-btn me-1"></i> {{ $t('events.playback') }}
         </button>
       </div>
 
       <div class="px-3 py-2 d-flex justify-content-between align-items-center">
         <div class="d-flex flex-column">
-          <span class="text-secondary extra-small font-bold text-uppercase tracking-wider">Trigger Logs</span>
-          <span class="badge bg-slate-700 text-secondary border border-slate-600 extra-small mt-1" style="width: fit-content;">{{ events.length }} on {{ selectedDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) }}</span>
+          <span class="text-secondary extra-small font-bold text-uppercase tracking-wider">{{ $t('events.triggerLogs') }}</span>
+          <span class="badge bg-slate-700 text-secondary border border-slate-600 extra-small mt-1" style="width: fit-content;">{{ events.length }} {{ $t('events.on') }} {{ selectedDate.toLocaleDateString(locale === 'id' ? 'id-ID' : 'en-US', { month: 'short', day: 'numeric' }) }}</span>
         </div>
         
-        <button v-if="events.length > 0" @click="emit('deleteBatch', getFormattedDateForBatch())" class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size: 0.65rem;" title="Delete all today's recorded footage">
-          <i class="bi bi-trash3-fill"></i> Clear Day
+        <button v-if="events.length > 0" @click="emit('deleteBatch', getFormattedDateForBatch())" class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size: 0.65rem;" :title="$t('events.clearDay')">
+          <i class="bi bi-trash3-fill"></i> {{ $t('events.clearDay') }}
         </button>
       </div>
     </div>
@@ -116,9 +134,9 @@ const openViewer = (event) => {
           <div class="d-flex justify-content-between align-items-start mb-1">
             <div class="d-flex align-items-center gap-2">
               <div :class="event.trigger.includes('Motion') ? 'bg-primary' : 'bg-warning'" class="rounded-circle" style="width: 6px; height: 6px;"></div>
-              <span class="fw-bold text-slate-200" style="font-size: 0.8rem;">{{ event.trigger }}</span>
+              <span class="fw-bold text-slate-200" style="font-size: 0.8rem;">{{ translateTrigger(event.trigger) }}</span>
               <span v-if="event.humanPresence" class="badge bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-1 py-0 px-2" style="font-size: 0.6rem; letter-spacing: 0.5px;">
-                <i class="bi bi-person-fill"></i> HUMAN
+                <i class="bi bi-person-fill"></i> {{ $t('events.human') }}
               </span>
             </div>
             
@@ -142,7 +160,7 @@ const openViewer = (event) => {
       
       <div v-else class="h-100 d-flex flex-column align-items-center justify-content-center text-secondary opacity-25 py-5">
         <i class="bi bi-calendar-x fs-1 mb-2"></i>
-        <div class="small fw-bold text-uppercase" style="letter-spacing: 2px;">No Events</div>
+        <div class="small fw-bold text-uppercase" style="letter-spacing: 2px;">{{ $t('events.noEvents') }}</div>
       </div>
     </div>
 
@@ -151,9 +169,9 @@ const openViewer = (event) => {
     </div>
     
     <div v-if="windowWidth <= 1000 && activeTab === 'events'" class="bg-slate-800 p-2 border-top border-slate-700 d-flex justify-content-between align-items-center">
-      <button @click="emit('prevPage')" :disabled="currentEventPage === 1" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i> Prev</button>
-      <span class="text-secondary small">Page {{ currentEventPage }} of {{ totalPages }}</span>
-      <button @click="emit('nextPage')" :disabled="currentEventPage === totalPages" class="btn btn-sm btn-outline-secondary">Next <i class="bi bi-chevron-right"></i></button>
+      <button @click="emit('prevPage')" :disabled="currentEventPage === 1" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i> {{ $t('events.prev') }}</button>
+      <span class="text-secondary small">{{ $t('events.page') }} {{ currentEventPage }} {{ $t('events.of') }} {{ totalPages }}</span>
+      <button @click="emit('nextPage')" :disabled="currentEventPage === totalPages" class="btn btn-sm btn-outline-secondary">{{ $t('events.next') }} <i class="bi bi-chevron-right"></i></button>
     </div>
 
     <Teleport to="body">

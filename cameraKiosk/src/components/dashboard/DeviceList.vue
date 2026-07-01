@@ -22,7 +22,7 @@ const getNominalDbm = (bars) => {
   <div class="d-flex flex-column border-bottom border-slate-700 flex-shrink-0 device-panel">
     <div class="bg-slate-800 px-3 py-2 border-bottom border-slate-700">
       <h6 class="m-0 fw-bold d-flex align-items-center gap-2 small">
-        <i class="bi bi-hdd-network-fill text-primary"></i> Devices
+        <i class="bi bi-hdd-network-fill text-primary"></i> {{ $t('devices.title') }}
       </h6>
     </div>
     <div class="overflow-auto custom-scrollbar flex-grow-1">

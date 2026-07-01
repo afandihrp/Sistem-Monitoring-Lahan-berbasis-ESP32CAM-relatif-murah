@@ -1,5 +1,23 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { locale } = useI18n()
+
+const translateTrigger = (trigger) => {
+  if (!trigger) return '';
+  if (locale.value === 'id') {
+    return trigger
+      .replace('Motion', 'Gerakan')
+      .replace('Left', 'Kiri')
+      .replace('Middle', 'Tengah')
+      .replace('Right', 'Kanan')
+      .replace('Pixel_Motion_Detection', 'Deteksi Gerakan Pixel')
+      .replace('AI_Person_Detection', 'Deteksi Orang AI')
+      .replace('Hybrid_Motion_Detection', 'Deteksi Gerakan Hibrida');
+  }
+  return trigger;
+}
 
 const props = defineProps({
   events: {
@@ -52,7 +70,7 @@ const activeClips = computed(() => {
       
       return {
         id: e.id || `clip_${index}`,
-        label: e.trigger || 'Motion Alert',
+        label: translateTrigger(e.trigger) || (locale.value === 'id' ? 'Peringatan Gerakan' : 'Motion Alert'),
         time: timeStr,
         decHour: parseFloat(decHour.toFixed(4)),
         duration: '10s',
@@ -281,9 +299,9 @@ watch(currentClip, (newClip) => {
       <div class="position-absolute top-0 start-0 w-100 p-2 d-flex justify-content-between align-items-start z-3 small font-monospace pointer-events-none">
         <div class="d-flex flex-column gap-1">
           <span class="badge rounded bg-danger text-white border border-danger border-opacity-25 px-2 py-0.5 d-flex align-items-center gap-1 font-bold tracking-wider">
-            <span class="pulse-dot"></span> {{ isPlaying ? 'PLAYBACK' : 'PAUSED' }}
+            <span class="pulse-dot"></span> {{ isPlaying ? $t('playback.playback') : $t('playback.paused') }}
           </span>
-          <span class="text-white opacity-75 extra-small">CAM_01 PLAYBACK</span>
+          <span class="text-white opacity-75 extra-small">CAM_01 {{ $t('playback.playback') }}</span>
         </div>
         <div class="d-flex flex-column align-items-end gap-1 text-white opacity-75 extra-small">
           <span>{{ scrubTime }}</span>
@@ -303,7 +321,7 @@ watch(currentClip, (newClip) => {
         ></video>
         <div v-else class="text-center z-2 text-slate-400 p-4">
           <i class="bi bi-camera-video fs-1 mb-2 text-info opacity-75"></i>
-          <p class="small font-monospace mb-0">PLAYBACK RESOLVED</p>
+          <p class="small font-monospace mb-0">{{ $t('playback.playbackResolved') }}</p>
           <span class="extra-small opacity-50 font-monospace">TIME: {{ scrubTime }}</span>
         </div>
         <!-- Shadow gradients -->
@@ -380,7 +398,7 @@ watch(currentClip, (newClip) => {
     <!-- 4. Recordings Index Selector List -->
     <div class="flex-grow-1 overflow-auto bg-slate-900 custom-scrollbar p-3">
       <h6 class="extra-small text-secondary text-uppercase fw-bold mb-2 tracking-wider">
-        <i class="bi bi-clock-history"></i> Today's Recordings Index
+        <i class="bi bi-clock-history"></i> {{ $t('playback.todaysRecordings') }}
       </h6>
       <div v-if="activeClips.length > 0" class="d-flex flex-column gap-2">
         <div v-for="clip in activeClips" :key="clip.id"
@@ -400,7 +418,7 @@ watch(currentClip, (newClip) => {
       <!-- Empty state -->
       <div v-else class="h-75 d-flex flex-column align-items-center justify-content-center text-secondary opacity-25 py-4">
         <i class="bi bi-camera-video-off fs-3 mb-2"></i>
-        <div class="extra-small text-uppercase tracking-wider">No recordings for this date</div>
+        <div class="extra-small text-uppercase tracking-wider">{{ $t('playback.noRecordings') }}</div>
       </div>
     </div>
   </div>

@@ -1,8 +1,12 @@
 :root {
-  --bs-body-bg: #0f172a; /* Slate 900 */
-  --bs-body-color: #f8fafc; /* Slate 50 */
-  --card-bg: #1e293b; /* Slate 800 */
-  --accent: #3b82f6; /* Blue 500 */
+  --bs-body-bg: #0f172a;
+  /* Slate 900 */
+  --bs-body-color: #f8fafc;
+  /* Slate 50 */
+  --card-bg: #1e293b;
+  /* Slate 800 */
+  --accent: #3b82f6;
+  /* Blue 500 */
 }
 
 body {
@@ -42,9 +46,11 @@ body {
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #334155;
   border-radius: 10px;
@@ -57,4 +63,15 @@ body {
 /* Transitions */
 .transition-all {
   transition: all 0.2s ease-in-out;
+}
+
+/* Mobile overrides for scrollability */
+@media (max-width: 1000px) {
+
+  body,
+  html,
+  #app {
+    overflow-y: auto !important;
+    height: auto !important;
+  }
 }
