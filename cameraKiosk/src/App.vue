@@ -1,17 +1,9 @@
 <script setup>
-<<<<<<< HEAD
 // router-view handles the routing of views
 </script>
 
 <template>
   <router-view />
-=======
-import KioskDashboard from './components/KioskDashboard.vue'
-</script>
-
-<template>
-  <KioskDashboard />
->>>>>>> 9b317bb0485fb444aef9470b6e89e26b4278c804
 </template>
 
 <style>

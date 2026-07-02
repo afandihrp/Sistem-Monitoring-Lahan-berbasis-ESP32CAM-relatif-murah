@@ -434,7 +434,6 @@ const isForceMobile = ref(false)
 const effectiveWindowWidth = computed(() => {
   return isForceMobile.value ? 999 : windowWidth.value
 })
-<<<<<<< HEAD
 
 const handleLogout = () => {
   localStorage.removeItem('isLoggedIn')
@@ -442,8 +441,6 @@ const handleLogout = () => {
   localStorage.removeItem('username')
   window.location.reload()
 }
-=======
->>>>>>> 9b317bb0485fb444aef9470b6e89e26b4278c804
 </script>
 
 <template>
@@ -458,10 +455,7 @@ const handleLogout = () => {
       :windowWidth="windowWidth" 
       :isForceMobile="isForceMobile" 
       @toggle-force-mobile="isForceMobile = !isForceMobile" 
-<<<<<<< HEAD
       @logout="handleLogout"
-=======
->>>>>>> 9b317bb0485fb444aef9470b6e89e26b4278c804
     />
 
     <main class="row g-0 flex-grow-1" id="main-layout">

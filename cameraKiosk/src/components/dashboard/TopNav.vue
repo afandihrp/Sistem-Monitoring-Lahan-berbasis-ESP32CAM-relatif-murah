@@ -43,11 +43,7 @@ defineProps({
   }
 })
 
-<<<<<<< HEAD
 defineEmits(['toggle-force-mobile', 'logout'])
-=======
-defineEmits(['toggle-force-mobile'])
->>>>>>> 9b317bb0485fb444aef9470b6e89e26b4278c804
 </script>
 
 <template>
@@ -61,12 +57,9 @@ defineEmits(['toggle-force-mobile'])
         <button @click="toggleLanguage" class="btn btn-sm btn-outline-secondary border-slate-700 text-slate-300 px-2 py-1" style="font-size: 0.65rem; border: 1px solid rgba(148, 163, 184, 0.3);">
           {{ locale === 'id' ? '🇮🇩 ID' : '🇬🇧 EN' }}
         </button>
-<<<<<<< HEAD
         <button @click="$emit('logout')" class="btn btn-sm btn-outline-danger border-slate-700 text-danger px-2 py-1" style="font-size: 0.65rem; border: 1px solid rgba(239, 68, 68, 0.3);">
           <i class="bi bi-box-arrow-right"></i> {{ locale === 'id' ? 'Keluar' : 'Logout' }}
         </button>
-=======
->>>>>>> 9b317bb0485fb444aef9470b6e89e26b4278c804
       </div>
       <div class="d-flex align-items-center gap-3">
         

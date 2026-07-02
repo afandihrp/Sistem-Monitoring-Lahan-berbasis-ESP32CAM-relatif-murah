@@ -4,11 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-<<<<<<< HEAD
     "dev": "vite --host",
-=======
-    "dev": "vite",
->>>>>>> 9b317bb0485fb444aef9470b6e89e26b4278c804
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -18,12 +14,8 @@
     "bootstrap-icons": "^1.13.1",
     "nodemon": "^3.1.14",
     "vue": "^3.5.34",
-<<<<<<< HEAD
     "vue-i18n": "^11.4.6",
     "vue-router": "^4.5.0"
-=======
-    "vue-i18n": "^11.4.6"
->>>>>>> 9b317bb0485fb444aef9470b6e89e26b4278c804
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.6",
