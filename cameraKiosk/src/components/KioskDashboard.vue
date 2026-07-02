@@ -83,27 +83,25 @@ watch(aiEnabled, (enabled) => {
 const backendBaseUrl = ref(`http://${window.location.hostname}:3000`)
 const backendWsUrl = ref(`ws://${window.location.hostname}:3000`)
 
+// Helper function to detect and connect to the active backend server
 const detectBackend = async () => {
-  // Try port 3005 first (backward compatibility if needed, or if that's the preferred HTTP port)
-  const httpUrl = `http://${window.location.hostname}:3005`
-  const wsUrl = `ws://${window.location.hostname}:3005`
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 1500)
-    const response = await fetch(`${httpUrl}/`, { signal: controller.signal })
+    const response = await fetch(`${backendBaseUrl.value}/`, { signal: controller.signal })
     clearTimeout(timeoutId)
     if (response.ok) {
-      backendBaseUrl.value = httpUrl
-      backendWsUrl.value = wsUrl
-      console.log('[Backend] Using HTTP protocol on port 3005')
+      console.log('[Backend] Using HTTP protocol on port 3000')
       return
     }
   } catch (e) {
-    console.log('[Backend] Port 3005 check failed, using default port 3000:', e)
+    console.log('[Backend] Port 3000 check failed, falling back to Nginx /ws_api proxy:', e)
   }
-  // Default to 3000
-  backendBaseUrl.value = `http://${window.location.hostname}:3000`
-  backendWsUrl.value = `ws://${window.location.hostname}:3000`
+
+  // Fallback to Nginx /ws_api proxy (Always secure HTTPS and WSS with trailing slash)
+  backendBaseUrl.value = `https://${window.location.host}/ws_api/`
+  backendWsUrl.value = `wss://${window.location.host}/ws_api/`
+  console.log(`[Backend] Using Nginx reverse proxy at ${backendBaseUrl.value}`)
 }
 
 const connectWS = () => {
