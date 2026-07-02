@@ -22,7 +22,7 @@ const handleLogin = async () => {
 
   try {
     const backendHost = window.location.hostname
-    const response = await fetch(`http://${backendHost}:3010/api/login`, {
+    const response = await fetch(`http://${backendHost}:3000/api/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

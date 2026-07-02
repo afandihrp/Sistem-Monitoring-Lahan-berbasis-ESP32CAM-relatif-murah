@@ -20,17 +20,26 @@ const server = http.createServer(app);
 // Create HTTP server
 const httpServer = http.createServer(app);
 
-// CORS middleware
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, X-MAC-Address');
-  
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
+const cors = require('cors');
+
+// Dynamic CORS Hardening: Only allow localhost and local LAN IPs on port 5173
+const allowedOriginsPattern = /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+):5173$/;
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow tools like curl, mobile apps, or same-origin requests (no origin header)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOriginsPattern.test(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS Blocked] Origin not allowed: ${origin}`);
+      callback(null, false); // Block origin by returning false (doesn't send CORS headers)
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-MAC-Address']
+}));
 
 // Initialize WebSocket server
 const wss = initWebSocket([server, httpServer]);
