@@ -46,8 +46,64 @@ const { logEvent, getLogs, deleteEventSingle, deleteEventsByDate } = require('./
 // Hardcoded API key for ESP32-CAM security
 const CAMERA_API_KEY = 'momo_gemoy_api_key_123';
 
+// Connection generation counter — each new camera connection gets a unique ID
+// so that stale close events from old sockets are safely ignored.
+let connectionGeneration = 0;
+
 function heartbeat() {
   this.isAlive = true;
+}
+
+/**
+ * Gracefully mark a camera device as Offline and clean up its state.
+ * Only processes if the generation matches (prevents stale close events).
+ */
+function handleCameraOffline(deviceId, reason, expectedGeneration) {
+  const device = state.devices.get(deviceId);
+  if (!device) return;
+
+  // Guard: ignore stale close events from old connections
+  if (expectedGeneration !== undefined && device._connectionGeneration !== expectedGeneration) {
+    console.log(`[Connection] Ignoring stale ${reason} for ${deviceId} (gen ${expectedGeneration}, current gen ${device._connectionGeneration})`);
+    return;
+  }
+
+  // Already offline — no-op
+  if (device.status === 'Offline') return;
+
+  device.status = 'Offline';
+  device.lastSeen = new Date().toLocaleTimeString();
+  console.log(`Camera ${device.ip} disconnected (${reason}).`);
+
+  if (device.isRecordingAi) {
+    stopAiRecording(deviceId);
+  }
+  if (device.pirActiveTimeout) {
+    clearTimeout(device.pirActiveTimeout);
+    device.pirActiveTimeout = null;
+  }
+  device.isPirActive = false;
+  if (device.aiStopTimer) {
+    clearTimeout(device.aiStopTimer);
+    device.aiStopTimer = null;
+  }
+  device.isRecordingAi = false;
+
+  // Dynamic Auto-Activation Switch if active camera went offline
+  if (deviceId === state.globalActiveDeviceId) {
+    const onlineDevice = Array.from(state.devices.values()).find(d => d.status === 'Online');
+    if (onlineDevice) {
+      state.globalActiveDeviceId = onlineDevice.id;
+      console.log(`[Auto-Activate Switch] Active camera went offline. Switched to: ${state.globalActiveDeviceId}`);
+    } else {
+      state.globalActiveDeviceId = null;
+      console.log(`[Auto-Activate Switch] Active camera went offline. No online cameras left.`);
+    }
+    const activeStreamPayload = JSON.stringify({ type: 'active_stream_updated', deviceId: state.globalActiveDeviceId });
+    state.broadcastToKiosks(activeStreamPayload);
+  }
+
+  broadcastDeviceList();
 }
 
 function initWebSocket(servers) {
@@ -91,10 +147,28 @@ function initWebSocket(servers) {
     ws.path = req.url; // Store path to identify client type later
     ws.remoteIp = remoteIp; // Store IP for status updates
     ws.lastDataReceived = Date.now(); // Initialize for stream-activity heartbeat
+    ws.failedPingCount = 0;
 
     if (isCamera) {
       console.log(`Camera connected: ${remoteIp} (MAC: ${macAddress})`);
       const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
+
+      // Assign a unique generation ID to this connection
+      connectionGeneration++;
+      const thisGeneration = connectionGeneration;
+      ws._connectionGeneration = thisGeneration;
+      ws._deviceId = deviceId;
+
+      // CRITICAL: Terminate old socket for same deviceId to prevent stale close events
+      const existingDevice = state.devices.get(deviceId);
+      if (existingDevice && existingDevice.ws && existingDevice.ws !== ws) {
+        console.log(`[Connection] Terminating stale socket for ${deviceId} (old gen ${existingDevice._connectionGeneration}, new gen ${thisGeneration})`);
+        try {
+          existingDevice.ws.removeAllListeners('close'); // Prevent stale close handler from firing
+          existingDevice.ws.terminate();
+        } catch (e) { /* socket already dead */ }
+      }
+
       state.devices.set(deviceId, {
         id: deviceId,
         status: 'Online',
@@ -105,6 +179,7 @@ function initWebSocket(servers) {
         signalRssi: null,
         lastSeen: new Date().toLocaleTimeString(),
         ws: ws,  // Store reference for on-demand capture
+        _connectionGeneration: thisGeneration, // Track which generation this device belongs to
         rollingBuffer: [], // Buffer for JPEG frames (Pre-roll)
         motionSensor: '',
         isRecordingAi: false,
@@ -226,6 +301,15 @@ function initWebSocket(servers) {
         ws.lastDataReceived = Date.now(); // Proof of life via data stream (any message)
         ws.isAlive = true;                // Reset liveness check on incoming data
         ws.failedPingCount = 0;           // Clear failed pings
+
+        // Update device lastSeen on any activity (not just signal messages)
+        const actDeviceId = ws._deviceId;
+        if (actDeviceId) {
+          const actDevice = state.devices.get(actDeviceId);
+          if (actDevice && actDevice._connectionGeneration === ws._connectionGeneration) {
+            actDevice.lastSeen = new Date().toLocaleTimeString();
+          }
+        }
       }
 
       if (isBinary && isCamera) {
@@ -234,7 +318,10 @@ function initWebSocket(servers) {
       } else if (!isBinary) {
         try {
           const data = JSON.parse(message.toString());
-          if (data.type === 'signal' && isCamera) {
+          if ((data.type === 'heartbeat_pong' || data.type === 'heartbeat') && isCamera) {
+            // App-layer keepalive — data-activity already updated above, nothing else to do.
+            // This silently absorbs heartbeat messages to prevent 'unknown type' log noise.
+          } else if (data.type === 'signal' && isCamera) {
             const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
             const device = state.devices.get(deviceId);
             if (device) {
@@ -615,56 +702,25 @@ function initWebSocket(servers) {
     ws.on('close', () => {
       if (isCamera) {
         const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
-        const device = state.devices.get(deviceId);
-        if (device) {
-          device.status = 'Offline';
-          device.lastSeen = new Date().toLocaleTimeString();
-          console.log(`Camera ${remoteIp} disconnected.`);
-
-          if (device.isRecordingAi) {
-            stopAiRecording(deviceId);
-          }
-          if (device.pirActiveTimeout) {
-            clearTimeout(device.pirActiveTimeout);
-            device.pirActiveTimeout = null;
-          }
-          device.isPirActive = false;
-
-          if (device.aiStopTimer) {
-            clearTimeout(device.aiStopTimer);
-            device.aiStopTimer = null;
-          }
-          device.isRecordingAi = false;
-
-          // Dynamic Auto-Activation Switch if active camera went offline
-          if (deviceId === state.globalActiveDeviceId) {
-            const onlineDevice = Array.from(state.devices.values()).find(d => d.status === 'Online');
-            if (onlineDevice) {
-              state.globalActiveDeviceId = onlineDevice.id;
-              console.log(`[Auto-Activate Switch] Active camera went offline. Switched to: ${state.globalActiveDeviceId}`);
-            } else {
-              state.globalActiveDeviceId = null;
-              console.log(`[Auto-Activate Switch] Active camera went offline. No online cameras left.`);
-            }
-            const activeStreamPayload = JSON.stringify({ type: 'active_stream_updated', deviceId: state.globalActiveDeviceId });
-            state.broadcastToKiosks(activeStreamPayload);
-          }
-
-          broadcastDeviceList();
-        }
+        // Use generation-guarded helper — stale close events are safely ignored
+        handleCameraOffline(deviceId, 'ws close event', ws._connectionGeneration);
       } else {
         console.log('Kiosk connection closed.');
       }
     });
   });
 
-  // Heartbeat interval check setiap 5 detik
+  // Heartbeat interval check every 5 seconds
   const interval = setInterval(async function ping() {
     const promises = Array.from(wss.clients).map(async (ws) => {
       if (ws.path && ws.path.startsWith('/camera')) {
-        // If we recently received data/messages, consider the socket alive and healthy
-        const timeSinceLastData = Date.now() - (ws.lastDataReceived || 0);
-        if (timeSinceLastData < 15000) {
+        const now = Date.now();
+        const timeSinceLastData = now - (ws.lastDataReceived || 0);
+
+        // DATA-ACTIVITY IS AUTHORITATIVE:
+        // If we received ANY data (frames, signals, heartbeats) within 20s,
+        // the connection is definitively alive — skip ping/pong entirely.
+        if (timeSinceLastData < 20000) {
           ws.isAlive = true;
           ws.failedPingCount = 0;
         }
@@ -672,50 +728,39 @@ function initWebSocket(servers) {
         if (ws.isAlive === false) {
           ws.failedPingCount = (ws.failedPingCount || 0) + 1;
           if (ws.failedPingCount >= 3) {
-            console.log(`[Heartbeat] Camera WebSocket ping timeout exceeded: ${ws.path}. Terminating.`);
-            const deviceId = `cam_${ws.remoteIp.replace(/\./g, '_')}`;
-            const device = state.devices.get(deviceId);
-            if (device) {
-              device.status = 'Offline';
-              device.lastSeen = new Date().toLocaleTimeString();
+            console.log(`[Heartbeat] Camera ping timeout exceeded (${ws.failedPingCount} missed, last data ${Math.round(timeSinceLastData / 1000)}s ago): ${ws.path}. Closing.`);
+            const deviceId = ws._deviceId || `cam_${ws.remoteIp.replace(/\./g, '_')}`;
 
-              if (device.isRecordingAi) {
-                stopAiRecording(deviceId);
-              }
-              if (device.pirActiveTimeout) {
-                clearTimeout(device.pirActiveTimeout);
-                device.pirActiveTimeout = null;
-              }
-              device.isPirActive = false;
-              if (device.aiStopTimer) {
-                clearTimeout(device.aiStopTimer);
-                device.aiStopTimer = null;
-              }
+            // Use generation-guarded helper for clean offline handling
+            handleCameraOffline(deviceId, 'heartbeat timeout', ws._connectionGeneration);
 
-              // Dynamic Auto-Activation Switch if active camera went offline
-              if (deviceId === state.globalActiveDeviceId) {
-                const onlineDevice = Array.from(state.devices.values()).find(d => d.status === 'Online');
-                if (onlineDevice) {
-                  state.globalActiveDeviceId = onlineDevice.id;
-                  console.log(`[Auto-Activate Switch] Active camera timed out. Switched to: ${state.globalActiveDeviceId}`);
-                } else {
-                  state.globalActiveDeviceId = null;
-                  console.log(`[Auto-Activate Switch] Active camera timed out. No online cameras left.`);
+            // Graceful close with terminate fallback (give 3s for close handshake)
+            try {
+              ws.close(1000, 'heartbeat timeout');
+              setTimeout(() => {
+                if (ws.readyState !== 3) { // 3 = CLOSED
+                  ws.terminate();
                 }
-                const activeStreamPayload = JSON.stringify({ type: 'active_stream_updated', deviceId: state.globalActiveDeviceId });
-                state.broadcastToKiosks(activeStreamPayload);
-              }
-
-              broadcastDeviceList();
+              }, 3000);
+            } catch (e) {
+              ws.terminate();
             }
-            return ws.terminate();
+            return;
           }
         } else {
           ws.failedPingCount = 0;
         }
 
+        // Send WS-protocol ping
         ws.isAlive = false;
-        if (ws.readyState === 1) ws.ping();
+        if (ws.readyState === 1) {
+          ws.ping();
+
+          // Also send app-layer heartbeat_ping for explicit keepalive
+          try {
+            ws.send(JSON.stringify({ type: 'heartbeat_ping', ts: now }));
+          } catch (e) { /* ignore send errors, heartbeat will catch it */ }
+        }
       } else {
         // Standard WS heartbeat for Kiosks
         // We only ping every 30s (6 cycles of 5s) to save bandwidth
@@ -725,7 +770,7 @@ function initWebSocket(servers) {
         if (ws.pingCounter >= 6) {
           ws.pingCounter = 0;
           if (ws.isAlive === false) {
-            console.log(`Terminating inactive connection: ${ws.path}`);
+            console.log(`Terminating inactive kiosk connection: ${ws.path}`);
             return ws.terminate();
           }
           ws.isAlive = false;

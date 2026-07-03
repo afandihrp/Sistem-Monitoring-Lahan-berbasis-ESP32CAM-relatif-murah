@@ -328,7 +328,9 @@ WebSocketsClient webSocket;
 bool isConnected = false;
 unsigned long lastWebSocketConnectedTime = 0;
 unsigned long lastSignalSent = 0;
+unsigned long lastHeartbeatSent = 0;
 unsigned long lastWsActivity = 0;
+unsigned long lastForceReconnectTime = 0;
 IPAddress serverIP;
 unsigned long lastDiscoveryQuery = 0;
 WiFiUDP udp;
@@ -337,7 +339,7 @@ bool udpInitialized = false;
 
 // UDP transmission control
 const unsigned long UDP_TIMEOUT_MS = 2000;
-const unsigned long WS_LIVENESS_TIMEOUT_MS = 30000;
+const unsigned long WS_LIVENESS_TIMEOUT_MS = 45000;
 
 uint8_t* wsPacketBuffer = nullptr;
 
@@ -353,6 +355,7 @@ void forceWebSocketReconnect(const char* reason) {
   udpInitialized = false;
   webSocket.disconnect();
   lastDiscoveryQuery = 0;
+  lastForceReconnectTime = millis(); // Prevent immediate reconnect (let close propagate)
 }
 
 bool sendWsText(String message, const char* context) {
@@ -399,7 +402,10 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
         // Set flag saja, JANGAN panggil captureAndUpload langsung dari sini!
         // Memanggil fungsi berat di dalam WS callback akan memblokir library
         // dan menyebabkan koneksi disconnect.
-        if (cmd.indexOf("\"capture_request\"") >= 0) {
+        if (cmd.indexOf("\"heartbeat_ping\"") >= 0) {
+          // App-layer keepalive from backend — reply immediately
+          webSocket.sendTXT("{\"type\":\"heartbeat_pong\"}");
+        } else if (cmd.indexOf("\"capture_request\"") >= 0) {
           Serial.println("[WSc] On-demand capture queued.");
           pendingCaptureLabel = "capture";
         } else if (cmd.indexOf("\"cancel_return\"") >= 0) {
@@ -937,7 +943,11 @@ void captureAndUpload(String label) {
   // Override quality to high quality (10) for capture, independent of streaming setting
   s->set_quality(s, 10);
 
-  delay(500); // Tunggu sensor stabil
+  // Keep WS alive during sensor stabilization
+  for (int i = 0; i < 10; i++) {
+    webSocket.loop();
+    delay(50);
+  }
 
   // Conditionally enable flash based on camera config
   if (cam_flashOnCapture) {
@@ -954,6 +964,8 @@ void captureAndUpload(String label) {
     if (discard) {
       esp_camera_fb_return(discard);
     }
+    // Keep WS alive during frame flush
+    webSocket.loop();
     delay(150);
   }
 
@@ -976,6 +988,9 @@ void captureAndUpload(String label) {
 
 
 
+  // Keep WS alive before HTTP upload
+  webSocket.loop();
+
   // === STEP 3: Upload ke server ===
   if (WiFi.status() == WL_CONNECTED) {
     WiFiClient client;
@@ -996,6 +1011,9 @@ void captureAndUpload(String label) {
     Serial.println("[5] WiFi Disconnected, skipping upload.");
   }
   esp_camera_fb_return(fb);
+
+  // Keep WS alive after upload completes
+  webSocket.loop();
 
   // === STEP 4: Kembali ke mode streaming yang terkonfigurasi ===
   Serial.println("[7] Restoring configured streaming mode...");
@@ -1092,7 +1110,8 @@ void loop() {
     }
 
     // If WebSocket is disconnected, try to discover backend IP periodically via UDP unicast
-    if (!isConnected) {
+    // Add guard: don't attempt reconnect too soon after a forced disconnect (let close propagate)
+    if (!isConnected && millis() - lastForceReconnectTime > 2000) {
       if (millis() - lastDiscoveryQuery > 10000) {
         Serial.println("[DISC] WebSocket disconnected. Sweeping network for backend...");
         __atomic_store_n(&ledNotificationState, LED_STATE_FINDING_SERVER, __ATOMIC_SEQ_CST);
@@ -1117,9 +1136,10 @@ void loop() {
     lastWebSocketConnectedTime = millis();
   }
 
-  // Failsafe reboot if disconnected or unable to connect for more than 30 seconds
-  if (millis() - lastWebSocketConnectedTime > 30000) {
-    Serial.println("[FAILSAFE] WebSocket disconnected or unable to connect for 30 seconds! Rebooting...");
+  // Failsafe reboot if disconnected or unable to connect for more than 120 seconds
+  // (increased from 30s — the new heartbeat mechanism handles connection health more precisely)
+  if (millis() - lastWebSocketConnectedTime > 120000) {
+    Serial.println("[FAILSAFE] WebSocket disconnected or unable to connect for 120 seconds! Rebooting...");
     delay(1000);
     ESP.restart();
   }
@@ -1201,7 +1221,13 @@ void loop() {
       Serial.println("[WS] Sent sweep stop report to backend");
     }
 
-    // Send signal strength every 5 seconds
+    // Send independent app-layer heartbeat every 5 seconds as proof-of-life
+    if (millis() - lastHeartbeatSent > 5000) {
+      lastHeartbeatSent = millis();
+      sendWsText("{\"type\":\"heartbeat\"}", "app heartbeat");
+    }
+
+    // Send signal strength every 8 seconds
     if (millis() - lastSignalSent > 8000) {
       lastSignalSent = millis();
       long rssi = WiFi.RSSI();
