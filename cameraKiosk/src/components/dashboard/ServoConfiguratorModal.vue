@@ -14,14 +14,12 @@ const props = defineProps({
 const emit = defineEmits(['close', 'save'])
 
 const servoConfig = ref({
-  defaultAngle: 90,
   leftPirAngle: 45,
   middlePirAngle: 90,
   rightPirAngle: 135,
-  returnToDefaultDuration: 15,
   manualSweepEnabled: false,
   manualSweepAngle: 10,
-  manualSweepInterval: 1
+  manualSweepInterval: 5
 })
 
 const fetchServoConfig = () => {
@@ -35,14 +33,12 @@ const handleConfigReceived = (event) => {
   const { mac, config } = event.detail;
   if (mac === props.mac && config) {
     servoConfig.value = {
-      defaultAngle: config.defaultAngle ?? 90,
       leftPirAngle: config.leftPirAngle ?? 45,
       middlePirAngle: config.middlePirAngle ?? 90,
       rightPirAngle: config.rightPirAngle ?? 135,
-      returnToDefaultDuration: config.returnToDefaultDuration ?? 15,
       manualSweepEnabled: config.manualSweepEnabled ?? false,
-      manualSweepAngle: config.manualSweepAngle ?? 10,
-      manualSweepInterval: config.manualSweepInterval ?? 1
+      manualSweepAngle: 10,
+      manualSweepInterval: 5
     };
     console.log('Loaded saved servo config via WS for:', mac);
   }
@@ -114,59 +110,6 @@ const handleThumbEnd = () => {
       </div>
 
       <div class="modal-body-custom pe-1">
-        <!-- Default Angle -->
-        <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-          <label class="text-slate-300 small fw-bold">{{ t('servo.defaultAngle') }}</label>
-          <span class="text-info font-monospace small">{{ servoConfig.defaultAngle }}°</span>
-        </div>
-        <input type="range" class="form-range custom-slider" min="0" max="180" v-model.number="servoConfig.defaultAngle">
-      </div>
-
-      <!-- Return to Default Duration -->
-      <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
-        <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">{{ t('servo.autoReturn') }}</label>
-        <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">{{ t('servo.autoReturnDesc') }}</span>
-        
-        <div class="d-flex gap-2 justify-content-between">
-          <button 
-            type="button"
-            @click="servoConfig.returnToDefaultDuration = 3" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 3 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            3{{ t('servo.sec') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.returnToDefaultDuration = 5" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 5 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            5{{ t('servo.sec') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.returnToDefaultDuration = 15" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 15 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            15{{ t('servo.sec') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.returnToDefaultDuration = 30" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 30 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            30{{ t('servo.sec') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.returnToDefaultDuration = 60" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 60 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            60{{ t('servo.sec') }}
-          </button>
-        </div>
-      </div>
-
       <!-- PIR Mapping (Multi-Thumb Slider) -->
       <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
         <label class="text-slate-300 small fw-bold mb-4 d-block">{{ t('servo.pirMapping') }}</label>
@@ -282,44 +225,11 @@ const handleThumbEnd = () => {
           </div>
           <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="manualSweepSwitch" v-model="servoConfig.manualSweepEnabled">
         </div>
-        
-        <div class="d-flex flex-column gap-3 transition-all"
-             :style="{ opacity: servoConfig.manualSweepEnabled ? 1 : 0.4, pointerEvents: servoConfig.manualSweepEnabled ? 'auto' : 'none' }">
-          
-          <div>
-            <label class="text-slate-400 small d-block mb-2 text-uppercase">{{ t('servo.sweepAngle') }}</label>
-            <div class="d-flex gap-2">
-              <button 
-                v-for="val in [10, 15, 20]" 
-                :key="'angle-'+val"
-                type="button"
-                :disabled="!servoConfig.manualSweepEnabled"
-                @click="servoConfig.manualSweepAngle = val" 
-                :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.manualSweepAngle === val ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-                style="font-size: 0.75rem;"
-              >
-                {{ val }}&deg;
-              </button>
-            </div>
+        <div v-if="servoConfig.manualSweepEnabled" class="mt-3 p-3 bg-slate-900 rounded border border-info shadow-info transition-all">
+          <div class="d-flex align-items-center text-info" style="font-size: 0.75rem; font-weight: 500;">
+            <i class="bi bi-info-circle-fill me-2" style="font-size: 1rem;"></i>
+            <span v-html="t('servo.manualSweepLockedDesc')"></span>
           </div>
-
-          <div>
-            <label class="text-slate-400 small d-block mb-2 text-uppercase">{{ t('servo.sweepInterval') }}</label>
-            <div class="d-flex gap-2">
-              <button 
-                v-for="val in [1, 3, 5]" 
-                :key="'interval-'+val"
-                type="button"
-                :disabled="!servoConfig.manualSweepEnabled"
-                @click="servoConfig.manualSweepInterval = val" 
-                :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.manualSweepInterval === val ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-                style="font-size: 0.75rem;"
-              >
-                {{ val }} {{ t('servo.min') }}
-              </button>
-            </div>
-          </div>
-          
         </div>
       </div>
       

@@ -154,9 +154,6 @@ const messages = {
     },
     servo: {
       title: 'Servo Configuration',
-      defaultAngle: 'DEFAULT ANGLE',
-      autoReturn: 'AUTO-RETURN DELAY',
-      autoReturnDesc: 'Wait time before the servo automatically returns to its default angle',
       pirMapping: 'PIR SENSOR MAPPING',
       left: 'LEFT',
       mid: 'MID',
@@ -164,11 +161,8 @@ const messages = {
       fovVisualizer: '69° FOV ROTATION VISUALIZER',
       manualSweep: 'MANUAL SERVO SWEEP',
       manualSweepDesc: 'Periodically shifts the servo by a specific degree on an interval',
-      sweepAngle: 'SWEEP ANGLE',
-      sweepInterval: 'SWEEP INTERVAL',
-      save: 'Save Settings',
-      sec: 's',
-      min: 'min'
+      manualSweepLockedDesc: 'This mode is locked to a <b>10°</b> movement every <b>5 minutes</b> to preserve servo longevity.',
+      save: 'Save Settings'
     },
     cameraConfig: {
       title: 'Camera Configuration',
@@ -355,9 +349,6 @@ const messages = {
     },
     servo: {
       title: 'Konfigurasi Servo',
-      defaultAngle: 'SUDUT DEFAULT',
-      autoReturn: 'TUNDA KEMBALI OTOMATIS',
-      autoReturnDesc: 'Waktu tunggu sebelum servo otomatis kembali ke sudut default',
       pirMapping: 'PEMETAAN SENSOR PIR',
       left: 'KIRI',
       mid: 'TENGAH',
@@ -365,11 +356,8 @@ const messages = {
       fovVisualizer: 'VISUALISASI ROTASI FOV 69°',
       manualSweep: 'SAPUAN SERVO MANUAL',
       manualSweepDesc: 'Menggeser servo secara berkala dengan derajat tertentu dalam interval waktu',
-      sweepAngle: 'SUDUT SAPUAN',
-      sweepInterval: 'INTERVAL SAPUAN',
-      save: 'Simpan Pengaturan',
-      sec: 'd',
-      min: 'mnt'
+      manualSweepLockedDesc: 'Mode ini dikunci pada pergerakan <b>10&deg;</b> setiap <b>5 menit</b> untuk menjaga keawetan motor servo.',
+      save: 'Simpan Pengaturan'
     },
     cameraConfig: {
       title: 'Konfigurasi Kamera',
