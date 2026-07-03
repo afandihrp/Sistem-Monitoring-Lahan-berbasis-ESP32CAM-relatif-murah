@@ -26,7 +26,12 @@ const messages = {
       singleView: 'Single View',
       settings: 'Settings',
       servoPtz: 'Servo (PTZ)',
-      waiting: 'Waiting for Stream...'
+      waiting: 'Waiting for Stream...',
+      triggerSweep: 'Start Sweep',
+      stopSweep: 'Stop Sweep',
+      sweeping: 'Sweeping',
+      sweepCont: 'Continuous',
+      sweepOnce: 'Sweep Once'
     },
     devices: {
       title: 'Devices'
@@ -227,7 +232,12 @@ const messages = {
       singleView: 'Tampilan Tunggal',
       settings: 'Pengaturan',
       servoPtz: 'Servo (PTZ)',
-      waiting: 'Menunggu Aliran Video...'
+      waiting: 'Menunggu Aliran Video...',
+      triggerSweep: 'Mulai Sapuan',
+      stopSweep: 'Hentikan Sapuan',
+      sweeping: 'Menyapu',
+      sweepCont: 'Berkelanjutan',
+      sweepOnce: 'Sapu Sekali'
     },
     devices: {
       title: 'Perangkat'

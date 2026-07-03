@@ -21,7 +21,8 @@ const {
   broadcastDeviceList,
   switchActiveStream,
   updateFlashIntensity,
-  sendCaptureRequest
+  sendCaptureRequest,
+  updateDeviceSweepState
 } = require('./websocket/deviceManager');
 
 const { getCachedStoragePayload } = require('./websocket/storageMonitor');
@@ -265,6 +266,12 @@ function initWebSocket(servers) {
                   console.error('Error handling dynamic resolution scaling on signal update:', e);
                 }
               }
+            }
+          } else if (data.type === 'sweep_status' && isCamera) {
+            const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
+            const device = state.devices.get(deviceId);
+            if (device) {
+              updateDeviceSweepState(deviceId, data.value, true);
             }
           } else if (data.type === 'motion' && isCamera) {
             const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
@@ -514,6 +521,11 @@ function initWebSocket(servers) {
                 device.trackingReturnTimer = null;
                 console.log(`[Object Follower] Cancelled return-to-center due to manual control for ${data.deviceId}`);
               }
+            }
+          } else if (data.type === 'sweep_control' && !isCamera) {
+            const device = state.devices.get(data.deviceId);
+            if (device) {
+              updateDeviceSweepState(data.deviceId, data.value);
             }
           } else if (data.type === 'get_servo_config' && !isCamera) {
             if (fs.existsSync(CONFIG_FILE)) {

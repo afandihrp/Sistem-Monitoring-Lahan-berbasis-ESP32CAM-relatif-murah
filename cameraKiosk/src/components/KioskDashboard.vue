@@ -203,6 +203,11 @@ const connectWS = () => {
         if (device) {
           device.currentAngle = data.value
         }
+      } else if (data.type === 'sweep_status_update') {
+        const device = devices.value.find(d => d.id === data.deviceId)
+        if (device) {
+          device.sweepActive = data.value
+        }
       } else if (data.type === 'device_list') {
         devices.value = data.devices
         if (pendingActiveStreamId) {
@@ -330,6 +335,17 @@ const triggerServoAction = (value) => {
       type: 'servo_control', 
       deviceId: currentStream.value.id, 
       value: parseInt(value) 
+    }));
+  }
+}
+
+const triggerSweepAction = (value) => {
+  if (ws && ws.readyState === 1 && currentStream.value.id) {
+    ws.send(JSON.stringify({ 
+      type: 'sweep_control', 
+      deviceId: currentStream.value.id, 
+      mac: currentStream.value.mac,
+      value: value 
     }));
   }
 }
@@ -468,6 +484,7 @@ const effectiveWindowWidth = computed(() => {
         @setViewMode="handleSetViewMode"
         @setAiEnabled="handleSetAiEnabled"
         @saveSystemConfig="handleSaveSystemConfig"
+        @triggerSweepAction="triggerSweepAction"
       />
 
       <aside class="col-lg-2 sidebar-section d-flex flex-column bg-slate-900 border-start border-slate-700">

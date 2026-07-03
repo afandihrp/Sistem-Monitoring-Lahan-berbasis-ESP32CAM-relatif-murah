@@ -38,6 +38,24 @@ function updateDeviceServoAngle(deviceId, angle, skipCameraSend = false) {
   state.broadcastToKiosks(payload);
 }
 
+function updateDeviceSweepState(deviceId, sweepActive, skipCameraSend = false) {
+  const device = state.devices.get(deviceId);
+  if (!device) return;
+
+  device.sweepActive = sweepActive;
+  if (!skipCameraSend && device.ws && device.ws.readyState === 1) {
+    device.ws.send(JSON.stringify({ type: 'sweep_control', value: sweepActive }));
+  }
+
+  const payload = JSON.stringify({
+    type: 'sweep_status_update',
+    deviceId: deviceId,
+    value: sweepActive
+  });
+
+  state.broadcastToKiosks(payload);
+}
+
 function broadcastDeviceList() {
   const deviceList = Array.from(state.devices.values()).map(device => ({
     id: device.id,
@@ -47,7 +65,8 @@ function broadcastDeviceList() {
     signalBars: device.signalBars,
     signalRssi: device.signalRssi || null,
     lastSeen: device.lastSeen,
-    currentAngle: device.currentAngle
+    currentAngle: device.currentAngle,
+    sweepActive: device.sweepActive || 'off'
   }));
 
   const payload = JSON.stringify({ type: 'device_list', devices: deviceList });
@@ -136,5 +155,6 @@ module.exports = {
   broadcastDeviceList,
   switchActiveStream,
   updateFlashIntensity,
-  sendCaptureRequest
+  sendCaptureRequest,
+  updateDeviceSweepState
 };

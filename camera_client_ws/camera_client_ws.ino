@@ -6,7 +6,6 @@
 #include "soc/rtc_cntl_reg.h"
 #include <WiFiManager.h>
 #include <WiFiUdp.h>
-#include <Preferences.h>
 
 // AI Thinker ESP32-CAM Pinout
 #define PWDN_GPIO_NUM     32
@@ -28,8 +27,6 @@
 
 // Servo Configuration
 #define SERVO_PIN 12
-#define SERVO_LEDC_CH 1
-#define SERVO_LEDC_TIMER 1
 #define SERVO_LEDC_RES 13 // 13-bit resolution (8192)
 #define SERVO_LEDC_FREQ 50 // 50Hz for standard servos
 
@@ -80,6 +77,10 @@ String captureLabelAfterMove = "";
 
 volatile int currentServoAngle = 90;
 volatile int targetServoAngle = 90;
+volatile int sweepMode = 0; // 0 = off, 1 = continuous, 2 = once
+volatile bool sweepDirectionUp = true;
+volatile bool sweepReturning = false;
+volatile bool pendingSweepStopReport = false;
 TaskHandle_t servoTaskHandle = NULL;
 
 // Global camera config agar bisa dipakai ulang saat reinit
@@ -174,13 +175,67 @@ void setServoAngle(uint8_t angle) {
 
 void servoTask(void * pvParameters) {
   for (;;) {
+    int mode = __atomic_load_n(&sweepMode, __ATOMIC_SEQ_CST);
+    bool returning = __atomic_load_n(&sweepReturning, __ATOMIC_SEQ_CST);
     int target = __atomic_load_n(&targetServoAngle, __ATOMIC_SEQ_CST);
     int current = __atomic_load_n(&currentServoAngle, __ATOMIC_SEQ_CST);
 
-    if (current != target) {
+    if (mode == 1 || mode == 2 || returning) {
+      int nextAngle = current;
+      
+      if (returning) {
+        // Move towards default angle (SERVO_POS_DEFAULT) at 1 degree step
+        if (current < SERVO_POS_DEFAULT) {
+          nextAngle += 1;
+        } else if (current > SERVO_POS_DEFAULT) {
+          nextAngle -= 1;
+        }
+        
+        if (nextAngle == SERVO_POS_DEFAULT) {
+          __atomic_store_n(&sweepMode, 0, __ATOMIC_SEQ_CST);
+          __atomic_store_n(&targetServoAngle, SERVO_POS_DEFAULT, __ATOMIC_SEQ_CST);
+          __atomic_store_n(&sweepReturning, false, __ATOMIC_SEQ_CST);
+          __atomic_store_n(&sweepDirectionUp, true, __ATOMIC_SEQ_CST);
+          __atomic_store_n(&pendingSweepStopReport, true, __ATOMIC_SEQ_CST);
+        }
+      } else {
+        // Normal active sweep (continuous or once) at 1 degree step
+        bool dirUp = __atomic_load_n(&sweepDirectionUp, __ATOMIC_SEQ_CST);
+        if (dirUp) {
+          nextAngle += 1;
+          if (nextAngle >= 180) {
+            nextAngle = 180;
+            __atomic_store_n(&sweepDirectionUp, false, __ATOMIC_SEQ_CST);
+          }
+        } else {
+          nextAngle -= 1;
+          if (nextAngle <= 0) {
+            nextAngle = 0;
+            if (mode == 2) {
+              // Start returning phase at 1 degree step
+              __atomic_store_n(&sweepReturning, true, __ATOMIC_SEQ_CST);
+              __atomic_store_n(&sweepDirectionUp, true, __ATOMIC_SEQ_CST); // to pan back up
+            } else {
+              // Continuous: wrap back to up direction
+              __atomic_store_n(&sweepDirectionUp, true, __ATOMIC_SEQ_CST);
+            }
+          }
+        }
+      }
+
+      __atomic_store_n(&currentServoAngle, nextAngle, __ATOMIC_SEQ_CST);
+      setServoAngle(nextAngle);
+      
+      // Keep target synchronized to prevent snap-back on stop (except when returning is active)
+      if (__atomic_load_n(&sweepMode, __ATOMIC_SEQ_CST) > 0 && !__atomic_load_n(&sweepReturning, __ATOMIC_SEQ_CST)) {
+        __atomic_store_n(&targetServoAngle, nextAngle, __ATOMIC_SEQ_CST);
+      }
+
+      vTaskDelay(pdMS_TO_TICKS(50));
+    } else if (current != target) {
       int diff = target - current;
       int nextAngle = current;
-      if (abs(diff) <=5) {
+      if (abs(diff) <= 5) {
         nextAngle = target;
       } else {
         if (diff > 0) {
@@ -271,11 +326,11 @@ void ledTask(void * pvParameters) {
 
 WebSocketsClient webSocket;
 bool isConnected = false;
+unsigned long lastWebSocketConnectedTime = 0;
 unsigned long lastSignalSent = 0;
 unsigned long lastWsActivity = 0;
 IPAddress serverIP;
 unsigned long lastDiscoveryQuery = 0;
-String globalCustomSubnet = "192.168.1";
 WiFiUDP udp;
 bool udpStreamEnabled = false;
 bool udpInitialized = false;
@@ -357,7 +412,35 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
             String valStr = cmd.substring(valueIdx, endIdx);
             valStr.trim();
             pendingServoAngle = valStr.toInt();
+            sweepMode = 0; // Disable sweep on manual control
+            sweepReturning = false;
             Serial.printf("[WSc] Servo angle received: %d\n", pendingServoAngle);
+          }
+        } else if (cmd.indexOf("\"sweep_control\"") >= 0) {
+          int valueIdx = cmd.indexOf("\"value\":");
+          if (valueIdx != -1) {
+            String valStr = cmd.substring(valueIdx + 8);
+            valStr.trim();
+            if (valStr.indexOf("\"continuous\"") >= 0) {
+              sweepMode = 1;
+              sweepReturning = false;
+              if (servoTaskHandle != NULL) {
+                vTaskResume(servoTaskHandle);
+              }
+              Serial.println("[WSc] Sweep mode: CONTINUOUS");
+            } else if (valStr.indexOf("\"once\"") >= 0) {
+              sweepMode = 2;
+              sweepDirectionUp = true;
+              sweepReturning = false;
+              if (servoTaskHandle != NULL) {
+                vTaskResume(servoTaskHandle);
+              }
+              Serial.println("[WSc] Sweep mode: ONCE (SWEEP ONE CYCLE)");
+            } else {
+              sweepMode = 0;
+              sweepReturning = false;
+              Serial.println("[WSc] Sweep mode: OFF");
+            }
           }
         } else if (cmd.indexOf("\"servo_config_update\"") >= 0) {
            int leftIdx = cmd.indexOf("\"leftPirAngle\":");
@@ -656,47 +739,6 @@ IPAddress discoverBackendIP() {
       }
     }
     }
-    
-    // Tier 2: Custom Subnet Scan
-    if(foundIP.toString() == "0.0.0.0") {
-      Serial.printf("[DISC] Tier 2: Scanning custom subnet %s.x on port 3005\n", globalCustomSubnet.c_str());
-      for(int i = 1; i < 255; i++) {
-        IPAddress target;
-        target.fromString(globalCustomSubnet + "." + String(i));
-        discUdp.beginPacket(target, 3005);
-        discUdp.print("discovery_ping");
-        discUdp.endPacket();
-        
-        if(discUdp.parsePacket()) {
-          char packetBuffer[255];
-          int len = discUdp.read(packetBuffer, 255);
-          if (len > 0) packetBuffer[len] = 0;
-          if(String(packetBuffer) == "discovery_ack") {
-            foundIP = discUdp.remoteIP();
-            Serial.printf("[DISC] Success! Backend found at %s via Custom Subnet Scan\n", foundIP.toString().c_str());
-            break;
-          }
-        }
-        delay(40); // Increased delay to 40ms to prevent ARP cache overflow
-      }
-      
-      if (foundIP.toString() == "0.0.0.0") {
-        unsigned long startWait = millis();
-        while(millis() - startWait < 2000) {
-          if(discUdp.parsePacket()) {
-            char packetBuffer[255];
-            int len = discUdp.read(packetBuffer, 255);
-            if (len > 0) packetBuffer[len] = 0;
-            if(String(packetBuffer) == "discovery_ack") {
-              foundIP = discUdp.remoteIP();
-              Serial.printf("[DISC] Success! Backend found at %s via Custom Subnet Scan (Wait Phase)\n", foundIP.toString().c_str());
-              break;
-            }
-          }
-          delay(10);
-        }
-      }
-    }
     discUdp.stop();
   }
   return foundIP;
@@ -832,13 +874,6 @@ void setup() {
   // Initialize WiFiManager
   WiFiManager wm;
   
-  Preferences preferences;
-  preferences.begin("network", false);
-  globalCustomSubnet = preferences.getString("customSubnet", "192.168.1");
-  
-  WiFiManagerParameter custom_subnet("subnet", "Main Subnet (e.g. 192.168.1)", globalCustomSubnet.c_str(), 16);
-  wm.addParameter(&custom_subnet);
-  
   // Set timeouts to prevent hanging
   wm.setConnectTimeout(20); // 20 seconds max to try connecting to saved WiFi
   wm.setConfigPortalTimeout(180); // 3 minutes max in captive portal before auto-restarting
@@ -851,16 +886,11 @@ void setup() {
     Serial.println("Starting WiFiManager autoConnect...");
     res = wm.autoConnect("ESP32-CAM-Config");
   }
-  
   if(!res) {
       Serial.println("Failed to connect to WiFi. Restarting...");
       delay(3000);
       ESP.restart();
   }
-  
-  preferences.putString("customSubnet", custom_subnet.getValue());
-  globalCustomSubnet = custom_subnet.getValue();
-  preferences.end();
   
   Serial.println("\nWiFi connected");
 
@@ -880,6 +910,8 @@ void setup() {
   } else {
     Serial.println("[ERR] All discovery methods failed. WebSocket will not start.");
   }
+  
+  lastWebSocketConnectedTime = millis();
 }
 
 // Fungsi capture & upload yang bisa dipanggil dari PIR maupun on-demand
@@ -992,6 +1024,8 @@ void pirTask(void * pvParameters) {
         Serial.println("PIR left trigger ignored (cooldown active)");
       } else {
         lastPirTriggerTime = now;
+        sweepMode = 0;
+        sweepReturning = false;
         setTargetAngle(SERVO_POS_LEFT);
         __atomic_store_n(&pendingLeftMotion, true, __ATOMIC_SEQ_CST);
       }
@@ -1009,6 +1043,8 @@ void pirTask(void * pvParameters) {
         Serial.println("PIR middle trigger ignored (cooldown active)");
       } else {
         lastPirTriggerTime = now;
+        sweepMode = 0;
+        sweepReturning = false;
         setTargetAngle(SERVO_POS_MIDDLE);
         __atomic_store_n(&pendingMiddleMotion, true, __ATOMIC_SEQ_CST);
       }
@@ -1026,6 +1062,8 @@ void pirTask(void * pvParameters) {
         Serial.println("PIR right trigger ignored (cooldown active)");
       } else {
         lastPirTriggerTime = now;
+        sweepMode = 0;
+        sweepReturning = false;
         setTargetAngle(SERVO_POS_RIGHT);
         __atomic_store_n(&pendingRightMotion, true, __ATOMIC_SEQ_CST);
       }
@@ -1073,6 +1111,17 @@ void loop() {
         }
       }
     }
+  }
+
+  if (isConnected) {
+    lastWebSocketConnectedTime = millis();
+  }
+
+  // Failsafe reboot if disconnected or unable to connect for more than 30 seconds
+  if (millis() - lastWebSocketConnectedTime > 30000) {
+    Serial.println("[FAILSAFE] WebSocket disconnected or unable to connect for 30 seconds! Rebooting...");
+    delay(1000);
+    ESP.restart();
   }
 
   if (!isConnected) {
@@ -1146,6 +1195,12 @@ void loop() {
   }
 
   if (isConnected && WiFi.status() == WL_CONNECTED) {    
+    bool reportStop = __atomic_exchange_n(&pendingSweepStopReport, false, __ATOMIC_SEQ_CST);
+    if (reportStop) {
+      sendWsText("{\"type\":\"sweep_status\",\"value\":\"off\"}", "sweep stop");
+      Serial.println("[WS] Sent sweep stop report to backend");
+    }
+
     // Send signal strength every 5 seconds
     if (millis() - lastSignalSent > 8000) {
       lastSignalSent = millis();

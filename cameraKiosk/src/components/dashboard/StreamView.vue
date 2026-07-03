@@ -79,8 +79,9 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'saveCameraConfig', 'setViewMode', 'setAiEnabled', 'saveSystemConfig'])
+const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'saveCameraConfig', 'setViewMode', 'setAiEnabled', 'saveSystemConfig', 'triggerSweepAction'])
 const servoValue = ref(90)
+const localSweepMode = ref('off')
 
 // Sync manual slider ref with backend-synced currentAngle
 watch(() => props.currentStream?.currentAngle, (newAngle) => {
@@ -88,6 +89,23 @@ watch(() => props.currentStream?.currentAngle, (newAngle) => {
     servoValue.value = newAngle
   }
 }, { immediate: true })
+
+// Sync sweep status from backend
+watch(() => props.currentStream?.sweepActive, (newVal) => {
+  localSweepMode.value = newVal || 'off'
+}, { immediate: true })
+
+const startContinuousSweep = () => {
+  const nextMode = localSweepMode.value === 'continuous' ? 'off' : 'continuous'
+  localSweepMode.value = nextMode
+  emit('triggerSweepAction', nextMode)
+}
+
+const triggerSingleSweep = () => {
+  localSweepMode.value = 'once'
+  emit('triggerSweepAction', 'once')
+}
+
 const showConfig = ref(false)
 const showCameraConfig = ref(false)
 const showSystemConfig = ref(false)
@@ -265,9 +283,27 @@ const handleSaveSystemConfig = (config) => {
                 <i class="bi bi-gear-fill" style="font-size: 0.75rem;"></i>
               </button>
             </div>
-            <span class="badge bg-slate-900 border border-slate-700 text-info font-monospace" style="font-size: 0.8rem; min-width: 50px;">
-              {{ servoValue }}°
-            </span>
+            <div class="d-flex align-items-center gap-2">
+              <button @click="startContinuousSweep" 
+                      :class="['btn py-0 px-2 fw-bold text-uppercase font-monospace d-flex align-items-center gap-1', localSweepMode === 'continuous' ? 'btn-danger shadow-danger-btn' : 'btn-outline-info text-info']"
+                      style="font-size: 0.6rem; line-height: 1.5; border-radius: 4px; border: 1px solid rgba(148, 163, 184, 0.3);">
+                <i :class="['bi', localSweepMode === 'continuous' ? 'bi-stop-fill' : 'bi-arrow-repeat']" style="font-size: 0.65rem;"></i>
+                {{ localSweepMode === 'continuous' ? $t('stream.stopSweep') : $t('stream.sweepCont') }}
+              </button>
+              <button @click="triggerSingleSweep" 
+                      :disabled="localSweepMode !== 'off'"
+                      :class="['btn py-0 px-2 fw-bold text-uppercase font-monospace d-flex align-items-center gap-1', localSweepMode === 'once' ? 'btn-danger shadow-danger-btn' : 'btn-outline-info text-info']"
+                      style="font-size: 0.6rem; line-height: 1.5; border-radius: 4px; border: 1px solid rgba(148, 163, 184, 0.3);">
+                <i class="bi bi-play-fill" style="font-size: 0.65rem;"></i>
+                {{ $t('stream.sweepOnce') }}
+              </button>
+              <span class="badge bg-slate-900 border border-slate-700 text-info font-monospace animate-pulse-custom" v-if="localSweepMode !== 'off'" style="font-size: 0.65rem; border-radius: 4px; border: 1px solid rgba(220, 53, 69, 0.3);">
+                {{ $t('stream.sweeping') }}
+              </span>
+              <span class="badge bg-slate-900 border border-slate-700 text-info font-monospace" style="font-size: 0.8rem; min-width: 50px;">
+                {{ servoValue }}°
+              </span>
+            </div>
           </div>
           <div class="position-relative py-2">
             <input type="range" 
@@ -462,5 +498,16 @@ const handleSaveSystemConfig = (config) => {
 .ai-cog-btn:hover {
   opacity: 1;
   transform: rotate(45deg);
+}
+
+.shadow-danger-btn {
+  box-shadow: 0 0 10px rgba(220, 53, 69, 0.4);
+}
+@keyframes pulseCustom {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.animate-pulse-custom {
+  animation: pulseCustom 1.5s infinite;
 }
 </style>
