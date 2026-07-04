@@ -14,23 +14,14 @@ const messages = {
       aiScanning: 'SCANNING'
     },
     stream: {
-      liveFeed: 'LIVE FEED',
       offline: 'OFFLINE',
       cameraOffline: 'Camera Offline',
       noOnlineCameras: 'No Online Cameras',
-      cameraSwitch: 'Camera Switch',
-      left: 'Left',
-      right: 'Right',
-      displayAiControls: 'Display & AI Controls',
       multipleView: 'Multiple View',
       singleView: 'Single View',
-      settings: 'Settings',
       servoPtz: 'Servo (PTZ)',
       waiting: 'Waiting for Stream...',
-      triggerSweep: 'Start Sweep',
-      stopSweep: 'Stop Sweep',
       sweeping: 'Sweeping',
-      sweepCont: 'Continuous',
       sweepOnce: 'Sweep'
     },
     devices: {
@@ -220,23 +211,14 @@ const messages = {
       aiScanning: 'MEMINDAI'
     },
     stream: {
-      liveFeed: 'LIVE FEED',
       offline: 'OFFLINE',
       cameraOffline: 'Kamera Offline',
       noOnlineCameras: 'Tidak Ada Kamera Online',
-      cameraSwitch: 'Ganti Kamera',
-      left: 'Kiri',
-      right: 'Kanan',
-      displayAiControls: 'Kontrol Tampilan & AI',
       multipleView: 'Tampilan Grid',
       singleView: 'Tampilan Tunggal',
-      settings: 'Pengaturan',
       servoPtz: 'Servo (PTZ)',
       waiting: 'Menunggu Aliran Video...',
-      triggerSweep: 'Mulai Sapuan',
-      stopSweep: 'Hentikan Sapuan',
       sweeping: 'Menyapu',
-      sweepCont: 'Berkelanjutan',
       sweepOnce: 'Sapu'
     },
     devices: {
