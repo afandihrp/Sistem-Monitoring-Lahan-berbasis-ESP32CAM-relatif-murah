@@ -81,9 +81,9 @@ const pixelMotionCaptureEnabled = ref(props.initialConfig.pixelMotionCaptureEnab
 const pixelMotionRecordingEnabled = ref(props.initialConfig.pixelMotionRecordingEnabled !== undefined ? props.initialConfig.pixelMotionRecordingEnabled : true)
 const pixelMotionCaptureDelay = ref(props.initialConfig.pixelMotionCaptureDelay !== undefined ? props.initialConfig.pixelMotionCaptureDelay : 100)
 
-// Other Settings state
 const webSoundEnabled = ref(props.initialConfig.webSoundEnabled !== undefined ? props.initialConfig.webSoundEnabled : true)
 const showFpsMeter = ref(props.initialConfig.showFpsMeter !== undefined ? props.initialConfig.showFpsMeter : true)
+const simulatedSliderEnabled = ref(props.initialConfig.simulatedSliderEnabled !== undefined ? props.initialConfig.simulatedSliderEnabled : false)
 
 // AI configurator specific states
 const pirAiDetection = ref(props.initialConfig.pirAiDetection !== undefined ? props.initialConfig.pirAiDetection : true)
@@ -238,6 +238,7 @@ const saveConfig = () => {
     webSoundEnabled: webSoundEnabled.value,
     showFpsMeter: showFpsMeter.value,
     udpStreamEnabled: udpStreamEnabled.value,
+    simulatedSliderEnabled: simulatedSliderEnabled.value,
     // AI Parameters
     pirAiDetection: pirAiDetection.value,
     pirAiRecording: pirAiRecording.value,
@@ -792,6 +793,19 @@ const saveConfig = () => {
                 <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.other.fpsMeterDesc') }}</span>
               </div>
               <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="fpsMeterSwitch" v-model="showFpsMeter">
+            </div>
+          </div>
+
+          <!-- Simulated Slider Mode Switch (Hidden developer feature) -->
+          <div class="p-3 bg-slate-800 rounded border border-slate-700">
+            <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
+              <div>
+                <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="simulatedSliderSwitch">
+                  Simulated Slider Mode
+                </label>
+                <span class="text-slate-500" style="font-size: 0.7rem;">Replace manual slider with sequential left/right step buttons (20° per second)</span>
+              </div>
+              <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="simulatedSliderSwitch" v-model="simulatedSliderEnabled">
             </div>
           </div>
 

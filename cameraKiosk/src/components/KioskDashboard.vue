@@ -4,6 +4,7 @@ import TopNav from './dashboard/TopNav.vue'
 import StreamView from './dashboard/StreamView.vue'
 import DeviceList from './dashboard/DeviceList.vue'
 import EventLogs from './dashboard/EventLogs.vue'
+import SystemSettingsModal from './dashboard/SystemSettingsModal.vue'
 
 const currentTime = ref(new Date().toLocaleTimeString())
 setInterval(() => {
@@ -34,6 +35,7 @@ const defaultConfig = {
   pixelMotionCaptureEnabled: true,
   webSoundEnabled: true,
   showFpsMeter: true,
+  simulatedSliderEnabled: false,
   // AI configurations
   pirAiDetection: true,
   pirAiRecording: true,
@@ -59,6 +61,7 @@ const liveBoxes = ref([])
 const cameraImages = ref({})
 const cameraBoxes = ref({})
 const viewMode = ref('single')
+const showSystemConfig = ref(false)
 let lastObjectUrl = null
 
 const currentStreamIndex = ref(0)
@@ -426,6 +429,24 @@ const handleSaveSystemConfig = (config) => {
   }
 }
 
+const handleSetActiveStream = (deviceId) => {
+  const index = devices.value.findIndex(d => d.id === deviceId)
+  if (index !== -1 && currentStreamIndex.value !== index) {
+    currentStreamIndex.value = index
+    if (cameraImages.value[deviceId]) {
+      liveImageSrc.value = cameraImages.value[deviceId]
+    }
+    if (cameraBoxes.value[deviceId]) {
+      liveBoxes.value = cameraBoxes.value[deviceId]
+    } else {
+      liveBoxes.value = []
+    }
+  }
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'set_active_stream', deviceId }))
+  }
+}
+
 // Mobile Pagination Logic
 const currentEventPage = ref(1)
 const eventsPerPage = 10
@@ -462,6 +483,7 @@ const effectiveWindowWidth = computed(() => {
       :windowWidth="windowWidth" 
       :isForceMobile="isForceMobile" 
       @toggle-force-mobile="isForceMobile = !isForceMobile" 
+      @openSystemConfig="showSystemConfig = true"
     />
 
     <main class="row g-0 flex-grow-1" id="main-layout">
@@ -485,6 +507,7 @@ const effectiveWindowWidth = computed(() => {
         @setAiEnabled="handleSetAiEnabled"
         @saveSystemConfig="handleSaveSystemConfig"
         @triggerSweepAction="triggerSweepAction"
+        @setActiveStream="handleSetActiveStream"
       />
 
       <aside class="col-lg-2 sidebar-section d-flex flex-column bg-slate-900 border-start border-slate-700">
@@ -505,6 +528,14 @@ const effectiveWindowWidth = computed(() => {
         />
       </aside>
     </main>
+
+    <!-- System Settings Configuration Modal -->
+    <SystemSettingsModal 
+      v-if="showSystemConfig" 
+      :initialConfig="{ ...systemConfig, cameraDetectionEnabled: aiEnabled }"
+      @close="showSystemConfig = false" 
+      @save="handleSaveSystemConfig" 
+    />
   </div>
 </template>
 

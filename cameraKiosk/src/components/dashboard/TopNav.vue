@@ -43,7 +43,7 @@ defineProps({
   }
 })
 
-defineEmits(['toggle-force-mobile'])
+const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig'])
 </script>
 
 <template>
@@ -52,13 +52,13 @@ defineEmits(['toggle-force-mobile'])
       <div class="d-flex align-items-center gap-2">
         <a class="navbar-brand fw-bold d-flex align-items-center gap-2 m-0" href="#" style="font-size: 1.1rem;">
           <i class="bi bi-shield-lock-fill text-primary fs-5"></i>
-          Gateway_OS
+          <span v-if="windowWidth >= 440">Gateway_OS</span>
         </a>
         <button @click="toggleLanguage" class="btn btn-sm btn-outline-secondary border-slate-700 text-slate-300 px-2 py-1" style="font-size: 0.65rem; border: 1px solid rgba(148, 163, 184, 0.3);">
           {{ locale === 'id' ? '🇮🇩 ID' : '🇬🇧 EN' }}
         </button>
       </div>
-      <div class="d-flex align-items-center gap-3">
+      <div class="d-flex align-items-center gap-3 ms-auto">
         
         <div v-if="storageData" class="d-flex flex-column justify-content-center border-end pe-3 me-1 border-slate-700" style="width: 110px;">
           <div class="d-flex justify-content-between mb-1" style="font-size: 0.6rem; font-weight: bold;">
@@ -77,7 +77,7 @@ defineEmits(['toggle-force-mobile'])
             {{ storageData.usedGb }}GB / {{ storageData.totalGb }}GB
           </div>
         </div>
-        <div class="d-flex align-items-center gap-2 border-end pe-2 pe-sm-3 border-slate-700">
+        <div v-if="windowWidth >= 650" class="d-flex align-items-center gap-2 border-end pe-2 pe-sm-3 border-slate-700">
           <div class="fw-bold font-monospace lh-1" style="font-size: 0.85rem;">{{ currentTime }}</div>
           <div class="text-secondary" style="font-size: 0.65rem;">
             {{ new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) }}
@@ -117,6 +117,10 @@ defineEmits(['toggle-force-mobile'])
             AI: {{ $t('nav.aiScanning') }}
           </span>
         </div>
+        <!-- System Settings Button -->
+        <button @click="emit('openSystemConfig')" class="btn btn-sm btn-link p-0 text-slate-400 hover-info ms-1" title="System Settings">
+          <i class="bi bi-gear-fill text-slate-400" style="font-size: 1rem; transition: color 0.2s ease, transform 0.2s ease; display: inline-block;"></i>
+        </button>
       </div>
     </div>
   </nav>
@@ -135,8 +139,6 @@ defineEmits(['toggle-force-mobile'])
 }
 
 @media (max-width: 480px) {
-  .navbar-brand { font-size: 0.85rem !important; }
-  .navbar-brand i { font-size: 1rem !important; }
   .container-fluid { padding-left: 0.4rem !important; padding-right: 0.4rem !important; }
   .gap-3 { gap: 0.5rem !important; }
 }
