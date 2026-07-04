@@ -250,7 +250,7 @@ const handleSaveCameraConfig = (config) => {
             <div v-for="device in onlineDevices" 
                  :key="device.id" 
                  @click="selectActiveStream(device.id)"
-                 :class="['grid-item', 'bg-black', 'position-relative', { 'active-grid-stream': device.id === currentStream.id }]">
+                 :class="['grid-item', 'bg-black', 'position-relative']">
               
               <!-- Premium Custom Radio Selector -->
               <div class="position-absolute top-0 start-0 p-3 z-3 select-indicator-container">
@@ -486,10 +486,7 @@ const handleSaveCameraConfig = (config) => {
   transition: border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease;
 }
 
-.active-grid-stream {
-  border: 2px solid #3b82f6 !important;
-  box-shadow: inset 0 0 15px rgba(59, 130, 246, 0.4);
-}
+
 
 .select-radio-btn {
   width: 18px;
