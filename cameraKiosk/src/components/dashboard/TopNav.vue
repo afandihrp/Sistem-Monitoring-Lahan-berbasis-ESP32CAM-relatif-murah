@@ -40,10 +40,14 @@ defineProps({
   windowWidth: {
     type: Number,
     required: true
+  },
+  viewMode: {
+    type: String,
+    required: true
   }
 })
 
-const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig'])
+const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMode'])
 </script>
 
 <template>
@@ -52,7 +56,7 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig'])
       <div class="d-flex align-items-center gap-2">
         <a class="navbar-brand fw-bold d-flex align-items-center gap-2 m-0" href="#" style="font-size: 1.1rem;">
           <i class="bi bi-shield-lock-fill text-primary fs-5"></i>
-          <span v-if="windowWidth >= 440">Gateway_OS</span>
+          <span v-if="windowWidth >= 510">Gateway_OS</span>
         </a>
         <button @click="toggleLanguage" class="btn btn-sm btn-outline-secondary border-slate-700 text-slate-300 px-2 py-1" style="font-size: 0.65rem; border: 1px solid rgba(148, 163, 184, 0.3);">
           {{ locale === 'id' ? '🇮🇩 ID' : '🇬🇧 EN' }}
@@ -77,7 +81,7 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig'])
             {{ storageData.usedGb }}GB / {{ storageData.totalGb }}GB
           </div>
         </div>
-        <div v-if="windowWidth >= 650" class="d-flex align-items-center gap-2 border-end pe-2 pe-sm-3 border-slate-700">
+        <div v-if="windowWidth >= 695" class="d-flex align-items-center gap-2 border-end pe-2 pe-sm-3 border-slate-700">
           <div class="fw-bold font-monospace lh-1" style="font-size: 0.85rem;">{{ currentTime }}</div>
           <div class="text-secondary" style="font-size: 0.65rem;">
             {{ new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) }}
@@ -95,32 +99,40 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig'])
           {{ isForceMobile ? $t('nav.normalView') : $t('nav.mobileView') }}
         </button>
         
-        <div class="d-flex flex-column align-items-end justify-content-center text-secondary" style="font-size: 0.85rem; line-height: 1.2;">
-          <span :class="wsStatus === 'Online' ? 'text-success' : 'text-danger'" class="fw-bold d-flex align-items-center gap-1" style="font-size: 0.8rem;">
-            <i :class="wsStatus === 'Online' ? 'bi-broadcast text-success' : 'bi-broadcast-pin text-danger'"></i>
-            <span class="d-none d-sm-inline">WS:</span> {{ wsStatus === 'Online' ? $t('nav.wsOnline') : $t('nav.wsOffline') }}
-          </span>
-          <span v-if="!aiEnabled" class="fw-bold d-flex align-items-center gap-1 text-slate-400" style="font-size: 0.65rem; margin-top: 1px;">
-            <i class="bi bi-eye-slash-fill text-slate-400"></i>
-            AI: {{ $t('nav.aiDisabled') }}
-          </span>
-          <span v-else-if="!aiConnected" class="fw-bold d-flex align-items-center gap-1 text-danger" style="font-size: 0.65rem; margin-top: 1px;">
-            <i class="bi bi-cloud-slash text-danger"></i>
-            AI: {{ $t('nav.aiOffline') }}
-          </span>
-          <span v-else-if="aiDetecting" class="fw-bold d-flex align-items-center gap-1 text-warning" style="font-size: 0.65rem; margin-top: 1px;">
-            <i class="bi bi-eye-fill text-warning animate-pulse"></i>
-            AI: {{ $t('nav.aiDetecting') }}
-          </span>
-          <span v-else class="fw-bold d-flex align-items-center gap-1 text-success" style="font-size: 0.65rem; margin-top: 1px;">
-            <i class="bi bi-eye text-success"></i>
-            AI: {{ $t('nav.aiScanning') }}
-          </span>
+        <div class="d-flex align-items-center text-secondary" style="font-size: 1rem; gap: 0.5rem;">
+          <!-- WebSocket Status Icon -->
+          <i :class="wsStatus === 'Online' ? 'bi-broadcast text-success' : 'bi-broadcast-pin text-danger'"
+             :title="'WebSocket: ' + (wsStatus === 'Online' ? $t('nav.wsOnline') : $t('nav.wsOffline'))">
+          </i>
+          
+          <!-- AI Status Icon -->
+          <i v-if="!aiEnabled" class="bi bi-eye-slash-fill text-slate-400" :title="'AI: ' + $t('nav.aiDisabled')"></i>
+          <i v-else-if="!aiConnected" class="bi bi-cloud-slash text-danger" :title="'AI: ' + $t('nav.aiOffline')"></i>
+          <i v-else-if="aiDetecting" class="bi bi-eye-fill text-warning animate-pulse" :title="'AI: ' + $t('nav.aiDetecting')"></i>
+          <i v-else class="bi bi-eye text-success" :title="'AI: ' + $t('nav.aiScanning')"></i>
+
+          <!-- Separator between status and display mode -->
+          <div class="vr bg-slate-600 opacity-40 mx-1" style="height: 1rem; align-self: center; width: 1.5px;"></div>
+
+          <!-- Display Mode Toggle Button -->
+          <button @click="emit('setViewMode', viewMode === 'single' ? 'multiple' : 'single')" 
+                  class="btn btn-sm btn-link p-1 hover-info d-flex align-items-center justify-content-center"
+                  :title="viewMode === 'single' ? $t('stream.multipleView') : $t('stream.singleView')"
+                  style="min-width: 32px; min-height: 32px;">
+            <i :class="viewMode === 'single' ? 'bi bi-grid-3x3-gap-fill text-slate-400' : 'bi bi-camera-fill text-slate-400'" style="font-size: 1rem; transition: color 0.2s ease, transform 0.2s ease; display: inline-block;"></i>
+          </button>
+
+          <!-- Separator between display mode and settings -->
+          <div class="vr bg-slate-600 opacity-40 mx-1" style="height: 1rem; align-self: center; width: 1.5px;"></div>
+
+          <!-- System Settings Button -->
+          <button @click="emit('openSystemConfig')" 
+                  class="btn btn-sm btn-link p-1 hover-info d-flex align-items-center justify-content-center" 
+                  title="System Settings"
+                  style="min-width: 32px; min-height: 32px;">
+            <i class="bi bi-gear-fill text-slate-400" style="font-size: 1rem; transition: color 0.2s ease, transform 0.2s ease; display: inline-block;"></i>
+          </button>
         </div>
-        <!-- System Settings Button -->
-        <button @click="emit('openSystemConfig')" class="btn btn-sm btn-link p-0 text-slate-400 hover-info ms-1" title="System Settings">
-          <i class="bi bi-gear-fill text-slate-400" style="font-size: 1rem; transition: color 0.2s ease, transform 0.2s ease; display: inline-block;"></i>
-        </button>
       </div>
     </div>
   </nav>

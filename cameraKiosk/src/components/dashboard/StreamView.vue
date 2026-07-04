@@ -368,23 +368,7 @@ const handleSaveCameraConfig = (config) => {
               <span>90°</span>
               <span>180°</span>
             </div>
-          </div>
-        </div>
-
-        <!-- Camera Grid Controls -->
-        <div class="row g-2 align-items-end">
-
-          <!-- View Mode Toggle & AI Control (Only visible and controllable on mobile screens) -->
-          <div v-if="windowWidth <= 1000" class="col-md-6 d-flex flex-column gap-2">
-            <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">{{ $t('stream.displayAiControls') }}</label>
-            <div class="d-flex gap-2">
-              <!-- Single Toggle View Mode Button -->
-              <button @click="emit('setViewMode', viewMode === 'single' ? 'multiple' : 'single')" 
-                      class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center gap-1 py-2">
-                <i :class="viewMode === 'single' ? 'bi bi-grid-3x3-gap-fill' : 'bi bi-camera-fill'"></i>
-                {{ viewMode === 'single' ? $t('stream.multipleView') : $t('stream.singleView') }}
-              </button>
-            </div>
+            
           </div>
         </div>
       </div>

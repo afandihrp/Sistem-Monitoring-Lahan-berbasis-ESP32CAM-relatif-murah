@@ -482,8 +482,10 @@ const effectiveWindowWidth = computed(() => {
       :storageData="storageData" 
       :windowWidth="windowWidth" 
       :isForceMobile="isForceMobile" 
+      :viewMode="viewMode"
       @toggle-force-mobile="isForceMobile = !isForceMobile" 
       @openSystemConfig="showSystemConfig = true"
+      @setViewMode="handleSetViewMode"
     />
 
     <main class="row g-0 flex-grow-1" id="main-layout">
