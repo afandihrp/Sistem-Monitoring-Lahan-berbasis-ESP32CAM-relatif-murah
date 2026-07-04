@@ -164,7 +164,6 @@ function initWebSocket(servers) {
       if (existingDevice && existingDevice.ws && existingDevice.ws !== ws) {
         console.log(`[Connection] Terminating stale socket for ${deviceId} (old gen ${existingDevice._connectionGeneration}, new gen ${thisGeneration})`);
         try {
-          existingDevice.ws.removeAllListeners('close'); // Prevent stale close handler from firing
           existingDevice.ws.terminate();
         } catch (e) { /* socket already dead */ }
       }

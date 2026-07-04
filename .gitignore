@@ -1,5 +1,4 @@
 data
 config.json
 cameraKioskFORV20
-deploy.sh
-test.rest
+ignoredfiles
