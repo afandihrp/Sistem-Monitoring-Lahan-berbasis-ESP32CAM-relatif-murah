@@ -280,11 +280,7 @@ WiFiUDP udp;
 bool udpStreamEnabled = false;
 bool udpInitialized = false;
 
-// UDP health monitoring and adaptive fallback control
-bool udpFallbackActive = false;
-unsigned long udpFailCount = 0;
-unsigned long udpRetryTime = 0;
-const unsigned long UDP_RETRY_INTERVAL = 15000;
+// UDP transmission control
 const unsigned long UDP_TIMEOUT_MS = 2000;
 const unsigned long WS_LIVENESS_TIMEOUT_MS = 30000;
 
@@ -547,13 +543,10 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
                   start++;
                 }
                 bool nextUdp = (cmd.substring(start, start + 4).indexOf("true") != -1);
-                if (nextUdp != udpStreamEnabled) {
-                  udpStreamEnabled = nextUdp;
-                  // Reset fallback variables when user manually toggles settings
-                  udpFallbackActive = false;
-                  udpFailCount = 0;
-                  pendingConnectionRestart = true;
-                }
+                 if (nextUdp != udpStreamEnabled) {
+                   udpStreamEnabled = nextUdp;
+                   pendingConnectionRestart = true;
+                 }
               }
             }
             Serial.printf("[WSc] System settings updated: pirEnabled=%d, pirCooldown=%d, udpStreamEnabled=%d\n", cam_pirEnabled, cam_pirCooldown, udpStreamEnabled);
@@ -1170,20 +1163,8 @@ void loop() {
       return;
     }
 
-    // Kirim frame JPEG ke kiosk via WebSocket atau UDP dengan adaptive fallback
-    bool useUdp = false;
-    if (udpStreamEnabled) {
-      if (udpFallbackActive) {
-        // Jika sedang fallback, periksa apakah sudah waktunya mencoba UDP lagi
-        if (millis() > udpRetryTime) {
-          useUdp = true;
-        } else {
-          useUdp = false; // Tetap gunakan WebSocket
-        }
-      } else {
-        useUdp = true;
-      }
-    }
+    // Kirim frame JPEG ke kiosk via WebSocket atau UDP (strictly according to configuration)
+    bool useUdp = udpStreamEnabled;
 
     bool sentViaUdp = false;
     if (useUdp) {
@@ -1253,19 +1234,8 @@ void loop() {
         }
         
         if (!frameSentOk) {
-          udpFailCount++;
-          Serial.printf("[UDP] Frame send failed! Fail count: %lu/3\n", udpFailCount);
-          if (udpFailCount >= 3) {
-            udpFallbackActive = true;
-            udpRetryTime = millis() + UDP_RETRY_INTERVAL;
-            Serial.printf("[UDP] 3 consecutive failures. Falling back to WebSocket streaming for %lu ms.\n", UDP_RETRY_INTERVAL);
-          }
+          Serial.println("[UDP] Frame send failed!");
         } else {
-          udpFailCount = 0;
-          if (udpFallbackActive) {
-            udpFallbackActive = false;
-            Serial.println("[UDP] Stream successfully recovered! Switching back to UDP.");
-          }
           sentViaUdp = true;
         }
       }

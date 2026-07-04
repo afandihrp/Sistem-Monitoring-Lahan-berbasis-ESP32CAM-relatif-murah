@@ -54,7 +54,13 @@ function renderVideo(frameBuffers, outputFilename, maxDuration = 30) {
       // Command menggunakan Software Encoder (libx264) yang 100% kompatibel dan aman.
       // Ditambahkan flag faststart dan baseline profile agar Telegram tidak menolak format videonya.
       // Menggunakan -r 10 untuk memaksa output video memiliki format frame rate standar 10 fps agar Telegram kompatibel.
-      const ffmpegCmd = `nice -n 19 ffmpeg -y -framerate ${inputFramerate} -i ${sessionDir}/frame_%03d.jpg -r 10 -c:v libx264 -preset ultrafast -crf 30 -profile:v baseline -level 3.0 -pix_fmt yuv420p -movflags +faststart ${outputPath}`;
+      const inputPattern = path.join(sessionDir, 'frame_%03d.jpg');
+      let ffmpegCmd;
+      if (process.platform === 'win32') {
+        ffmpegCmd = `ffmpeg -y -framerate ${inputFramerate} -i "${inputPattern}" -r 10 -c:v libx264 -preset ultrafast -crf 30 -profile:v baseline -level 3.0 -pix_fmt yuv420p -movflags +faststart "${outputPath}"`;
+      } else {
+        ffmpegCmd = `nice -n 19 ffmpeg -y -framerate ${inputFramerate} -i "${inputPattern}" -r 10 -c:v libx264 -preset ultrafast -crf 30 -profile:v baseline -level 3.0 -pix_fmt yuv420p -movflags +faststart "${outputPath}"`;
+      }
 
       console.log(`[VideoRenderer] Memulai rendering video: ${ffmpegCmd}`);
 
