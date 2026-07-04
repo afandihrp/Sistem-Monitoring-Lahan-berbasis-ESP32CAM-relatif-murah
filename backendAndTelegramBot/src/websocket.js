@@ -35,6 +35,11 @@ const {
 
 const { wsFrameAssemblies, processChunkedMessage } = require('./websocket/frameReassembler');
 const { handlePirUpload } = require('./websocket/pirHandler');
+const {
+  updateDeviceAutoSweep,
+  resetDeviceSweepTimer,
+  clearDeviceSweep
+} = require('./websocket/sweepManager');
 
 // Require UDP server to initialize it automatically on load
 require('./websocket/udpServer');
@@ -103,8 +108,12 @@ function handleCameraOffline(deviceId, reason, expectedGeneration) {
     state.broadcastToKiosks(activeStreamPayload);
   }
 
+  clearDeviceSweep(deviceId);
+
   broadcastDeviceList();
 }
+
+
 
 function initWebSocket(servers) {
   const wss = new WebSocketServer({ noServer: true });
@@ -196,6 +205,8 @@ function initWebSocket(servers) {
         telegramAlertsMuted: false
       });
       broadcastDeviceList();
+      // Initialize automatic sweep schedules
+      updateDeviceAutoSweep(deviceId);
 
       // Auto-activate first online camera if none active, or if current active is offline
       const currentActiveDevice = state.globalActiveDeviceId ? state.devices.get(state.globalActiveDeviceId) : null;
@@ -612,6 +623,10 @@ function initWebSocket(servers) {
             const device = state.devices.get(data.deviceId);
             if (device) {
               updateDeviceSweepState(data.deviceId, data.value);
+              // Reset the auto-sweep interval timer if they manually triggered a single sweep
+              if (data.value === 'once') {
+                resetDeviceSweepTimer(data.deviceId);
+              }
             }
           } else if (data.type === 'get_servo_config' && !isCamera) {
             if (fs.existsSync(CONFIG_FILE)) {
@@ -647,6 +662,8 @@ function initWebSocket(servers) {
                 cameraDevice.ws.send(JSON.stringify({ type: 'servo_config_update', config: data.config }));
                 console.log(`Pushed updated servo config to camera ${data.mac}`);
               }
+              // Update auto sweep schedule for the device
+              updateDeviceAutoSweep(cameraDevice.id);
             }
           } else if (data.type === 'get_camera_config' && !isCamera) {
             if (fs.existsSync(CAMERA_CONFIG_FILE)) {

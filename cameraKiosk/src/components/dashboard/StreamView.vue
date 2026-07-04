@@ -311,12 +311,6 @@ const handleSaveCameraConfig = (config) => {
               </button>
             </div>
             <div class="d-flex align-items-center gap-2">
-              <button @click="startContinuousSweep" 
-                      :class="['btn py-0 px-2 fw-bold text-uppercase font-monospace d-flex align-items-center gap-1', localSweepMode === 'continuous' ? 'btn-danger shadow-danger-btn' : 'btn-outline-info text-info']"
-                      style="font-size: 0.6rem; line-height: 1.5; border-radius: 4px; border: 1px solid rgba(148, 163, 184, 0.3);">
-                <i :class="['bi', localSweepMode === 'continuous' ? 'bi-stop-fill' : 'bi-arrow-repeat']" style="font-size: 0.65rem;"></i>
-                {{ localSweepMode === 'continuous' ? $t('stream.stopSweep') : $t('stream.sweepCont') }}
-              </button>
               <button @click="triggerSingleSweep" 
                       :disabled="localSweepMode !== 'off'"
                       :class="['btn py-0 px-2 fw-bold text-uppercase font-monospace d-flex align-items-center gap-1', localSweepMode === 'once' ? 'btn-danger shadow-danger-btn' : 'btn-outline-info text-info']"

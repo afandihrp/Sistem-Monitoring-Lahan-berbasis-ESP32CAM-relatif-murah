@@ -19,9 +19,7 @@ const servoConfig = ref({
   middlePirAngle: 90,
   rightPirAngle: 135,
   returnToDefaultDuration: 15,
-  manualSweepEnabled: false,
-  manualSweepAngle: 10,
-  manualSweepInterval: 1
+  sweepMode: 'disabled'
 })
 
 const fetchServoConfig = () => {
@@ -40,9 +38,7 @@ const handleConfigReceived = (event) => {
       middlePirAngle: config.middlePirAngle ?? 90,
       rightPirAngle: config.rightPirAngle ?? 135,
       returnToDefaultDuration: config.returnToDefaultDuration ?? 15,
-      manualSweepEnabled: config.manualSweepEnabled ?? false,
-      manualSweepAngle: config.manualSweepAngle ?? 10,
-      manualSweepInterval: config.manualSweepInterval ?? 1
+      sweepMode: config.sweepMode ?? 'disabled'
     };
     console.log('Loaded saved servo config via WS for:', mac);
   }
@@ -128,7 +124,14 @@ const handleThumbEnd = () => {
         <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">{{ t('servo.autoReturn') }}</label>
         <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">{{ t('servo.autoReturnDesc') }}</span>
         
-        <div class="d-flex gap-2 justify-content-between">
+        <div class="d-flex gap-2 justify-content-between flex-wrap">
+          <button 
+            type="button"
+            @click="servoConfig.returnToDefaultDuration = 0" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 0 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem; min-width: 65px;">
+            {{ t('servo.disabled') }}
+          </button>
           <button 
             type="button"
             @click="servoConfig.returnToDefaultDuration = 3" 
@@ -271,55 +274,47 @@ const handleThumbEnd = () => {
         </div>
       </div>
 
-      <!-- Manual Servo Sweep -->
+      <!-- Servo Sweep Option Selectors -->
       <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
-        <div class="form-check form-switch d-flex justify-content-between align-items-center p-0 mb-3">
-          <div>
-            <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="manualSweepSwitch">
-              {{ t('servo.manualSweep') }}
-            </label>
-            <span class="text-slate-500" style="font-size: 0.7rem;">{{ t('servo.manualSweepDesc') }}</span>
-          </div>
-          <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="manualSweepSwitch" v-model="servoConfig.manualSweepEnabled">
-        </div>
+        <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">{{ t('servo.servoSweep') }}</label>
+        <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">{{ t('servo.sweepDesc') }}</span>
         
-        <div class="d-flex flex-column gap-3 transition-all"
-             :style="{ opacity: servoConfig.manualSweepEnabled ? 1 : 0.4, pointerEvents: servoConfig.manualSweepEnabled ? 'auto' : 'none' }">
-          
-          <div>
-            <label class="text-slate-400 small d-block mb-2 text-uppercase">{{ t('servo.sweepAngle') }}</label>
-            <div class="d-flex gap-2">
-              <button 
-                v-for="val in [10, 15, 20]" 
-                :key="'angle-'+val"
-                type="button"
-                :disabled="!servoConfig.manualSweepEnabled"
-                @click="servoConfig.manualSweepAngle = val" 
-                :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.manualSweepAngle === val ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-                style="font-size: 0.75rem;"
-              >
-                {{ val }}&deg;
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label class="text-slate-400 small d-block mb-2 text-uppercase">{{ t('servo.sweepInterval') }}</label>
-            <div class="d-flex gap-2">
-              <button 
-                v-for="val in [1, 3, 5]" 
-                :key="'interval-'+val"
-                type="button"
-                :disabled="!servoConfig.manualSweepEnabled"
-                @click="servoConfig.manualSweepInterval = val" 
-                :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.manualSweepInterval === val ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-                style="font-size: 0.75rem;"
-              >
-                {{ val }} {{ t('servo.min') }}
-              </button>
-            </div>
-          </div>
-          
+        <div class="d-flex gap-2 justify-content-between flex-wrap">
+          <button 
+            type="button"
+            @click="servoConfig.sweepMode = 'disabled'" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.sweepMode === 'disabled' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem; min-width: 65px;">
+            {{ t('servo.disabled') }}
+          </button>
+          <button 
+            type="button"
+            @click="servoConfig.sweepMode = 'continuous'" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.sweepMode === 'continuous' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem;">
+            {{ t('servo.continuous') }}
+          </button>
+          <button 
+            type="button"
+            @click="servoConfig.sweepMode = '15s'" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.sweepMode === '15s' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem;">
+            15{{ t('servo.sec') }}
+          </button>
+          <button 
+            type="button"
+            @click="servoConfig.sweepMode = '30s'" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.sweepMode === '30s' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem;">
+            30{{ t('servo.sec') }}
+          </button>
+          <button 
+            type="button"
+            @click="servoConfig.sweepMode = '1m'" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.sweepMode === '1m' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem;">
+            1{{ t('servo.min') }}
+          </button>
         </div>
       </div>
       

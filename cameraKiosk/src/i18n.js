@@ -31,7 +31,7 @@ const messages = {
       stopSweep: 'Stop Sweep',
       sweeping: 'Sweeping',
       sweepCont: 'Continuous',
-      sweepOnce: 'Sweep Once'
+      sweepOnce: 'Sweep'
     },
     devices: {
       title: 'Devices'
@@ -167,13 +167,13 @@ const messages = {
       mid: 'MID',
       right: 'RIGHT',
       fovVisualizer: '69° FOV ROTATION VISUALIZER',
-      manualSweep: 'MANUAL SERVO SWEEP',
-      manualSweepDesc: 'Periodically shifts the servo by a specific degree on an interval',
-      sweepAngle: 'SWEEP ANGLE',
-      sweepInterval: 'SWEEP INTERVAL',
+      servoSweep: 'SERVO SWEEP',
+      sweepDesc: 'Configure automatic sweeping interval or continuous mode',
+      continuous: 'Continuous',
       save: 'Save Settings',
       sec: 's',
-      min: 'min'
+      min: 'min',
+      disabled: 'Disabled'
     },
     cameraConfig: {
       title: 'Camera Configuration',
@@ -237,7 +237,7 @@ const messages = {
       stopSweep: 'Hentikan Sapuan',
       sweeping: 'Menyapu',
       sweepCont: 'Berkelanjutan',
-      sweepOnce: 'Sapu Sekali'
+      sweepOnce: 'Sapu'
     },
     devices: {
       title: 'Perangkat'
@@ -373,13 +373,13 @@ const messages = {
       mid: 'TENGAH',
       right: 'KANAN',
       fovVisualizer: 'VISUALISASI ROTASI FOV 69°',
-      manualSweep: 'SAPUAN SERVO MANUAL',
-      manualSweepDesc: 'Menggeser servo secara berkala dengan derajat tertentu dalam interval waktu',
-      sweepAngle: 'SUDUT SAPUAN',
-      sweepInterval: 'INTERVAL SAPUAN',
+      servoSweep: 'SAPUAN SERVO',
+      sweepDesc: 'Konfigurasi interval sapuan otomatis atau mode terus-menerus',
+      continuous: 'Terus Menerus',
       save: 'Simpan Pengaturan',
       sec: 'd',
-      min: 'mnt'
+      min: 'mnt',
+      disabled: 'Nonaktif'
     },
     cameraConfig: {
       title: 'Konfigurasi Kamera',

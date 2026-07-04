@@ -469,8 +469,7 @@ function triggerAiWorker() {
           const now = Date.now();
           const manualControlAge = device.lastManualControlTime ? (now - device.lastManualControlTime) : Infinity;
           const returnDuration = getReturnDuration(device.mac);
-
-          if (device.currentAngle !== defaultAngle && !device.trackingReturnTimer && manualControlAge > returnDuration) {
+          if (returnDuration > 0 && device.currentAngle !== defaultAngle && !device.trackingReturnTimer && manualControlAge > returnDuration) {
             console.log(`[Object Follower] No person detected on ${deviceId}. Scheduling return-to-center in ${returnDuration/1000} seconds...`);
             device.trackingReturnTimer = setTimeout(() => {
                if (!device.isRecordingAi && !device.isPirActive) {
