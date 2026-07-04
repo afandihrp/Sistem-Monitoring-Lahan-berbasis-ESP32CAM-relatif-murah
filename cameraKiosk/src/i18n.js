@@ -417,7 +417,7 @@ const messages = {
 
 export const i18n = createI18n({
   legacy: false, // use Composition API
-  locale: 'id', // set default locale to Indonesian
+  locale: localStorage.getItem('kiosk_locale') || 'id',
   fallbackLocale: 'en',
   messages,
 })

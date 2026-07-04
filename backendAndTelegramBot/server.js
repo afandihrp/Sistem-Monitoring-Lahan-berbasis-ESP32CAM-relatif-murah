@@ -8,7 +8,6 @@ const { initWebSocket } = require('./src/websocket');
 const createRouter = require('./src/routes/index');
 const { initTelegramBot } = require('./src/telegram/index');
 const { initUdpDiscovery } = require('./src/services/udp_discovery');
-const { publishService } = require('./src/services/mdns');
 
 const app = express();
 const port = 3000;
@@ -47,8 +46,7 @@ server.listen(port, '0.0.0.0', () => {
   // Initialize Telegram Bot
   initTelegramBot();
   
-  // Publish mDNS so frontends can discover via gateway.local
-  publishService('gateway', 'http', port, 'gateway.local');
+
 });
 
 httpServer.listen(httpPort, '0.0.0.0', () => {

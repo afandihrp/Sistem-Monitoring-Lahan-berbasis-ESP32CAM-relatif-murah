@@ -5,6 +5,7 @@ const { locale } = useI18n()
 
 function toggleLanguage() {
   locale.value = locale.value === 'id' ? 'en' : 'id'
+  localStorage.setItem('kiosk_locale', locale.value)
 }
 
 defineProps({
