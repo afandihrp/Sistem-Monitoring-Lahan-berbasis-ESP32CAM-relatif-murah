@@ -43,7 +43,7 @@ function registerActions(bot) {
       await ctx.answerCbQuery();
       const timestampPart = ctx.match[1];
 
-      const { getLogs } = require('../services/logger');
+      const { getLogs } = require('../services/sqllite_logger');
       const logs = getLogs();
       const entry = logs.find(e => e.videoUrl && e.videoUrl.includes(`_${timestampPart}.mp4`));
 

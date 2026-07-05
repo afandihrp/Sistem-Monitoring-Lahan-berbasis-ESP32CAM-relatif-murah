@@ -1,4 +1,4 @@
-const { logEvent, getLogs } = require('../services/logger');
+const { logEvent, getLogs } = require('../services/sqllite_logger');
 
 function handleTripwire(wss) {
   return (req, res) => {

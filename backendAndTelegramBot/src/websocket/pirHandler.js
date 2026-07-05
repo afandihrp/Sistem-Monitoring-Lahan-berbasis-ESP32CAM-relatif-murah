@@ -5,7 +5,7 @@ const { getDefaultAngle } = require('./configManager');
 const { updateDeviceServoAngle } = require('./deviceManager');
 const { getDeviceHeader, getActiveAiClient, stopAiRecording } = require('./aiWorker');
 const { aiClient } = require('../services/aiClient');
-const { updateLatestLogWithAI, getLogs } = require('../services/logger');
+const { updateLatestLogWithAI, getLogs } = require('../services/sqllite_logger');
 const { sendMotionAlert } = require('../telegram');
 const { resetIdleTimer } = require('./sweepManager');
 

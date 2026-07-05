@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { logEvent, getLogs } = require('../services/logger');
+const { logEvent, getLogs } = require('../services/sqllite_logger');
 const { notifyCaptureResult } = require('../telegram/index');
 
 function handleUpload(wss) {

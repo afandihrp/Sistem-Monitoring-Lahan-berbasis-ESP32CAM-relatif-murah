@@ -179,7 +179,7 @@ Available Commands:
       const fullYear = yy < 100 ? yy + 2000 : yy;
       const dateLabel = `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${fullYear}`;
 
-      const { getLogs } = require('../services/logger');
+      const { getLogs } = require('../services/sqllite_logger');
       const logs = getLogs();
 
       const matched = logs.filter(entry => {
@@ -247,7 +247,7 @@ Available Commands:
       const fullYear = yy < 100 ? yy + 2000 : yy;
       const dateLabel = `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${fullYear}`;
 
-      const { getLogs } = require('../services/logger');
+      const { getLogs } = require('../services/sqllite_logger');
       const logs = getLogs();
 
       const matched = logs.filter(entry => {

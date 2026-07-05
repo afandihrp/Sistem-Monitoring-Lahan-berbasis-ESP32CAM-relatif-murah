@@ -5,7 +5,7 @@ const { getDefaultAngle, getReturnDuration } = require('./configManager');
 const { updateDeviceServoAngle, serializeFrame } = require('./deviceManager');
 
 const { yoloClient, pixelClient, aiClient } = require('../services/aiClient');
-const { logEvent, getLogs, updateLatestLogVideo } = require('../services/logger');
+const { logEvent, getLogs, updateLatestLogVideo } = require('../services/sqllite_logger');
 const { sendMotionAlert, sendMotionVideoAlert } = require('../telegram');
 const { renderVideo } = require('../services/videoRenderer');
 const { calculateNextFollowerAngle } = require('../services/objectFollower');

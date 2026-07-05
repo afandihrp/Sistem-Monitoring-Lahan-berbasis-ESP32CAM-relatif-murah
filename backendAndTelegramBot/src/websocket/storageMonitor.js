@@ -1,6 +1,6 @@
 const checkDiskSpace = require('check-disk-space').default;
 const state = require('./state');
-const { deleteOldestEvent, getLogs } = require('../services/logger');
+const { deleteOldestEvent, getLogs } = require('../services/sqllite_logger');
 
 let isPurging = false;
 let cachedStoragePayload = null;

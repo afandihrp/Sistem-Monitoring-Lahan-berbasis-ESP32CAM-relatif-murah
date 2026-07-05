@@ -46,7 +46,7 @@ require('./websocket/udpServer');
 
 // Import AI and Logger services
 const { aiClient } = require('./services/aiClient');
-const { logEvent, getLogs, deleteEventSingle, deleteEventsByDate } = require('./services/logger');
+const { logEvent, getLogs, deleteEventSingle, deleteEventsByDate } = require('./services/sqllite_logger');
 
 // Hardcoded API key for ESP32-CAM security
 const CAMERA_API_KEY = 'momo_gemoy_api_key_123';
