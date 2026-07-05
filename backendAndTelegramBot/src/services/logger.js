@@ -50,7 +50,9 @@ async function updateLatestLogWithAI(sensor, deviceIp, imageUrl, humanPresence, 
         let found = false;
         for (let i = logs.length - 1; i >= 0; i--) {
           const log = logs[i];
-          if (log.sensor === sensor && log.deviceId === deviceId) {
+          const logTime = new Date(log.timestamp).getTime();
+          const isRecent = (Date.now() - logTime) < 10000; // 10 seconds
+          if (log.sensor === sensor && log.deviceId === deviceId && !log.imageUrl && isRecent) {
             log.imageUrl = imageUrl;
             log.humanPresence = humanPresence;
             if (aiDetails) {

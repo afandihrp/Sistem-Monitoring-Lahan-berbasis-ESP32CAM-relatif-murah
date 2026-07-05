@@ -54,12 +54,8 @@ function handleUpload(wss) {
         return res.send('Uploaded (Capture)');
       }
 
+      // Unknown sensor type — ignore
       res.send('Uploaded');
-
-      const { handlePirUpload } = require('../websocket');
-      handlePirUpload(ip, sensor, req.body, wss, filepath, filename, imageUrl).catch(err => {
-        console.error('[Routes] handlePirUpload error:', err);
-      });
     } catch (err) {
       console.error('Error processing upload:', err);
       if (!res.headersSent) {

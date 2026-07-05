@@ -6,6 +6,7 @@
 #include "soc/rtc_cntl_reg.h"
 #include <WiFiManager.h>
 #include <WiFiUdp.h>
+#include <Preferences.h>
 
 // AI Thinker ESP32-CAM Pinout
 #define PWDN_GPIO_NUM     32
@@ -70,10 +71,6 @@ unsigned long servoReturnTime = 0;
 bool isServoWaitingToReturn = false;
 
 volatile bool pendingConnectionRestart = false;
-
-// State variables for deferred motion capture (move first, then capture)
-bool triggerCaptureAfterMove = false;
-String captureLabelAfterMove = "";
 
 volatile int currentServoAngle = 90;
 volatile int targetServoAngle = 90;
@@ -333,6 +330,7 @@ unsigned long lastWsActivity = 0;
 unsigned long lastForceReconnectTime = 0;
 IPAddress serverIP;
 unsigned long lastDiscoveryQuery = 0;
+String globalCustomSubnet = "192.168.1";
 WiFiUDP udp;
 bool udpStreamEnabled = false;
 bool udpInitialized = false;
@@ -745,6 +743,47 @@ IPAddress discoverBackendIP() {
       }
     }
     }
+    
+    // Tier 2: Custom Subnet Scan
+    if (foundIP.toString() == "0.0.0.0") {
+      Serial.printf("[DISC] Tier 2: Scanning custom subnet %s.x on port 3005\n", globalCustomSubnet.c_str());
+      for(int i = 1; i < 255; i++) {
+        IPAddress target;
+        target.fromString(globalCustomSubnet + "." + String(i));
+        discUdp.beginPacket(target, 3005);
+        discUdp.print("discovery_ping");
+        discUdp.endPacket();
+        
+        if(discUdp.parsePacket()) {
+          char packetBuffer[255];
+          int len = discUdp.read(packetBuffer, 255);
+          if (len > 0) packetBuffer[len] = 0;
+          if(String(packetBuffer) == "discovery_ack") {
+            foundIP = discUdp.remoteIP();
+            Serial.printf("[DISC] Success! Backend found at %s via Custom Subnet Scan\n", foundIP.toString().c_str());
+            break;
+          }
+        }
+        delay(40); // Increased delay to 40ms to prevent ARP cache overflow
+      }
+      
+      if (foundIP.toString() == "0.0.0.0") {
+        unsigned long startWait = millis();
+        while(millis() - startWait < 2000) {
+          if(discUdp.parsePacket()) {
+            char packetBuffer[255];
+            int len = discUdp.read(packetBuffer, 255);
+            if (len > 0) packetBuffer[len] = 0;
+            if(String(packetBuffer) == "discovery_ack") {
+              foundIP = discUdp.remoteIP();
+              Serial.printf("[DISC] Success! Backend found at %s via Custom Subnet Scan (Wait Phase)\n", foundIP.toString().c_str());
+              break;
+            }
+          }
+          delay(10);
+        }
+      }
+    }
     discUdp.stop();
   }
   return foundIP;
@@ -880,6 +919,13 @@ void setup() {
   // Initialize WiFiManager
   WiFiManager wm;
   
+  Preferences preferences;
+  preferences.begin("network", false);
+  globalCustomSubnet = preferences.getString("customSubnet", "192.168.1");
+  
+  WiFiManagerParameter custom_subnet("subnet", "Main Subnet (e.g. 192.168.1)", globalCustomSubnet.c_str(), 16);
+  wm.addParameter(&custom_subnet);
+  
   // Set timeouts to prevent hanging
   wm.setConnectTimeout(20); // 20 seconds max to try connecting to saved WiFi
   wm.setConfigPortalTimeout(180); // 3 minutes max in captive portal before auto-restarting
@@ -897,6 +943,10 @@ void setup() {
       delay(3000);
       ESP.restart();
   }
+  
+  preferences.putString("customSubnet", custom_subnet.getValue());
+  globalCustomSubnet = custom_subnet.getValue();
+  preferences.end();
   
   Serial.println("\nWiFi connected");
 
@@ -1166,7 +1216,6 @@ void loop() {
     
     // Batalkan auto-return jika digerakkan manual
     isServoWaitingToReturn = false;
-    triggerCaptureAfterMove = false; // Batalkan capture terjadwal jika diinterupsi manual
   }
 
   // Proses auto-return servo
@@ -1187,22 +1236,7 @@ void loop() {
       String msg = "{\"type\":\"motion\",\"sensor\":\"" + detectedSensor + "\"}";
       sendWsText(msg, "motion event");
     }
-    triggerCaptureAfterMove = true;
-    captureLabelAfterMove = detectedSensor;
-    isServoWaitingToReturn = false; // Tunda auto-return sampai foto selesai
-  }
-
-  // Proses capture setelah servo selesai bergerak ke posisi target PIR
-  if (triggerCaptureAfterMove) {
-    int current = __atomic_load_n(&currentServoAngle, __ATOMIC_SEQ_CST);
-    int target = __atomic_load_n(&targetServoAngle, __ATOMIC_SEQ_CST);
-    if (current == target) {
-      triggerCaptureAfterMove = false;
-      captureAndUpload(captureLabelAfterMove);
-      // Mulai menghitung mundur pengembalian servo ke tengah setelah 15 detik (safety fallback jika backend putus)
-      servoReturnTime = millis() + 15000;
-      isServoWaitingToReturn = true;
-    }
+    // Backend will capture the latest stream frame as the PIR snapshot
   }
 
   // Debug: Print pin states every 2 seconds
@@ -1268,6 +1302,15 @@ void loop() {
         bool frameSentOk = true;
         unsigned long sendStart = millis();
         
+        // Fetch RSSI once per frame instead of per chunk to avoid expensive driver calls
+        long rssi = WiFi.RSSI();
+        int chunkDelay = 0;
+        if (rssi < -65) {
+          chunkDelay = 5;
+        } else if (rssi < -55) {
+          chunkDelay = 3;
+        }
+        
         for (uint8_t chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
           size_t offset = chunkIdx * maxChunkSize;
           size_t chunkSize = totalLen - offset;
@@ -1303,15 +1346,16 @@ void loop() {
             break;
           }
           
-          // Berikan delay yang dinamis berdasarkan kekuatan sinyal agar antrian TX WiFi tidak kepenuhan
-          long rssi = WiFi.RSSI();
-          int chunkDelay = 1;
-          if (rssi < -65) {
-            chunkDelay = 5;
-          } else if (rssi < -55) {
-            chunkDelay = 3;
+          if (chunkDelay > 0) {
+            delay(chunkDelay);
+          } else {
+            yield();
           }
-          delay(chunkDelay);
+          
+          // Yield to websocket loop occasionally to prevent connection starvation
+          if (chunkIdx % 4 == 0) {
+            webSocket.loop();
+          }
         }
         
         if (!frameSentOk) {

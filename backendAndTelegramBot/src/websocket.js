@@ -34,7 +34,7 @@ const {
 } = require('./websocket/aiWorker');
 
 const { wsFrameAssemblies, processChunkedMessage } = require('./websocket/frameReassembler');
-const { handlePirUpload } = require('./websocket/pirHandler');
+const { handlePirTrigger } = require('./websocket/pirHandler');
 const {
   updateDeviceAutoSweep,
   resetDeviceSweepTimer,
@@ -167,6 +167,25 @@ function initWebSocket(servers) {
       const thisGeneration = connectionGeneration;
       ws._connectionGeneration = thisGeneration;
       ws._deviceId = deviceId;
+
+      // Check if this MAC address is already registered under a different deviceId (IP changed)
+      let oldDeviceIdToRemove = null;
+      if (macAddress && macAddress !== 'Unknown MAC') {
+        for (const [existingId, dev] of state.devices.entries()) {
+          if (dev.mac === macAddress && existingId !== deviceId) {
+            console.log(`[Connection] IP changed for MAC ${macAddress}. Removing old device ID ${existingId}`);
+            oldDeviceIdToRemove = existingId;
+            if (dev.ws) {
+              try { dev.ws.terminate(); } catch (e) { /* ignore */ }
+            }
+            break;
+          }
+        }
+      }
+      
+      if (oldDeviceIdToRemove) {
+        state.devices.delete(oldDeviceIdToRemove);
+      }
 
       // CRITICAL: Terminate old socket for same deviceId to prevent stale close events
       const existingDevice = state.devices.get(deviceId);
@@ -397,21 +416,11 @@ function initWebSocket(servers) {
               if (device.pirActiveTimeout) {
                 clearTimeout(device.pirActiveTimeout);
               }
-              // Pre-upload safety timeout of 8 seconds
-              device.pirActiveTimeout = setTimeout(() => {
-                if (device.isPirActive) {
-                  device.isPirActive = false;
 
-                  if (device.isRecordingAi) {
-                    stopAiRecording(deviceId);
-                  } else {
-                    const defaultAngle = getDefaultAngle(device.mac);
-                    updateDeviceServoAngle(deviceId, defaultAngle);
-                  }
-                  console.log(`[AI Hold] Pre-upload safety timeout triggered (8s). Returned servo to center for ${deviceId}.`);
-                }
-                device.pirActiveTimeout = null;
-              }, 8000);
+              // Immediately grab the latest stream frame as the PIR snapshot
+              handlePirTrigger(remoteIp, data.sensor, wss).catch(err => {
+                console.error('[PIR Trigger] Error during PIR trigger handling:', err);
+              });
             }
 
             // Log event to data/log.json
@@ -827,5 +836,5 @@ module.exports = {
   sendCaptureRequest,
   switchActiveStream,
   updateFlashIntensity,
-  handlePirUpload
+  handlePirTrigger
 };

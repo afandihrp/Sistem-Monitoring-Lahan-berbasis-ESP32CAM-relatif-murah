@@ -315,6 +315,13 @@ const handleThumbEnd = () => {
             style="font-size: 0.75rem;">
             1{{ t('servo.min') }}
           </button>
+          <button 
+            type="button"
+            @click="servoConfig.sweepMode = '5m'" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.sweepMode === '5m' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem;">
+            5{{ t('servo.min') }}
+          </button>
         </div>
       </div>
       

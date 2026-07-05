@@ -10,6 +10,7 @@ const { sendMotionAlert, sendMotionVideoAlert } = require('../telegram');
 const { renderVideo } = require('../services/videoRenderer');
 const { calculateNextFollowerAngle } = require('../services/objectFollower');
 const { shouldWorkerProcessFrame, shouldEnqueueStreamFrame } = require('../services/aiController');
+const { resetIdleTimer } = require('./sweepManager');
 
 const aiQueue = [];
 let isAiWorkerRunning = false;
@@ -205,6 +206,7 @@ function triggerAiWorker() {
       device.personDetected = personDetected;
       // Logika Perekaman AI
       if (personDetected) {
+        resetIdleTimer(deviceId); // Reset Idle Sweep Timer on detection
         if (device.aiStopTimer) {
           clearTimeout(device.aiStopTimer);
           device.aiStopTimer = null;
@@ -475,6 +477,7 @@ function triggerAiWorker() {
                if (!device.isRecordingAi && !device.isPirActive) {
                     const defAngle = getDefaultAngle(device.mac);
                     updateDeviceServoAngle(deviceId, defAngle);
+                    resetIdleTimer(deviceId); // Reset Idle Sweep Timer on return to center
                     console.log(`[Object Follower] Returned servo to default ${defAngle}° for ${deviceId} after ${returnDuration/1000}s of no detection.`);
                }
                device.trackingReturnTimer = null;

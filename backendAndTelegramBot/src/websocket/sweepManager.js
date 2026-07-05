@@ -34,17 +34,25 @@ function updateDeviceAutoSweep(deviceId) {
   if (sweepMode === 'continuous') {
     // Continuous sweep is handled directly on ESP32CAM firmware
     updateDeviceSweepState(deviceId, 'continuous');
-  } else if (sweepMode === '15s' || sweepMode === '30s' || sweepMode === '1m') {
+  } else if (sweepMode === '15s' || sweepMode === '30s' || sweepMode === '1m' || sweepMode === '5m') {
     // If continuous sweep was previously running, stop it first
     updateDeviceSweepState(deviceId, 'off');
 
     let intervalMs = 15000;
     if (sweepMode === '30s') intervalMs = 30000;
     else if (sweepMode === '1m') intervalMs = 60000;
+    else if (sweepMode === '5m') intervalMs = 300000;
 
     const timer = setInterval(() => {
       const dev = state.devices.get(deviceId);
       if (dev && dev.status === 'Online' && dev.ws && dev.ws.readyState === 1) {
+        // For Smart Sweep, ensure the device is truly idle before triggering
+        if (sweepMode === '5m') {
+          if (dev.isRecordingAi || dev.isPirActive || dev.trackingReturnTimer) {
+             console.log(`[Auto Sweep] Skipped 5m smart sweep for ${deviceId} (Device is currently busy/tracking)`);
+             return;
+          }
+        }
         console.log(`[Auto Sweep] Triggering automatic periodic single sweep for ${deviceId}`);
         updateDeviceSweepState(deviceId, 'once');
       }
@@ -61,7 +69,7 @@ function updateDeviceAutoSweep(deviceId) {
   }
 }
 
-function resetDeviceSweepTimer(deviceId) {
+function resetIdleTimer(deviceId) {
   const activeTimer = deviceSweepIntervals.get(deviceId);
   if (!activeTimer) return;
 
@@ -72,7 +80,13 @@ function resetDeviceSweepTimer(deviceId) {
   const timer = setInterval(() => {
     const dev = state.devices.get(deviceId);
     if (dev && dev.status === 'Online' && dev.ws && dev.ws.readyState === 1) {
-      console.log(`[Auto Sweep] Triggering automatic periodic single sweep for ${deviceId} (after manual reset)`);
+      if (activeTimer.sweepMode === '5m') {
+        if (dev.isRecordingAi || dev.isPirActive || dev.trackingReturnTimer) {
+           console.log(`[Auto Sweep] Skipped 5m smart sweep for ${deviceId} (Device is currently busy/tracking)`);
+           return;
+        }
+      }
+      console.log(`[Auto Sweep] Triggering automatic periodic single sweep for ${deviceId} (after idle reset)`);
       updateDeviceSweepState(deviceId, 'once');
     }
   }, activeTimer.intervalMs);
@@ -82,7 +96,14 @@ function resetDeviceSweepTimer(deviceId) {
     intervalMs: activeTimer.intervalMs,
     sweepMode: activeTimer.sweepMode
   });
-  console.log(`[Auto Sweep] Reset interval timer for device: ${deviceId} due to manual trigger`);
+  
+  if (activeTimer.sweepMode === '5m') {
+     // console.log(`[Auto Sweep] Reset 5-minute idle watchdog timer for device: ${deviceId}`);
+  }
+}
+
+function resetDeviceSweepTimer(deviceId) {
+  resetIdleTimer(deviceId);
 }
 
 function clearDeviceSweep(deviceId) {
@@ -96,5 +117,6 @@ function clearDeviceSweep(deviceId) {
 module.exports = {
   updateDeviceAutoSweep,
   resetDeviceSweepTimer,
+  resetIdleTimer,
   clearDeviceSweep
 };

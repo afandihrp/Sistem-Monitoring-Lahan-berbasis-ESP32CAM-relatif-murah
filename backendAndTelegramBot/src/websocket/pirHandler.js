@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const state = require('./state');
 const { getDefaultAngle } = require('./configManager');
 const { updateDeviceServoAngle } = require('./deviceManager');
@@ -6,29 +7,51 @@ const { getDeviceHeader, getActiveAiClient, stopAiRecording } = require('./aiWor
 const { aiClient } = require('../services/aiClient');
 const { updateLatestLogWithAI, getLogs } = require('../services/logger');
 const { sendMotionAlert } = require('../telegram');
+const { resetIdleTimer } = require('./sweepManager');
 
-async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename, imageUrl) {
+async function handlePirTrigger(ip, sensor, wss) {
   const deviceId = `cam_${ip.replace(/\./g, '_')}`;
   const device = state.devices.get(deviceId);
 
   if (!device) {
-    console.warn(`[PIR Upload] No device found for IP: ${ip}. Skipping.`);
+    console.warn(`[PIR Trigger] No device found for IP: ${ip}. Skipping.`);
+    return;
+  }
+  
+  resetIdleTimer(deviceId); // Reset Idle Sweep Timer on PIR detection
+
+  // Use the latest stream frame already buffered by aiWorker.
+  // If no frame is available yet (e.g. right after boot or UDP failures),
+  // wait up to 2 seconds for the next stream frame to arrive.
+  let imageBuffer = device.latestFrame;
+  if (!imageBuffer || imageBuffer.length === 0) {
+    const maxRetries = 10;
+    const retryIntervalMs = 200;
+    for (let i = 0; i < maxRetries; i++) {
+      await new Promise(resolve => setTimeout(resolve, retryIntervalMs));
+      imageBuffer = device.latestFrame;
+      if (imageBuffer && imageBuffer.length > 0) {
+        console.log(`[PIR Trigger] Frame became available after ${(i + 1) * retryIntervalMs}ms wait for device ${deviceId}.`);
+        break;
+      }
+    }
+  }
+  if (!imageBuffer || imageBuffer.length === 0) {
+    console.warn(`[PIR Trigger] No latest frame available for device ${deviceId} after 2s wait. Skipping snapshot.`);
     return;
   }
 
-  // If PIR is disabled or not actively triggered (isPirActive is false), ignore the upload
-  if (!device.isPirActive) {
-    console.log(`[PIR Upload] Ignored upload from camera ${ip} (PIR disabled or trigger blocked by cooldown)`);
-    return;
+  // Build filepath/filename from the sensor and IP
+  const timestamp = Date.now();
+  const filename = `motion_${ip.replace(/\./g, '_')}_${sensor}_${timestamp}.jpg`;
+  const photosDir = path.join(__dirname, '../../../data/photos');
+  if (!fs.existsSync(photosDir)) {
+    fs.mkdirSync(photosDir, { recursive: true });
   }
+  const filepath = path.join(photosDir, filename);
+  const imageUrl = `/data/photos/${filename}`;
 
-  // --- 1. Clear the 8-second pre-upload safety timeout ---
-  if (device.pirActiveTimeout) {
-    clearTimeout(device.pirActiveTimeout);
-    device.pirActiveTimeout = null;
-  }
-
-  // --- 2. Determine whether AI can drive the recording ---
+  // --- 1. Determine whether AI can drive the recording ---
   const { shouldRunPirSnapshotAI } = require('../services/aiController');
   const isAiOnline = aiClient.isConnected && state.globalAiEnabled && state.globalPirAiRecording;
   const aiSettings = {
@@ -37,7 +60,7 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
     globalPirAiRecording: state.globalPirAiRecording
   };
 
-  // --- 3. Evaluate Telegram cooldown ---
+  // --- 2. Evaluate Telegram cooldown ---
   const now = Date.now();
   const intervalMs = state.globalTelegramInterval * 1000;
   if (!device.lastTelegramAlertTime || (now - device.lastTelegramAlertTime >= intervalMs)) {
@@ -48,7 +71,7 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
     device.telegramAlertsMuted = true;
   }
 
-  // --- 4. Start recording session ---
+  // --- 3. Start recording session ---
   if (state.globalSystemConfig.pirRecordVideo) {
     device.isRecordingAi = true;
     device.aiSensorName = sensor;
@@ -59,7 +82,7 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
       device.rollingBuffer.shift();
     }
 
-    console.log(`[PIR Video] Start recording video stream for ${deviceId} after high-res photo upload.`);
+    console.log(`[PIR Video] Start recording video stream for ${deviceId} after PIR snapshot.`);
 
     // Tell camera to cancel its local return-to-center timer
     if (device.ws && device.ws.readyState === 1) {
@@ -70,11 +93,11 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
     console.log(`[PIR Video] Video recording disabled by system config. Skipping recording start.`);
   }
 
-  // --- 5. Schedule recording stop timeout / return servo ---
+  // --- 4. Schedule recording stop timeout / return servo ---
   if (state.globalSystemConfig.pirRecordVideo) {
     const recordingDuration = (state.globalSystemConfig.pirRecordDuration || 10) * 1000;
     if (!isAiOnline) {
-      console.log(`[PIR Video] AI is offline/disabled. Scheduling flat ${recordingDuration/1000}s stop & return for ${deviceId}.`);
+      console.log(`[PIR Video] AI is offline/disabled. Scheduling flat ${recordingDuration / 1000}s stop & return for ${deviceId}.`);
       device.pirActiveTimeout = setTimeout(() => {
         if (device.isRecordingAi) stopAiRecording(deviceId);
         device.pirActiveTimeout = null;
@@ -87,7 +110,7 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
       }, 90000);
     }
   } else {
-    // If not recording video, return the servo to default angle after a short delay (e.g. 2s) to allow snapshot visualization
+    // If not recording video, return the servo to default angle after a short delay to allow snapshot visualization
     console.log(`[PIR Servo] Scheduling return-to-center in 2 seconds for ${deviceId} (no video recording).`);
     device.pirActiveTimeout = setTimeout(() => {
       device.isPirActive = false;
@@ -97,9 +120,12 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
     }, 2000);
   }
 
-  // --- 6. Run Telegram alert and AI snapshot analysis asynchronously ---
+  // --- 5. Run Telegram alert and AI snapshot analysis asynchronously ---
   (async () => {
-    // Save raw image immediately for instant Telegram alert and UI display
+    // Yield to event loop to ensure logEvent() in websocket.js has executed and written the log first
+    await new Promise(resolve => setImmediate(resolve));
+
+    // Save raw frame immediately for instant Telegram alert and UI display
     fs.writeFileSync(filepath, imageBuffer);
 
     // Send Telegram alert instantly with the raw photo
@@ -191,10 +217,10 @@ async function handlePirUpload(ip, sensor, imageBuffer, wss, filepath, filename,
     // Await Telegram notification completion
     await telegramPromise;
   })().catch(err => {
-    console.error('[PIR Upload] Asynchronous processing error:', err);
+    console.error('[PIR Trigger] Asynchronous processing error:', err);
   });
 }
 
 module.exports = {
-  handlePirUpload
+  handlePirTrigger
 };
