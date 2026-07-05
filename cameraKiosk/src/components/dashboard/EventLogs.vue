@@ -35,7 +35,7 @@ const props = defineProps({
 })
 
 // Sudah ditambahkan deleteSingle dan deleteBatch
-const emit = defineEmits(['nextPage', 'prevPage', 'dateSelected', 'deleteSingle', 'deleteBatch'])
+const emit = defineEmits(['loadMoreEvents', 'dateSelected', 'deleteSingle', 'deleteBatch'])
 
 watch(() => props.windowWidth, (newWidth) => {
   if (newWidth > 1000 && activeTab.value !== 'events') {
@@ -128,33 +128,39 @@ const openViewer = (event) => {
     <DateSorter v-if="windowWidth <= 1000" :selectedDate="selectedDate" @dateSelected="(date) => emit('dateSelected', date)" />
 
     <div v-if="activeTab === 'events'" class="overflow-auto custom-scrollbar flex-grow-1 event-list-container" style="min-height: 300px;">
-      <div v-if="events.length > 0">
-        <div v-for="event in (windowWidth <= 1000 ? paginatedEvents : events)" :key="event.id" class="px-3 py-2 border-bottom border-slate-700 last-child-border-0 transition-all hover-bg">
+      <div v-if="events.length > 0" class="events-grid" :class="{ 'is-forced-mobile': windowWidth === 999 }">
+        <div v-for="event in (windowWidth <= 1000 ? paginatedEvents : events.slice(0, 5))" :key="event.id" class="event-card transition-all hover-bg">
           
-          <div class="d-flex justify-content-between align-items-start mb-1">
-            <div class="d-flex align-items-center gap-2">
-              <div :class="event.trigger.includes('Motion') ? 'bg-primary' : 'bg-warning'" class="rounded-circle" style="width: 6px; height: 6px;"></div>
-              <span class="fw-bold text-slate-200" style="font-size: 0.8rem;">{{ translateTrigger(event.trigger) }}</span>
-              <span v-if="event.humanPresence" class="badge bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center gap-1 py-0 px-2" style="font-size: 0.6rem; letter-spacing: 0.5px;">
-                <i class="bi bi-person-fill"></i> {{ $t('events.human') }}
+          <div class="event-image-wrapper">
+            <img v-if="event.imageUrl" :src="getImageUrl(event.imageUrl)" @error="handleImageError" @click="openViewer(event)" class="event-image" alt="Snapshot" loading="lazy" />
+            <div v-else class="event-image-placeholder d-flex align-items-center justify-content-center">
+              <i class="bi bi-camera-video-off text-secondary fs-4"></i>
+            </div>
+            
+            <div class="event-badges">
+              <span v-if="event.humanPresence" class="badge bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center py-0 px-1 overlay-badge">
+                <i class="bi bi-person-fill"></i>
               </span>
             </div>
             
-            <div class="d-flex align-items-center">
-              <span class="text-secondary font-monospace text-nowrap" style="font-size: 0.65rem;">{{ formatEventTime(event.timestamp) }}</span>
-              <button @click="emit('deleteSingle', event.timestamp)" class="btn btn-link text-danger p-0 ms-2 text-decoration-none" title="Hapus rekaman ini">
-                <i class="bi bi-trash fs-6"></i>
-              </button>
-            </div>
+            <button @click="emit('deleteSingle', event.timestamp)" class="btn btn-dark btn-sm text-danger delete-btn" title="Hapus rekaman ini">
+              <i class="bi bi-trash"></i>
+            </button>
           </div>
 
-          <div class="d-flex align-items-center gap-1 text-secondary ps-3" style="font-size: 0.7rem;">
-            <i class="bi bi-geo-alt-fill extra-small opacity-50"></i>
-            <span class="text-truncate">{{ event.location }}</span>
+          <div class="event-details mt-2 px-2 pb-2">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-bold text-slate-200 text-truncate trigger-text" :title="translateTrigger(event.trigger)">{{ translateTrigger(event.trigger) }}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center text-secondary metadata-text">
+              <span class="font-monospace text-nowrap time-text">{{ formatEventTime(event.timestamp) }}</span>
+              <div class="d-flex align-items-center gap-1 ms-1 text-truncate" :title="event.location">
+                <i class="bi bi-geo-alt-fill extra-small opacity-50"></i>
+                <span class="text-truncate">{{ event.location }}</span>
+              </div>
+            </div>
           </div>
-          <div v-if="event.imageUrl" class="mt-2 ps-3 pe-1 text-center">
-            <img :src="getImageUrl(event.imageUrl)" @error="handleImageError" @click="openViewer(event)" class="img-fluid rounded border border-slate-700" style="height: auto; max-height: 350px; width: auto; cursor: pointer;" alt="Snapshot" loading="lazy" />
-          </div>
+          
         </div>
       </div>
       
@@ -168,10 +174,11 @@ const openViewer = (event) => {
       <PlaybackView :events="events" :backendUrl="backendUrl" />
     </div>
     
-    <div v-if="windowWidth <= 1000 && activeTab === 'events'" class="bg-slate-800 p-2 border-top border-slate-700 d-flex justify-content-between align-items-center">
-      <button @click="emit('prevPage')" :disabled="currentEventPage === 1" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i> {{ $t('events.prev') }}</button>
-      <span class="text-secondary small">{{ $t('events.page') }} {{ currentEventPage }} {{ $t('events.of') }} {{ totalPages }}</span>
-      <button @click="emit('nextPage')" :disabled="currentEventPage === totalPages" class="btn btn-sm btn-outline-secondary">{{ $t('events.next') }} <i class="bi bi-chevron-right"></i></button>
+    <div v-if="windowWidth <= 1000 && activeTab === 'events'" class="bg-slate-800 p-2 border-top border-slate-700 d-flex justify-content-center align-items-center">
+      <button v-if="currentEventPage < totalPages" @click="emit('loadMoreEvents')" class="btn btn-sm btn-outline-primary w-100 fw-bold tracking-wider text-uppercase">
+        Load More <i class="bi bi-chevron-down ms-1"></i>
+      </button>
+      <span v-else class="text-secondary small fw-bold text-uppercase tracking-wider">All events loaded</span>
     </div>
 
     <Teleport to="body">
@@ -187,7 +194,7 @@ const openViewer = (event) => {
 </template>
 
 <style scoped>
-.hover-bg:hover { background-color: rgba(255, 255, 255, 0.3) !important; }
+.hover-bg:hover { background-color: rgba(255, 255, 255, 0.05) !important; }
 .extra-small { font-size: 0.7rem; }
 .font-monospace { font-family: 'JetBrains Mono', ui-monospace, monospace !important; }
 .last-child-border-0:last-child { border-bottom: none !important; }
@@ -199,7 +206,6 @@ const openViewer = (event) => {
 @media (min-width: 1001px) { .event-panel { height: 60%; } }
 @media (max-width: 1000px) {
   .event-panel { max-height: none !important; height: auto !important; overflow: visible !important; }
-  .event-panel .px-3 { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
   .custom-scrollbar { overflow-y: visible !important; }
 }
 
@@ -207,4 +213,110 @@ const openViewer = (event) => {
 .btn-tab:hover { color: #3b82f6 !important; }
 .border-bottom-2 { border-bottom: 2px solid; }
 .active-tab { border-color: #3b82f6 !important; }
+
+/* Grid Gallery Styles */
+.events-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+@media (min-width: 1001px) {
+  .events-grid {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+    gap: 1rem;
+  }
+  .events-grid.is-forced-mobile {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.event-card {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.event-image-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background-color: #0f172a;
+}
+
+.event-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.2s ease-in-out;
+}
+
+.event-image:hover {
+  transform: scale(1.05);
+}
+
+.event-image-placeholder {
+  width: 100%;
+  height: 100%;
+  background-color: #0f172a;
+}
+
+.event-badges {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  pointer-events: none;
+}
+
+.trigger-dot {
+  width: 8px;
+  height: 8px;
+  box-shadow: 0 0 4px rgba(0,0,0,0.5);
+}
+
+.overlay-badge {
+  font-size: 0.65rem;
+  backdrop-filter: blur(2px);
+  background-color: rgba(220, 38, 38, 0.85) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.delete-btn {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.75rem;
+  background-color: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(2px);
+  border-radius: 0.25rem;
+  z-index: 2;
+}
+
+.delete-btn:hover {
+  background-color: rgba(220, 38, 38, 0.9);
+  color: white !important;
+}
+
+.trigger-text {
+  font-size: 0.75rem;
+}
+
+.metadata-text {
+  font-size: 0.65rem;
+}
+
+.time-text {
+  font-size: 0.6rem;
+}
 </style>

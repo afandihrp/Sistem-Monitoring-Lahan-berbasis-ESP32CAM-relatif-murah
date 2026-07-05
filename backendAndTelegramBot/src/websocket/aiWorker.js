@@ -273,7 +273,8 @@ function triggerAiWorker() {
                 await new Promise(resolve => setTimeout(resolve, captureDelay));
               }
 
-              const targetFrame = device.latestFrame || frameBuffer;
+              // We use the EXACT frame that triggered the detection to guarantee we get bounding boxes
+              const targetFrame = frameBuffer;
 
               // 2. Hybrid Validation: Confirm with YOLO
               let hybridBoxes = boxCoordinates;

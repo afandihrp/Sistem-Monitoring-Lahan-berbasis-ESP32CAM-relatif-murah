@@ -453,13 +453,11 @@ const eventsPerPage = 10
 const totalPages = computed(() => Math.ceil(filteredEvents.value.length / eventsPerPage) || 1)
 
 const paginatedEvents = computed(() => {
-  const start = (currentEventPage.value - 1) * eventsPerPage
-  const end = start + eventsPerPage
-  return filteredEvents.value.slice(start, end)
+  const end = currentEventPage.value * eventsPerPage
+  return filteredEvents.value.slice(0, end)
 })
 
-const nextPage = () => { if (currentEventPage.value < totalPages.value) currentEventPage.value++ }
-const prevPage = () => { if (currentEventPage.value > 1) currentEventPage.value-- }
+const loadMoreEvents = () => { if (currentEventPage.value < totalPages.value) currentEventPage.value++ }
 
 // Window width tracking
 const windowWidth = ref(window.innerWidth)
@@ -522,8 +520,7 @@ const effectiveWindowWidth = computed(() => {
           :totalPages="totalPages" 
           :windowWidth="effectiveWindowWidth"
           :backendUrl="backendBaseUrl"
-          @nextPage="nextPage"
-          @prevPage="prevPage"
+          @loadMoreEvents="loadMoreEvents"
           @dateSelected="handleDateSelected"
           @deleteSingle="handleDeleteSingleEvent"
           @deleteBatch="handleDeleteBatchEvents"

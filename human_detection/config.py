@@ -4,7 +4,7 @@ MODEL_PATH = "yolo26n_float32.tflite"
 
 # Detection and NMS Hyperparameters
 CONF_THRESHOLD = 0.50
-NMS_THRESHOLD = 0.45
+NMS_THRESHOLD = 0.95
 
 # Performance and Hardware
 NUM_THREADS = 2

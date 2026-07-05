@@ -164,7 +164,7 @@ class PersonDetector:
         if len(boxes) > 0:
             indices = cv2.dnn.NMSBoxes(
                 boxes, confidences,
-                score_threshold=config.CONF_THRESHOLD,
+                score_threshold=0.0,  # Already pre-filtered above; set to 0.0 to avoid double-dropping detections
                 nms_threshold=config.NMS_THRESHOLD
             )
             if len(indices) > 0:
