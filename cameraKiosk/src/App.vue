@@ -1,9 +1,8 @@
 <script setup>
-import KioskDashboard from './components/KioskDashboard.vue'
 </script>
 
 <template>
-  <KioskDashboard />
+  <router-view />
 </template>
 
 <style>
