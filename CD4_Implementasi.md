@@ -189,43 +189,33 @@ Berikut adalah cuplikan kode program utama implementasi inisialisasi Wi-Fi, pemb
 #include <WebSocketsClient.h>
 #include "esp_camera.h"
 
-// Konfigurasi Pin Sensor PIR & Servo
 #define PIR_KIRI_PIN 13
 #define PIR_TENGAH_PIN 15
 #define PIR_KANAN_PIN 14
 #define SERVO_PIN 12
 
-// LEDC PWM Configuration
 #define LEDC_TIMER_12_BIT  12
 #define LEDC_BASE_FREQ     50
 #define LEDC_CHANNEL_SERVO 1
 
 volatile bool pirKiriTerdeteksi = false;
-IPAddress serverIP; // Alamat IP server hasil UDP Discovery
+IPAddress serverIP;
 const char* apiKey = "momo_gemoy_api_key_123";
 
-// Interrupt Service Routine (ISR)
 void IRAM_ATTR isrPirKiri() {
     pirKiriTerdeteksi = true;
 }
 
-// Inisialisasi LEDC PWM untuk Servo
 void inisialisasiServo() {
     ledcSetup(LEDC_CHANNEL_SERVO, LEDC_BASE_FREQ, LEDC_TIMER_12_BIT);
     ledcAttachPin(SERVO_PIN, LEDC_CHANNEL_SERVO);
 }
 
-// Menggerakkan Servo ke Sudut Tertentu (0 - 180 derajat)
 void gerakServo(int sudut) {
-    // Konversi sudut ke nilai duty cycle (12-bit resolution: 0 - 4095)
-    // 50Hz -> Periode 20ms. Servo MG90S: 0.5ms (0 deg) s/d 2.5ms (180 deg)
-    // 0.5ms / 20ms * 4096 = 102 (Sudut 0)
-    // 2.5ms / 20ms * 4096 = 512 (Sudut 180)
     int duty = map(sudut, 0, 180, 102, 512);
     ledcWrite(LEDC_CHANNEL_SERVO, duty);
 }
 
-// Inisialisasi Wi-Fi
 void hubungkanWiFi() {
     WiFi.mode(WIFI_STA);
     WiFi.begin("KandangAyam_Intranet", "kandang12345");
@@ -234,7 +224,6 @@ void hubungkanWiFi() {
     }
 }
 
-// Pengiriman Foto Resolusi Tinggi via HTTP POST
 bool kirimFotoFHD(uint8_t* buf, size_t len, String sensorLabel) {
     if (WiFi.status() != WL_CONNECTED) return false;
     
@@ -288,24 +277,20 @@ const wss = new WebSocket.Server({ server });
 app.use(express.raw({ type: 'image/jpeg', limit: '10mb' }));
 app.use('/storage', express.static(path.join(__dirname, 'storage')));
 
-// In-memory state untuk melacak client
 const clients = { cameras: new Map(), kiosks: new Set() };
 
-// WebSocket Connection Handler
 wss.on('connection', (ws, req) => {
     const urlParams = new URLSearchParams(req.url.split('?')[1]);
-    const clientType = urlParams.get('type'); // 'camera' atau 'kiosk'
+    const clientType = urlParams.get('type');
 
     if (clientType === 'camera') {
         const camId = urlParams.get('id') || 'cam_01';
         clients.cameras.set(camId, ws);
-        console.log(`Kamera tersambung: ${camId}`);
 
         ws.on('message', (message) => {
-            // Menerima frame biner JPEG dan menyebarkannya ke Kiosk yang aktif
             clients.kiosks.forEach(kiosk => {
                 if (kiosk.readyState === WebSocket.OPEN) {
-                    kiosk.send(message); // Forward frame biner
+                    kiosk.send(message);
                 }
             });
         });
@@ -313,12 +298,10 @@ wss.on('connection', (ws, req) => {
         ws.on('close', () => clients.cameras.delete(camId));
     } else if (clientType === 'kiosk') {
         clients.kiosks.add(ws);
-        console.log('Kiosk Dashboard tersambung');
         ws.on('close', () => clients.kiosks.delete(ws));
     }
 });
 
-// REST API Endpoint: Menerima upload foto FHD akibat interupsi PIR
 app.post('/upload', (req, res) => {
     const apiKey = req.headers['x-api-key'];
     if (apiKey !== 'momo_gemoy_api_key_123') {
@@ -331,12 +314,9 @@ app.post('/upload', (req, res) => {
 
     fs.writeFile(filepath, req.body, (err) => {
         if (err) {
-            console.error('Gagal menyimpan foto:', err);
             return res.status(500).send('Internal Server Error');
         }
-        console.log(`Foto FHD disimpan: ${filename} dari PIR ${sensorLabel}`);
         
-        // Memicu worker AI secara asinkron untuk deteksi objek manusia
         pemicuAnalisisAI(filepath, sensorLabel);
 
         res.status(200).send('Upload Success');
@@ -344,12 +324,9 @@ app.post('/upload', (req, res) => {
 });
 
 function pemicuAnalisisAI(filepath, sensorLabel) {
-    // Fungsi simulasi pemanggilan AI Worker yang akan dibahas pada subbab berikutnya
-    console.log(`Memulai inferensi AI untuk berkas: ${filepath}`);
 }
 
 server.listen(3000, () => {
-    console.log('Backend Server beroperasi di http://localhost:3000');
 });
 ```
 
@@ -400,25 +377,20 @@ import tensorflow as tf
 
 class YOLOInterpreter:
     def __init__(self, model_path="yolo11n_int8.tflite"):
-        # Inisialisasi TFLite Interpreter
         self.interpreter = tf.lite.Interpreter(model_path=model_path)
         self.interpreter.allocate_tensors()
         
-        # Mendapatkan detail input & output tensor
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
-        self.input_shape = self.input_details[0]['shape'] # [1, 640, 640, 3]
+        self.input_shape = self.input_details[0]['shape']
 
     def detect_human(self, image_path, conf_threshold=0.5):
-        # 1. Load image
         img = cv2.imread(image_path)
         h_orig, w_orig, _ = img.shape
         
-        # 2. Preprocessing
         img_resized = cv2.resize(img, (self.input_shape[1], self.input_shape[2]))
         img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
         
-        # Menyesuaikan input tensor berdasarkan tipe data model (FLOAT32 atau INT8)
         if self.input_details[0]['dtype'] == np.int8:
             scale, zero_point = self.input_details[0]['quantization']
             img_input = (img_rgb / scale) + zero_point
@@ -426,28 +398,20 @@ class YOLOInterpreter:
         else:
             img_input = np.expand_dims(img_rgb.astype(np.float32) / 255.0, axis=0)
 
-        # 3. Jalankan Inferensi
         self.interpreter.set_tensor(self.input_details[0]['index'], img_input)
         self.interpreter.invoke()
 
-        # 4. Ambil Output Tensor
-        # Asumsi output tensor YOLO mengembalikan matriks deteksi [1, 84, 8400]
         output_data = self.interpreter.get_tensor(self.output_details[0]['index'])
         output_data = np.squeeze(output_data)
         
-        # Ekstraksi Bounding Box & Class (Class 0 = Person)
         detected_boxes = []
         scores = []
         
-        # Proses translasi output YOLO ke koordinat piksel asli
         for i in range(output_data.shape[1]):
-            # Indeks 4 ke atas merepresentasikan skor kelas objek
             person_score = output_data[4, i] 
             if person_score > conf_threshold:
-                # Koordinat box YOLO: [x_center, y_center, width, height]
                 x_center, y_center, w_box, h_box = output_data[0:4, i]
                 
-                # Konversi koordinat ke format pojok kiri atas [x_min, y_min, x_max, y_max]
                 x_min = int((x_center - w_box/2) * w_orig / 640)
                 y_min = int((y_center - h_box/2) * h_orig / 640)
                 w_orig_box = int(w_box * w_orig / 640)
@@ -456,7 +420,6 @@ class YOLOInterpreter:
                 detected_boxes.append([x_min, y_min, w_orig_box, h_orig_box])
                 scores.append(float(person_score))
 
-        # Terapkan Non-Maximum Suppression (NMS) untuk menghindari box ganda
         indices = cv2.dnn.NMSBoxes(detected_boxes, scores, conf_threshold, 0.4)
         
         results = []
@@ -464,16 +427,14 @@ class YOLOInterpreter:
             for idx in indices.flatten():
                 box = detected_boxes[idx]
                 results.append({
-                    "box": box, # [x_min, y_min, width, height]
+                    "box": box,
                     "confidence": scores[idx]
                 })
-                # Gambarkan bounding box untuk visualisasi log/Telegram
                 x, y, w, h = box
                 cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
                 cv2.putText(img, f"Manusia: {scores[idx]:.2f}", (x, y - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             
-            # Simpan hasil gambar bounding box
             cv2.imwrite(image_path, img)
 
         return results
@@ -528,38 +489,28 @@ $$\theta_{\text{target}} = \max\left(\theta_{\text{min}}, \min\left(\theta_{\tex
 Berikut adalah cuplikan kode program implementasi perhitungan pelacakan sudut servo pada file `src/services/objectFollower.js` backend Node.js:
 
 ```javascript
-// Konfigurasi Parameter Kontrol Pelacakan
-const KP = 0.15;            // Koefisien proporsional
-const DEADZONE = 0.05;      // Rentang toleransi tengah frame
-const IMAGE_WIDTH = 640;    // Lebar frame video input (piksel)
+const KP = 0.15;
+const DEADZONE = 0.05;
+const IMAGE_WIDTH = 640;
 
-// Menyimpan status posisi sudut servo aktif saat ini
-let currentServoAngle = 90; // Default di posisi tengah
+let currentServoAngle = 90;
 
 function hitungPelacakanServo(boundingBox) {
     if (!boundingBox) return null;
 
     const [xMin, yMin, width, height] = boundingBox;
     
-    // 1. Hitung titik pusat horizontal objek
     const xCenter = xMin + (width / 2);
     
-    // 2. Normalisasikan titik pusat ke rasio [0.0, 1.0]
     const normalizedX = xCenter / IMAGE_WIDTH;
     
-    // 3. Hitung deviasi offset dari titik tengah ideal (0.5)
     const offset = normalizedX - 0.5;
     
-    // 4. Periksa apakah deviasi berada di luar zona mati (deadzone)
     if (Math.abs(offset) > DEADZONE) {
-        // Kontrol proporsional sederhana
-        // Jika offset positif (objek di kanan), servo harus memutar ke kanan (mengurangi sudut)
-        // Jika offset negatif (objek di kiri), servo harus memutar ke kiri (menambah sudut)
         const angleChange = Math.round(-1 * KP * offset * 180);
         
         let targetAngle = currentServoAngle + angleChange;
         
-        // Clamping sudut target agar tidak melebihi rentang fisik servo (0 s/d 180 derajat)
         targetAngle = Math.max(0, Math.min(180, targetAngle));
         
         if (targetAngle !== currentServoAngle) {
@@ -571,11 +522,17 @@ function hitungPelacakanServo(boundingBox) {
         }
     }
     
-    return null; // Tidak perlu ada koreksi gerakan
+    return null;
 }
 
 module.exports = { hitungPelacakanServo };
 ```
+
+### 4.6.1 Mode Patroli Otomatis (Auto-Sweep)
+
+Selain melacak pergerakan secara aktif ketika objek manusia terdeteksi, sistem juga dilengkapi dengan mekanisme Mode Patroli Otomatis (*Auto-Sweep*) yang diimplementasikan pada modul `sweepManager.js`. Fitur ini berfungsi ketika tidak ada aktivitas mencurigakan dan status perangkat sedang *idle*. Motor servo akan secara otomatis memutar arah pandangan kamera untuk menyapu area sekitar berdasarkan interval patroli yang dapat dikonfigurasi melalui dasbor (misalnya setiap 15 detik, 30 detik, 1 menit, atau 5 menit).
+
+Mekanisme ini dirancang secara cerdas (*Smart Sweep*) untuk menunda jadwal patroli (me-reset *timer*) apabila kamera sedang sibuk merekam (*isRecordingAi*) atau ketika sensor PIR baru saja terpicu. Dengan adanya mode Auto-Sweep ini, area titik buta (*blind spot*) kamera dapat diminimalisasi secara drastis karena kamera akan terus berpatroli memantau seluruh sektor peternakan secara berkala.
 
 ---
 
@@ -697,7 +654,6 @@ Berikut adalah kode contoh HTML5 sederhana yang diintegrasikan dengan kode CSS V
         </div>
 
         <div class="grid-layout">
-            <!-- Panel Video Stream -->
             <div class="card">
                 <h3>Live Monitoring</h3>
                 <img id="stream-viewer" src="placeholder.jpg" alt="Aliran Video Kamera">
@@ -707,7 +663,6 @@ Berikut adalah kode contoh HTML5 sederhana yang diintegrasikan dengan kode CSS V
                 </div>
             </div>
 
-            <!-- Panel Sensor & Kontrol -->
             <div class="card">
                 <h3>Status Sensor</h3>
                 <div class="control-group">
@@ -725,12 +680,10 @@ Berikut adalah kode contoh HTML5 sederhana yang diintegrasikan dengan kode CSS V
         const servoSlider = document.getElementById('servo-slider');
         const angleVal = document.getElementById('angle-val');
         
-        // Membuka koneksi WebSocket ke server gateway
         const host = window.location.hostname || 'localhost';
         const ws = new WebSocket(`ws://${host}:3000?type=kiosk`);
         
         ws.onmessage = (event) => {
-            // Menerima frame biner JPEG dan mengubahnya menjadi ObjectURL untuk ditampilkan
             if (event.data instanceof Blob) {
                 const url = URL.createObjectURL(event.data);
                 imgViewer.onload = () => URL.revokeObjectURL(url);
@@ -738,7 +691,6 @@ Berikut adalah kode contoh HTML5 sederhana yang diintegrasikan dengan kode CSS V
             }
         };
 
-        // Mengirimkan pembaruan sudut servo ketika slider digeser
         servoSlider.addEventListener('input', (e) => {
             const angle = e.target.value;
             angleVal.textContent = angle;
@@ -786,7 +738,6 @@ const { Telegraf } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
 
-// Membaca token bot dari environment variable
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '712345678:AAF-dummy-token';
 const AUTH_PASSWORD = process.env.TELEGRAM_AUTH_PASSWORD || '123123';
 const bot = new Telegraf(BOT_TOKEN);
@@ -794,18 +745,15 @@ const bot = new Telegraf(BOT_TOKEN);
 const registeredUsersFile = path.join(__dirname, '..', 'data', 'registered_users.json');
 let registeredChatIds = new Set();
 
-// Memuat daftar user terdaftar dari penyimpanan lokal
 if (fs.existsSync(registeredUsersFile)) {
     const data = JSON.parse(fs.readFileSync(registeredUsersFile, 'utf8'));
     registeredChatIds = new Set(data.chatIds || []);
 }
 
-// Handler Perintah /start
 bot.start((ctx) => {
     ctx.reply('Selamat datang di Bot Keamanan Peternakan. Silakan kirimkan password autentikasi.');
 });
 
-// Handler Verifikasi Password
 bot.on('text', (ctx) => {
     const chatId = ctx.chat.id;
     if (registeredChatIds.has(chatId)) {
@@ -821,7 +769,6 @@ bot.on('text', (ctx) => {
     }
 });
 
-// Fungsi Broadcast Alert: Mengirim Foto Snapshot FHD + Bounding Box
 function kirimAlertFoto(imagePath, captionText) {
     registeredChatIds.forEach(chatId => {
         bot.telegram.sendPhoto(chatId, { source: imagePath }, { caption: captionText })
@@ -829,7 +776,6 @@ function kirimAlertFoto(imagePath, captionText) {
     });
 }
 
-// Fungsi Broadcast Alert: Mengirim Video Rekaman Kejadian (MP4)
 function kirimAlertVideo(videoPath, captionText) {
     registeredChatIds.forEach(chatId => {
         bot.telegram.sendVideo(chatId, { source: videoPath }, { caption: captionText })
@@ -844,22 +790,71 @@ bot.launch();
 
 ## 4.9 Implementasi Penyimpanan Data
 
-Implementasi penyimpanan data (*Data Storage*) pada sistem ini mengandalkan struktur penyimpanan lokal (*Local File System Storage*) pada komputer server gateway, tanpa menggunakan database SQL server eksternal demi meminimalkan penggunaan sumber daya RAM. Seluruh berkas media berupa foto snapshot dan rekaman video kejadian diorganisasikan ke dalam direktori terstruktur di bawah folder utama `/storage`. Struktur folder ini dirancang untuk memisahkan kategori data secara bersih untuk mempercepat pencarian berkas dan mempermudah proses pembersihan otomatis (*auto-purge*) berkas lama.
+Implementasi penyimpanan data (*Data Storage*) pada sistem ini mengandalkan struktur penyimpanan lokal (*Local File System Storage*) pada komputer server gateway. Alih-alih menggunakan JSON datar (*flat-file*) biasa yang rentan korup saat konkurensi tinggi, sistem ini menggunakan pustaka **SQLite** (`better-sqlite3`) yang berperforma tinggi dan beroperasi di dalam satu berkas lokal tanpa memerlukan server database SQL eksternal, sehingga tetap hemat RAM dan *overhead*. Seluruh berkas media berupa foto snapshot dan rekaman video kejadian diorganisasikan ke dalam direktori terstruktur di bawah folder utama `/storage`, sementara catatan transaksional disimpan secara terstruktur di dalam tabel SQLite.
 
 Struktur direktori penyimpanan didefinisikan sebagai berikut:
 * `/storage/image/`: Menyimpan semua berkas foto cuplikan kejadian berformat JPEG (`.jpg`). Foto resolusi tinggi (FHD) hasil tangkapan sensor PIR dan foto ber-bounding box AI diletakkan pada folder ini dengan penamaan berbasis stempel waktu Unix (*epoch timestamp*) untuk mencegah penimpaan data.
 * `/storage/video/`: Berisi berkas video rekaman klip kejadian berformat MP4 (`.mp4`). Kumpulan gambar JPEG yang disimpan sementara di memori cache server dirender secara asinkron ke folder ini menggunakan utilitas FFmpeg dengan kompresi h264.
-* `/storage/logs/`: Digunakan untuk menyimpan arsip mentah riwayat pembacaan sensor dan status kegagalan jaringan.
-* `/data/log.json`: Berkas basis data log berbasis teks JSON datar (*flat-file database*) yang mencatat setiap detail kejadian peristiwa keamanan yang terjadi di peternakan (stempel waktu, sensor yang memicu, nama file foto, nama file video, dan status verifikasi AI).
+* `/data/logs.db`: Berkas basis data relasional SQLite tunggal yang terintegrasi pada modul `sqllite_logger.js`. Berkas ini mencatat secara sekuensial setiap kejadian peristiwa keamanan (stempel waktu, ID kamera, jenis sensor, tautan file foto/video, serta status keberadaan manusia dari AI).
 
 | Kategori Data | Format Berkas | Lokasi Penyimpanan | Deskripsi Data |
 | :--- | :--- | :--- | :--- |
 | Foto Snapshot | JPEG (`.jpg`) | `/storage/image/` | Hasil tangkapan kamera OV2640 resolusi 1920x1080 |
 | Video Rekaman | H.264 MP4 (`.mp4`) | `/storage/video/` | Gabungan frame JPEG yang dirender dengan FFmpeg |
-| Log Transaksional | JSON (`.json`) | `/data/log.json` | Basis data riwayat kejadian, stempel waktu, dan hasil deteksi |
-| Konfigurasi Sistem | JSON (`.json`) | `/data/config.json` | Parameter setelan kamera, batas servo, dan posisi *default* |
+| Log Transaksional | SQLite (`.db`) | `/data/logs.db` | Basis data sekuensial riwayat kejadian, tautan media, dan hasil deteksi |
+| Konfigurasi Sistem | JSON (`.json`) | `/data/config.json` | Parameter setelan kamera, konfigurasi jaringan, dan mode patroli (*sweep*) |
 
-Untuk mencegah memori penyimpanan lokal server penuh (*disk overflow*), diimplementasikan sebuah modul pemonitor ruang penyimpanan (`storageMonitor.js`). Modul ini bekerja di latar belakang secara berkala dengan memeriksa sisa kapasitas penyimpanan pada partisi disk server gateway. Jika persentase kapasitas ruang penyimpanan terpakai menyentuh ambang batas kritis sebesar 90%, sistem secara otomatis akan menjalankan rutinitas pembersihan (*auto-purge routine*). Rutinitas ini akan menghapus berkas-berkas foto dan video yang memiliki stempel waktu paling tua di dalam direktori `/storage/image/` dan `/storage/video/` serta memperbarui berkas index `data/log.json` hingga kapasitas penyimpanan kembali turun ke batas aman di bawah 80%.
+Untuk mencegah memori penyimpanan lokal server penuh (*disk overflow*), diimplementasikan sebuah modul pemonitor ruang penyimpanan (`storageMonitor.js`). Modul ini bekerja di latar belakang secara berkala dengan memeriksa sisa kapasitas penyimpanan pada partisi disk server gateway. Jika persentase kapasitas ruang penyimpanan terpakai menyentuh ambang batas kritis sebesar 90%, sistem secara otomatis akan menjalankan rutinitas pembersihan (*auto-purge routine*). Rutinitas ini akan menjalankan kueri *DELETE* pada database `logs.db` untuk *event* paling lama, dan kemudian secara fisik menghapus berkas-berkas foto dan video yang bersangkutan hingga kapasitas penyimpanan kembali turun ke batas aman di bawah 80%.
+
+Berikut adalah cuplikan kode program implementasi modul pencatatan database menggunakan pustaka `better-sqlite3` pada Node.js:
+
+```javascript
+const Database = require('better-sqlite3');
+const path = require('path');
+
+const DB_FILE_PATH = path.join(__dirname, '../../../data', 'logs.db');
+const db = new Database(DB_FILE_PATH);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT,
+    sensor TEXT,
+    location TEXT,
+    deviceId TEXT,
+    timestamp TEXT,
+    imageUrl TEXT,
+    videoUrl TEXT,
+    humanPresence INTEGER,
+    aiDetails TEXT
+  )
+`);
+
+const insertLogStmt = db.prepare(`
+  INSERT INTO logs (type, sensor, location, deviceId, timestamp, imageUrl, videoUrl, humanPresence, aiDetails)
+  VALUES (@type, @sensor, @location, @deviceId, @timestamp, @imageUrl, @videoUrl, @humanPresence, @aiDetails)
+`);
+
+function logEvent(eventData) {
+  try {
+    insertLogStmt.run({
+      type: eventData.type || null,
+      sensor: eventData.sensor || null,
+      location: eventData.location || null,
+      deviceId: eventData.deviceId || null,
+      timestamp: eventData.timestamp || new Date().toISOString(),
+      imageUrl: eventData.imageUrl || null,
+      videoUrl: eventData.videoUrl || null,
+      humanPresence: eventData.humanPresence ? 1 : 0,
+      aiDetails: eventData.aiDetails ? JSON.stringify(eventData.aiDetails) : null
+    });
+  } catch (error) {
+    console.error('Error inserting log into SQLite:', error);
+  }
+}
+
+module.exports = { logEvent };
+```
 
 ---
 
@@ -903,7 +898,7 @@ Di mana $TP$ (*True Positive*) mewakili kondisi di mana manusia terdeteksi denga
 
 Analisis hasil implementasi merupakan tahap penilaian akhir terhadap sistem keamanan peternakan ayam berbiaya rendah berbasis ESP32 yang telah selesai dibangun. Hasil pengujian menunjukkan bahwa sistem telah berhasil memenuhi spesifikasi kebutuhan dasar (*base requirements*) yang ditetapkan pada CD3. Sistem mampu mendeteksi gerakan perimeter melalui interupsi hardware PIR tiga arah, memutar sudut kamera secara presisi ke titik kejadian, membedakan kehadiran manusia dari gangguan lingkungan menggunakan model YOLO TFLite lokal, melacak pergerakan target secara horizontal, serta mengabarkan situasi darurat secara lengkap ke bot Telegram pengguna tanpa memerlukan ketergantungan pada server *cloud* berbayar.
 
-Kelebihan utama dari hasil implementasi sistem ini terletak pada efisiensi biaya operasional dan kecepatan respon lokal. Dengan menerapkan komputasi tepi (*edge computing*) di mana seluruh proses inferensi AI dan database log berjalan lokal pada server gateway, latency pengiriman frame gambar dari kamera ke AI berkurang drastis jika dibandingkan dengan mengirimkan data ke API cloud luar. Penerapan algoritma *Dynamic Resolution Scaling* berbasis indikator kekuatan sinyal (RSSI) juga terbukti efektif mempertahankan kelancaran transmisi streaming video nirkabel meskipun terhambat jarak bangunan kandang ayam yang luas. Selain itu, pemanfaatan database lokal JSON yang ringan menjaga kebutuhan spesifikasi perangkat keras server tetap rendah, sehingga sistem ini dapat dijalankan pada mini-PC berbiaya murah.
+Kelebihan utama dari hasil implementasi sistem ini terletak pada efisiensi biaya operasional dan kecepatan respon lokal. Dengan menerapkan komputasi tepi (*edge computing*) di mana seluruh proses inferensi AI dan database log berjalan lokal pada server gateway, latency pengiriman frame gambar dari kamera ke AI berkurang drastis jika dibandingkan dengan mengirimkan data ke API cloud luar. Penerapan algoritma *Dynamic Resolution Scaling* berbasis indikator kekuatan sinyal (RSSI) juga terbukti efektif mempertahankan kelancaran transmisi streaming video nirkabel meskipun terhambat jarak bangunan kandang ayam yang luas. Selain itu, pemanfaatan database lokal berbasis SQLite yang andal dan ringan menjaga kebutuhan spesifikasi perangkat keras server tetap rendah, sehingga sistem ini dapat dijalankan pada mini-PC berbiaya murah tanpa mengorbankan integritas data saat diakses secara konkuren.
 
 Namun demikian, terdapat beberapa keterbatasan teknis dalam implementasi sistem saat ini. Penggunaan model deteksi objek YOLO11-Tiny yang dikuantisasi menjadi 8-bit (int8) di satu sisi mempercepat inferensi, tetapi di sisi lain sedikit menurunkan sensitivitas deteksi pada kondisi pencahayaan yang sangat redup (malam hari tanpa lampu bantuan). Keterbatasan fisik motor servo MG90S (full metal gear) yang memiliki kecepatan putar terbatas juga menyebabkan kamera kadang terlambat mengikuti pergerakan objek jika target manusia berlari dengan cepat di dekat jangkauan kamera. Selain itu, ketergantungan sistem pada jaringan intranet nirkabel (Wi-Fi lokal) rentan terhadap interferensi frekuensi jika di peternakan terdapat banyak perangkat elektronik lain yang beroperasi pada frekuensi 2.4 GHz.
 

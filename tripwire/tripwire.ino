@@ -1,15 +1,15 @@
-#include <ESPmDNS.h> // Tambahkan library mDNS
+#include <WiFiUdp.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
 
 #define ADC_PIN 0 // Menggunakan pin 0
 
 // ================= WIFI =================
-const char *ssid = "BatuKhan";
-const char *password = "momoygemoy";
+const char *ssid = "Tenda03";
+const char *password = "BRHtenda68";
 
-// ================= GATEWAY (mDNS) =================
-const char *targetHostname = "gateway"; // Tanpa ".local"
+// ================= GATEWAY (UDP DISCOVERY) =================
+String globalCustomSubnet = "192.168.1";
 String resolvedGatewayIP = "";          // Menyimpan IP hasil resolve
 const int backendPort = 3000; // GANTI dengan port backend Node.js Anda
 
@@ -54,20 +54,128 @@ void connectWiFi() {
   Serial.println(WiFi.localIP());
 }
 
-// ================= RESOLVE mDNS =================
+// ================= RESOLVE GATEWAY (UDP DISCOVERY) =================
 bool resolveGatewayIP() {
-  Serial.print("Resolving mDNS for ");
-  Serial.print(targetHostname);
-  Serial.println(".local ...");
+  IPAddress foundIP;
+  foundIP.fromString("0.0.0.0");
+  
+  WiFiUDP discUdp;
+  if(discUdp.begin(3005)) {
+    String localIP = WiFi.localIP().toString();
+    String localSubnet = localIP.substring(0, localIP.lastIndexOf('.'));
+    
+    // Tier 0: Subnet Broadcast Scan
+    Serial.println("[DISC] Tier 0: Scanning via Subnet Broadcast on port 3005");
+    IPAddress broadcastIP;
+    broadcastIP.fromString("255.255.255.255");
+    discUdp.beginPacket(broadcastIP, 3005);
+    discUdp.print("discovery_ping");
+    discUdp.endPacket();
+    
+    unsigned long startBroadcastWait = millis();
+    while(millis() - startBroadcastWait < 500) {
+      if(discUdp.parsePacket()) {
+        char packetBuffer[255];
+        int len = discUdp.read(packetBuffer, 255);
+        if (len > 0) packetBuffer[len] = 0;
+        if(String(packetBuffer) == "discovery_ack") {
+          foundIP = discUdp.remoteIP();
+          Serial.printf("[DISC] Success! Backend found at %s via Tier 0 Broadcast\n", foundIP.toString().c_str());
+          break;
+        }
+      }
+      delay(10);
+    }
+    
+    // Tier 1: Local Subnet Scan (if broadcast failed)
+    if (foundIP.toString() == "0.0.0.0") {
+      Serial.printf("[DISC] Tier 1: Scanning local subnet %s.x on port 3005\n", localSubnet.c_str());
+      for(int i = 1; i < 255; i++) {
+        IPAddress target;
+        target.fromString(localSubnet + "." + String(i));
+        discUdp.beginPacket(target, 3005);
+        discUdp.print("discovery_ping");
+        discUdp.endPacket();
+        
+        if(discUdp.parsePacket()) {
+          char packetBuffer[255];
+          int len = discUdp.read(packetBuffer, 255);
+          if (len > 0) packetBuffer[len] = 0;
+          if(String(packetBuffer) == "discovery_ack") {
+            foundIP = discUdp.remoteIP();
+            Serial.printf("[DISC] Success! Backend found at %s via Local Subnet Scan\n", foundIP.toString().c_str());
+            break;
+          }
+        }
+        delay(40);
+      }
+      
+      if (foundIP.toString() == "0.0.0.0") {
+        unsigned long startWait = millis();
+        while(millis() - startWait < 2000) {
+          if(discUdp.parsePacket()) {
+            char packetBuffer[255];
+            int len = discUdp.read(packetBuffer, 255);
+            if (len > 0) packetBuffer[len] = 0;
+            if(String(packetBuffer) == "discovery_ack") {
+              foundIP = discUdp.remoteIP();
+              Serial.printf("[DISC] Success! Backend found at %s via Local Subnet Scan (Wait Phase)\n", foundIP.toString().c_str());
+              break;
+            }
+          }
+          delay(10);
+        }
+      }
+    }
+    
+    // Tier 2: Custom Subnet Scan
+    if (foundIP.toString() == "0.0.0.0") {
+      Serial.printf("[DISC] Tier 2: Scanning custom subnet %s.x on port 3005\n", globalCustomSubnet.c_str());
+      for(int i = 1; i < 255; i++) {
+        IPAddress target;
+        target.fromString(globalCustomSubnet + "." + String(i));
+        discUdp.beginPacket(target, 3005);
+        discUdp.print("discovery_ping");
+        discUdp.endPacket();
+        
+        if(discUdp.parsePacket()) {
+          char packetBuffer[255];
+          int len = discUdp.read(packetBuffer, 255);
+          if (len > 0) packetBuffer[len] = 0;
+          if(String(packetBuffer) == "discovery_ack") {
+            foundIP = discUdp.remoteIP();
+            Serial.printf("[DISC] Success! Backend found at %s via Custom Subnet Scan\n", foundIP.toString().c_str());
+            break;
+          }
+        }
+        delay(40);
+      }
+      
+      if (foundIP.toString() == "0.0.0.0") {
+        unsigned long startWait = millis();
+        while(millis() - startWait < 2000) {
+          if(discUdp.parsePacket()) {
+            char packetBuffer[255];
+            int len = discUdp.read(packetBuffer, 255);
+            if (len > 0) packetBuffer[len] = 0;
+            if(String(packetBuffer) == "discovery_ack") {
+              foundIP = discUdp.remoteIP();
+              Serial.printf("[DISC] Success! Backend found at %s via Custom Subnet Scan (Wait Phase)\n", foundIP.toString().c_str());
+              break;
+            }
+          }
+          delay(10);
+        }
+      }
+    }
+    discUdp.stop();
+  }
 
-  // Mencari IP dari target
-  IPAddress gatewayIP = MDNS.queryHost(targetHostname);
-
-  if (gatewayIP.toString() == "0.0.0.0") {
-    Serial.println("mDNS resolution failed! Gateway not found.");
+  if (foundIP.toString() == "0.0.0.0") {
+    Serial.println("UDP Discovery failed! Gateway not found.");
     return false;
   } else {
-    resolvedGatewayIP = gatewayIP.toString();
+    resolvedGatewayIP = foundIP.toString();
     Serial.print("Gateway IP resolved: ");
     Serial.println(resolvedGatewayIP);
     return true;
@@ -126,17 +234,9 @@ void setup() {
 
   connectWiFi();
 
-  // Inisialisasi mDNS untuk ESP32 (memberikan nama hostname untuk ESP ini
-  // sendiri)
-  if (!MDNS.begin("node-pagar")) {
-    Serial.println("Error setting up MDNS responder!");
-  } else {
-    Serial.println("mDNS responder started.");
-  }
-
   // Standby dan block execution sampai IP Gateway berhasil diresolve
   while (!resolveGatewayIP()) {
-    Serial.println("Menunggu gateway.local...");
+    Serial.println("Menunggu gateway via UDP Discovery...");
     delay(2000);
   }
   Serial.println("Gateway ditemukan. Sistem standby memonitor tripwire...");
