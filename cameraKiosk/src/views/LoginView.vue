@@ -72,10 +72,10 @@ const togglePasswordVisibility = () => {
   <div class="login-container d-flex align-items-center justify-content-center">
     <div :class="['card', 'bg-slate-800', 'border-slate-700', 'rounded-4', 'shadow-soft', 'p-4', 'p-md-5', { 'shake-animation': isShaking }]" style="width: 100%; max-width: 420px;">
       <div class="text-center mb-4">
-        <div class="brand-icon mb-3">
-          <i class="bi bi-shield-lock-fill text-primary"></i>
+        <div class="mb-3">
+          <img src="/magic cam logo.png" alt="Magic Cam Logo" style="width: 200px; height: auto; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(59, 130, 246, 0.4));" />
         </div>
-        <h4 class="fw-bold text-slate-50 mb-1">Gateway_OS</h4>
+        <h4 class="fw-bold text-slate-50 mb-1">Magic Cam</h4>
         <p class="text-secondary font-monospace" style="font-size: 0.8rem;">SISTEM MONITORING LAHAN</p>
       </div>
 

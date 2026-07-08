@@ -56,8 +56,8 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMod
     <div class="container-fluid p-0 d-flex align-items-center justify-content-between flex-wrap" style="row-gap: 6px;">
       <div class="d-flex align-items-center gap-2">
         <a class="navbar-brand fw-bold d-flex align-items-center gap-2 m-0" href="#" style="font-size: 1.1rem;">
-          <i class="bi bi-shield-lock-fill text-primary fs-5"></i>
-          <span v-if="windowWidth >= 510">Gateway_OS</span>
+          <img src="/magic cam logo.png" alt="Magic Cam Logo" height="24" class="brand-logo" />
+          <span v-if="windowWidth >= 510">Magic Cam</span>
         </a>
         <button @click="toggleLanguage" class="btn btn-sm btn-outline-secondary border-slate-700 text-slate-300 px-2 py-1" style="font-size: 0.65rem; border: 1px solid rgba(148, 163, 184, 0.3);">
           {{ locale === 'id' ? '🇮🇩 ID' : '🇬🇧 EN' }}
@@ -152,7 +152,8 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMod
 
 <style scoped>
 .font-monospace { font-family: 'JetBrains Mono', ui-monospace, monospace !important; }
-.bi-shield-lock-fill { filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.5)); }
+
+.brand-logo { filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.5)); }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
