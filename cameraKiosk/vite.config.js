@@ -7,6 +7,6 @@ export default defineConfig({
   server: {
     host: true, // Listen on all network interfaces
     port: 5173, // Default Vite port
-    allowedHosts: ['gateway.local']
+    allowedHosts: ['afandi-legion-5-15ach6h.tail4de221.ts.net']
   }
 })

@@ -27,6 +27,7 @@ const handleLogin = async () => {
       headers: {
         'Content-Type': 'application/json'
       },
+      credentials: 'include',
       body: JSON.stringify({
         password: password.value
       })
@@ -35,9 +36,6 @@ const handleLogin = async () => {
     const data = await response.json()
 
     if (response.ok && data.success) {
-      localStorage.setItem('isLoggedIn', 'true')
-      localStorage.setItem('token', data.token)
-      localStorage.setItem('username', 'admin')
       router.push('/')
     } else {
       triggerErrorShake(data.message || 'Password yang Anda masukkan salah!')

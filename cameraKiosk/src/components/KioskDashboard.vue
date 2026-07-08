@@ -323,12 +323,14 @@ const handleDateSelected = (date) => {
   currentEventPage.value = 1 // Reset pagination when date changes
 }
 
-const triggerCameraAction = async (direction) => {
-  try {
-    const response = await fetch(`${backendBaseUrl.value}/action?do=${direction}`)
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-  } catch (error) {
-    console.error(`Failed to trigger camera action ${direction}:`, error)
+const triggerCameraAction = (direction) => {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ 
+      type: 'camera_action', 
+      direction: direction 
+    }));
+  } else {
+    console.error('WebSocket not connected. Cannot trigger camera action.');
   }
 }
 

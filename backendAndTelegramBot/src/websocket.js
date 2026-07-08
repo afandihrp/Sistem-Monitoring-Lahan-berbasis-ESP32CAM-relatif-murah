@@ -119,10 +119,30 @@ function initWebSocket(servers) {
   const wss = new WebSocketServer({ noServer: true });
   state.wssInstance = wss;
 
+  const { authenticateWs } = require('./middleware/auth');
+
   const handleUpgrade = (request, socket, head) => {
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit('connection', ws, request);
-    });
+    const isCamera = request.url.startsWith('/camera');
+    
+    if (isCamera) {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    } else {
+      authenticateWs(request, (err, user) => {
+        if (err) {
+          console.log(`[WS] Blocked unauthorized kiosk connection from ${request.socket.remoteAddress}`);
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+        
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          ws.user = user; // attach user info
+          wss.emit('connection', ws, request);
+        });
+      });
+    }
   };
 
   if (Array.isArray(servers)) {
@@ -607,6 +627,11 @@ function initWebSocket(servers) {
                 udpStreamEnabled: state.globalSystemConfig.udpStreamEnabled
               });
               state.broadcastToCameras(systemSettingsForCamera);
+            }
+          } else if (data.type === 'camera_action' && !isCamera) {
+            if (data.direction === 'left' || data.direction === 'right') {
+              const newActiveId = switchActiveStream(data.direction);
+              console.log(`[WS] Action ${data.direction} executed. New active stream: ${newActiveId}`);
             }
           } else if (data.type === 'set_active_stream' && !isCamera) {
             if (state.globalActiveDeviceId !== data.deviceId) {

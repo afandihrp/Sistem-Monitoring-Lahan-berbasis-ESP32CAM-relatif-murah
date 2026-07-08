@@ -4,14 +4,18 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+const cookieParser = require('cookie-parser');
 const { initWebSocket } = require('./src/websocket');
 const createRouter = require('./src/routes/index');
 const { initTelegramBot } = require('./src/telegram/index');
 const { initUdpDiscovery } = require('./src/services/udp_discovery');
 
 const app = express();
+app.set('trust proxy', true); // Trust Nginx headers to get the real client IP
 const port = 3000;
 const httpPort = 3005;
+
+app.use(cookieParser());
 
 // Remove HTTPS server, use HTTP instead
 const server = http.createServer(app);
@@ -21,9 +25,15 @@ const httpServer = http.createServer(app);
 
 // CORS middleware
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, X-MAC-Address');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, X-MAC-Address, Authorization');
   
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);

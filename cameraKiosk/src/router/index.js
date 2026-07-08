@@ -19,15 +19,42 @@ const router = createRouter({
   ]
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
+  const backendHost = window.location.hostname;
+
   if (to.meta.requiresAuth) {
-    if (localStorage.getItem('isLoggedIn') === 'true') {
-      next()
-    } else {
-      next('/login')
+    try {
+      const res = await fetch(`http://${backendHost}:3000/api/verify`, {
+        credentials: 'include'
+      });
+      const data = await res.json();
+      
+      if (data.success && data.authenticated) {
+        next();
+      } else {
+        next('/login');
+      }
+    } catch (err) {
+      console.error('Auth verification failed:', err);
+      next('/login');
     }
   } else {
-    next()
+    // Check if already authenticated when going to login page
+    if (to.name === 'login') {
+      try {
+        const res = await fetch(`http://${backendHost}:3000/api/verify`, {
+          credentials: 'include'
+        });
+        const data = await res.json();
+        
+        if (data.success && data.authenticated) {
+          return next('/');
+        }
+      } catch (err) {
+        // ignore error, just proceed to login
+      }
+    }
+    next();
   }
 })
 
