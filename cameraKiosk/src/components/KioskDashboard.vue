@@ -5,6 +5,30 @@ import StreamView from './dashboard/StreamView.vue'
 import DeviceList from './dashboard/DeviceList.vue'
 import EventLogs from './dashboard/EventLogs.vue'
 import SystemSettingsModal from './dashboard/SystemSettingsModal.vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+const handleLogout = async () => {
+  try {
+    const getBackendUrl = () => {
+      if (window.location.port === '5173') {
+        return `http://${window.location.hostname}:3000`;
+      }
+      return `${window.location.protocol}//${window.location.host}/ws_api`;
+    };
+    
+    await fetch(`${getBackendUrl()}/api/logout`, {
+      method: 'POST',
+      credentials: 'include'
+    });
+  } catch (err) {
+    console.error('Logout error:', err);
+  }
+  
+  localStorage.removeItem('isLoggedIn');
+  router.push('/login');
+}
 
 const currentTime = ref(new Date().toLocaleTimeString())
 setInterval(() => {
@@ -486,6 +510,7 @@ const effectiveWindowWidth = computed(() => {
       @toggle-force-mobile="isForceMobile = !isForceMobile" 
       @openSystemConfig="showSystemConfig = true"
       @setViewMode="handleSetViewMode"
+      @logout="handleLogout"
     />
 
     <main class="row g-0 flex-grow-1" id="main-layout">

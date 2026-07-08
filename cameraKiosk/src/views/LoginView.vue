@@ -21,8 +21,15 @@ const handleLogin = async () => {
   error.value = ''
 
   try {
-    const backendHost = window.location.hostname
-    const response = await fetch(`http://${backendHost}:3000/api/login`, {
+    const getBackendUrl = () => {
+      if (window.location.port === '5173') {
+        return `http://${window.location.hostname}:3000`;
+      }
+      return `${window.location.protocol}//${window.location.host}/ws_api`;
+    };
+    const backendUrl = getBackendUrl();
+    
+    const response = await fetch(`${backendUrl}/api/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

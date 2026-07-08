@@ -48,7 +48,7 @@ defineProps({
   }
 })
 
-const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMode'])
+const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMode', 'logout'])
 </script>
 
 <template>
@@ -132,6 +132,17 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMod
                   title="System Settings"
                   style="min-width: 32px; min-height: 32px;">
             <i class="bi bi-gear-fill text-slate-400" style="font-size: 1rem; transition: color 0.2s ease, transform 0.2s ease; display: inline-block;"></i>
+          </button>
+
+          <!-- Separator between settings and logout -->
+          <div class="vr bg-slate-600 opacity-40 mx-1" style="height: 1rem; align-self: center; width: 1.5px;"></div>
+
+          <!-- Logout Button -->
+          <button @click="emit('logout')" 
+                  class="btn btn-sm btn-link p-1 text-danger hover-danger d-flex align-items-center justify-content-center" 
+                  title="Logout"
+                  style="min-width: 32px; min-height: 32px;">
+            <i class="bi bi-box-arrow-right" style="font-size: 1rem; transition: transform 0.2s ease; display: inline-block;"></i>
           </button>
         </div>
       </div>

@@ -20,11 +20,17 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
-  const backendHost = window.location.hostname;
+  const getBackendUrl = () => {
+    if (window.location.port === '5173') {
+      return `http://${window.location.hostname}:3000`;
+    }
+    return `${window.location.protocol}//${window.location.host}/ws_api`;
+  };
+  const backendUrl = getBackendUrl();
 
   if (to.meta.requiresAuth) {
     try {
-      const res = await fetch(`http://${backendHost}:3000/api/verify`, {
+      const res = await fetch(`${backendUrl}/api/verify`, {
         credentials: 'include'
       });
       const data = await res.json();
@@ -42,7 +48,7 @@ router.beforeEach(async (to, from, next) => {
     // Check if already authenticated when going to login page
     if (to.name === 'login') {
       try {
-        const res = await fetch(`http://${backendHost}:3000/api/verify`, {
+        const res = await fetch(`${backendUrl}/api/verify`, {
           credentials: 'include'
         });
         const data = await res.json();
