@@ -336,8 +336,7 @@ seperti pergerakan dedaunan, perubahan intensitas cahaya, atau aktivitas
 hewan ternak di sekitar lahan. Selain itu, ketergantungan pada ekosistem
 aplikasi gawai (mobile application) eksklusif membatasi fungsionalitas
 pemantauan pasif yang kontinu, karena pengguna tidak dapat mengawasi
-area secara langsung melalui layar televisi atau monitor besar di pos
-penjagaan tanpa harus berinteraksi aktif membuka aplikasi terlebih
+area secara langsung secara pasif tanpa harus berinteraksi aktif membuka aplikasi terlebih
 dahulu.
 
 Sebagai alternatif penanganan, terdapat tren pengembangan sistem
@@ -354,9 +353,7 @@ arsitektur sistem kustom ini kerap bergantung pada sewa layanan VPS
 manusia. Hal tersebut memicu pembengkakan biaya operasional rutin yang
 kurang ekonomis untuk jangka panjang. Lebih lanjut, penyajian keluaran
 (*output*) visual sistem kustom ini biasanya masih terbatas pada dasbor
-web atau bot notifikasi pesan singkat, sehingga belum mendukung
-transmisi video langsung (*direct video stream*) ke layar televisi atau
-monitor besar secara praktis untuk kebutuhan pemantauan terus-menerus.
+web atau bot notifikasi pesan singkat.
 
 Kelemahan lain yang melingkupi kedua pendekatan tersebut adalah
 rendahnya rasio efisiensi antara biaya investasi dengan luas cakupan
@@ -377,7 +374,7 @@ Oleh karena itu, diperlukan sebuah alternatif perancangan sistem
 monitoring cerdas yang mampu mengatasi berbagai kesenjangan tersebut.
 Sistem monitoring yang ideal harus mampu menekan biaya operasional
 melalui penggunaan unit pemroses pusat berbasis perangkat keras edge
-computing berdaya rendah (*low-power embedded*) untuk mengolah algoritma
+computing lokal tanpa biaya berlangganan berulang untuk mengolah algoritma
 deteksi objek secara lokal secara mandiri tanpa ketergantungan pada
 server eksternal berbayar. Selain itu, unit pemroses pusat ini harus
 dirancang agar terpisah dari node penangkap gambar, serta mendukung
@@ -386,62 +383,24 @@ yang dapat ditambahkan sesuai kebutuhan
 lahan tanpa memicu pembengkakan biaya investasi yang signifikan. Setiap
 unit kamera dedikasi tersebut juga harus dilengkapi dengan mekanisme
 kontrol gerak kamera secara dinamis untuk memperluas cakupan area
-pantau. Terakhir, sistem harus mampu menyediakan keluaran tampilan
-langsung ke layar televisi atau monitor besar,
-sehingga proses pemantauan secara real-time dapat dilakukan secara
-kontinu dan pasif tanpa hambatan akses aplikasi.
+pantau. 
 
-Permasalahan ini semakin relevan apabila dikaitkan dengan tingginya
-angka kriminalitas di sektor properti dan aset produksi. Berdasarkan
-data Pemerintah Provinsi Jawa Barat tahun 2019–2021, sebanyak 14 dari 19
-kabupaten/kota tercatat mengalami kasus pencurian, dengan total 9.452
-desa terdampak dalam kurun tiga tahun. Bahkan pada tahun 2023,
-Kepolisian Jawa Barat mendapati 11.301 laporan tindak pidana. Dalam
-laporan tersebut sebagian besar didominasi oleh kasus pencurian. Kondisi
-ini menunjukkan bahwa risiko gangguan keamanan masih tinggi, sehingga
-dibutuhkan mekanisme tindakan preventif yang efektif namun tetap
-ekonomis, harapannya untuk dapat membantu menekan kasus pencurian yang
-hingga saat ini tidak menunjukan penurunan dalam jumlah yang signifikan
-seperti yang terlihat dalam grafik berikut\[1\]\[2\].
+
+
+Sebelumnya, tim Capstone Design terdahulu telah mengimplementasikan sistem pengawasan kustom (SBC + Webcam + YOLO) di lahan mitra ini. Sistem tersebut beroperasi selama sekitar 4 bulan. Namun, sistem ini akhirnya dihentikan karena mitra keberatan harus membayar biaya langganan VPS (*Virtual Private Server*) bulanan sebesar [BIAYA_VPS].
+
+Permasalahan keamanan merupakan risiko usaha yang krusial dalam sektor peternakan secara umum[3]. Pencurian tidak hanya menargetkan aset biologis utama seperti ayam atau telur, tetapi juga alat pendukung operasional. Selain itu, hama seperti ular, anjing liar, dan tikus turut menjadi ancaman kemanan. Tanpa adanya sistem *monitoring* yang andal, gangguan keamanan ini dapat mengakibatkan:
+1. Mengurangi Output Produksi: Berkurangnya aset biologis secara langsung menurunkan jumlah produk akhir (telur maupun ayam potong).
+2. Mengganggu Proses Produksi: Perusakan fasilitas akibat upaya paksa menimbulkan kerugian tambahan untuk perbaikan alat dan kandang.
+
+Ancaman ini sejalan dengan tingginya angka kriminalitas di sektor properti dan aset produksi agraris secara makro. Berdasarkan data Pemerintah Provinsi Jawa Barat tahun 2019–2021, sebanyak 14 dari 19 kabupaten/kota tercatat mengalami kasus pencurian, dengan total 9.452 desa terdampak dalam kurun tiga tahun. Kondisi ini menunjukkan bahwa risiko gangguan keamanan masih tinggi, sehingga dibutuhkan mekanisme tindakan preventif yang efektif namun tetap ekonomis, sebagaimana divisualisasikan pada grafik berikut[1][2].
 
 <figure>
-<img src="media/image6.png" style="width:3.14548in;height:2.34259in"
-alt="C:\Users\M S I\AppData\Local\Microsoft\Windows\INetCache\Content.MSO\F9D79D6E.tmp" />
-<figcaption>Gambar 1.1. 1 Grafik Kasus Pencurian Tahun 2019 -
-2021</figcaption>
+<img src="media/image6.png" style="width:3.14548in;height:2.34259in" alt="Grafik Pencurian" />
+<figcaption>Gambar 1.1. 1 Grafik Kasus Pencurian Tahun 2019 - 2021</figcaption>
 </figure>
 
-Pencurian termasuk dalam permasalahan umum yang sering dialami dalam
-usaha peternakan secara umum\[3\]. Pencurian termasuk dalam risiko usaha
-dalam aspek keamanan. Pencurian dapat mempengaruhi beberapa aspek vital,
-seperti asset biologis dan juga produk, seperti ayam atau telur.
-Beberapa alat pendukung juga dapat menjadi target sasaran dari pelaku
-pencurian, baik sebagai upaya paksa dalam pengambilan asset biologis
-atau dengan motivasi tertentu. Selain itu, beberapa hama seperti ular,
-kucing, anjing liar, dan tikus juga termasuk risiko kemanan, karena hal
-tersebut dapat mengakibatkan berkurangnya asset biologis atau produk
-dari peternakan ayam tersebut, sehingga dengan tidak adanya sistem
-*monitoring* untuk mengetahui hal – hal tersebut dapat
-mempengaruhi\[3\]\[4\],
-
-1.  Mengurangi Output Produksi
-
-> Dengan berkurangnya asset biologis di peternakan, maka output produksi
-> akan menjadi sedikit. Hal ini karena asset biologis dari peternakan
-> ayam adalah ayam itu sendiri, sehingga semakin sedikit ayam yang
-> dimiliki, maka semakin sedikit pula produk nya, yaitu telur maupun
-> ayam yang diperuntukan untuk produk lain, misalnnya ayam potong.
-
-2.  Mengganggu Proses Produksi
-
-> Dengan berkurangnya asset biologis dan alat yang memadai, maka akan
-> mempengaruhi proses produksi. Hal ini dapat menyebabkan proses
-> terhambat, contohnya apabila terjadi perusakan akibat usaha
-> pengambilan paksa, maka akan ada biaya tambahan untuk perbaikan alat,
-> kandang atau fasilitas yang mendukung proses produksi lainnya
-
-Berangkat dari kondisi tersebut, diperlukan solusi monitoring keamanan
-lahan yang murah, mandiri, dan tidak bergantung pada layanan *cloud*.
+Berangkat dari kondisi tersebut, diperlukan solusi monitoring keamanan lahan yang murah, mandiri, dan tidak bergantung pada layanan *cloud* berbayar.
 Kebutuhan ini semakin spesifik pada studi kasus peternakan ayam milik
 mitra, yang memiliki pagar utama sepanjang 35 meter dan area titik buta
 berbentuk “L” seluas 3×10 m dan 4×10 m. Lokasi hanya memiliki akses
@@ -490,211 +449,17 @@ terpengaruh.
   investasi infrastruktur internet publik yang mahal atau bergantung
   pada kuota data seluler yang tidak stabil.
 
-- Jangkauan Area dan Titik buta: Luasnya area (pagar 35m) dan adanya
-  area titik buta berbentuk "L" tidak memungkinkan untuk diawasi hanya
-  dengan satu kamera. Penambahan beberapa kamera tanpa sistem koordinasi
-  yang baik akan menimbulkan masalah baru seperti tabrakan data (data
-  collision) dan manajemen yang tidak efisien. Setelah melakukan
-  pengamatan langsung terhadap medan yang akan dijadikan tempat
-  instalasi dan pengujian, diketahui kondisi lahan adalah sebagai
-  berikut:
-
-1.  **Lahan Tampak Atas**
-
+- Jangkauan Area dan Titik Buta: Luasnya area (pagar 35m) dan topografi lahan peternakan memiliki beberapa rintangan fisik seperti tembok pembatas, pepohonan, kolam, dan bangunan rumah kaca. Kondisi ini secara langsung menciptakan sejumlah titik buta (*blind spot*) kritis di area depan, tengah, dan belakang lahan yang tidak dapat dijangkau oleh sudut pandang kamera statis tunggal.
 <figure>
-<img src="media/image7.jpeg" style="width:2.6in;height:2.93145in"
-alt="Gambar 1.2. 1 Tata Objek Lahan" />
-<figcaption aria-hidden="true">Gambar 1.2. 1 Tata Objek
-Lahan</figcaption>
+<img src="media/image8.jpeg" style="width:2.59954in;height:2.93518in" alt="Denah Pandangan Lahan" />
+<figcaption>Gambar 1.2. 1 Denah Pandangan Lahan</figcaption>
 </figure>
 
-<figure>
-<img src="media/image8.jpeg" style="width:2.59954in;height:2.93518in"
-alt="A map of a city Description automatically generated" />
-<figcaption>Gambar 1.2. 2 Denah Pandangan Lahan</figcaption>
-</figure>
-
-> Lahan tersebut merupakan penampakan dari atas, diambil dari google
-> *map – satelite views*. Dari gambar 1.2.1 tersebut dapat
-> teridentifikasi denah kasar dari lahan yang akan digunakan sebagai
-> batasan ruang lingkup dari yang akan diujikan. Dari denah yang di
-> tampilkan, dapat di identifikasi beberapa titik rawan dan titik buta
-> baik dari bagian dalam lahan ataupun diluar bagian lahan
-> yang akan di *monitoring*. Pada gambar 1.2.2 garis kuning menunjukan
-> wilayah yang terhalangi oleh objek, hijau menunjukan wilayah yang
-> tidak terhalangi oleh objek, dan bagian berwarna merah adalah rumah.
-
-2.  **Kondisi Geologis dan Titik strategis**
-
-> Berikut adalah kondisi geologis yang akan menjadi lokasi pengujian.
-
-1.  **Bagian Belakang 1 (Kolam, Pintu Belakang, dan Lorong Gudang)**
-
-<figure>
-<img src="media/image9.jpeg" style="width:4.95in;height:1.36385in"
-alt="A building with a tarp on the side Description automatically generated" />
-<figcaption>Gambar 1.2. 3 Bagian Belakang 1</figcaption>
-</figure>
-
-> Pada foto tersebut terlihat kondisi rumah bagian belakang yang cukup
-> terbuka namun ada tembok setinggi 4 m di sisi belakang yang memisahkan
-> antara lahan dengan rumah warga, sisi lahan ini sudah terpasang CCTV.
-
-2.  **Bagian Belakang 2 (Gudang, Kolam Belakang, dan Pintu Belakang)**
-
-<figure>
-<img src="media/image10.jpeg" style="width:4.95in;height:1.45666in"
-alt="A room with a brick wall and a piano Description automatically generated" />
-<figcaption>Gambar 1.2. 4 Bagian Belakang 2</figcaption>
-</figure>
-
-> Pada foto ini menunjukan bahwa pada area belakang rumah memiliki
-> pencahayaan yang cukup minim, bahkan untuk kondisi di siang hari. Hal
-> ini menjadikan CCTV memerlukan perangkat pencahayaan tambahan, untuk
-> lampu sudah terpasang di bagian belakang rumah.
-
-3.  **Bagian Teras (Teras, Kolam Teras, Jalan Utama, dan Pintu Depan
-    Rumah)**
-
-<figure>
-<img src="media/image11.jpeg" style="width:4.95in;height:1.31165in"
-alt="A building with a pond and trees Description automatically generated" />
-<figcaption>Gambar 1.2. 5 Bagian Teras</figcaption>
-</figure>
-
-> Pada foto ini menunjukan bahwa pada area depan memilki beberapa objek
-> yang dapat dijadikan acuan, seperti bagian teras yang memilki CCTV
-> terpasang di plafon teras. Namun pada beberapa kasus, CCTV tersebut
-> tidak bisa menyorot ke arah luar pagar besi, mengakibatkan sawah
-> menjadi titik buta. Selain itu apabila instalasi kamera CCTV sesuai
-> dengan gambar tersebut maka kandang ayam akan menjadi titik buta.
-
-4.  **Bagian Tengah (Rumah Kaca, Kandang Ayam, Ayakan Pasir)**
-
-<figure>
-<img src="media/image12.jpeg" style="width:4.95in;height:1.29847in"
-alt="Gambar 1.2. 6 Bagian Tengah" />
-<figcaption aria-hidden="true">Gambar 1.2. 6 Bagian Tengah</figcaption>
-</figure>
-
-> Pada foto ini menunjukan bagian tengah lahan. Bagian tengah merupakan
-> bagian yang memerlukan pengawasan ketat. Hal ini karena, pada bagian
-> tengah terdapat kendang ayam yang dihitung sebagai asset biologis dari
-> peternakan ayam, selain itu juga terdapat rumah kaca yang menghalangi
-> beberapa pandangan ke bagian depan lahan. Selanjutnya, untuk objek
-> penghalang pandangan lainnya adalah pohon pada bagian pinggir kolam,
-> dimana untuk kamera pengawas pada bagian ini tidak dapat menyorot
-> kearah rumah. Pada bagian tengah terdapat 3 titik buta,
-> yaitu rumah, sawah, dan gerbang depan lahan.
-
-5.  **Bagian Depan (Sawah, Kolam Depan, Gerbang, Rumah Kaca)**
-
-<figure>
-<img src="media/image13.jpeg" style="width:4.95in;height:1.30506in"
-alt="Gambar 1.2. 7 Bagian Depan 1" />
-<figcaption aria-hidden="true">Gambar 1.2. 7 Bagian Depan 1</figcaption>
-</figure>
-
-> Pada foto pertama menunjukan bagian depan dari lahan yang akan di
-> monitoring. Mengacu pada objek yang ada, objek penting dari bagian
-> depan adalah sawah, kolam depan, gerbang, dan rumah kaca. Pada bagian
-> depan terdapat banyak object yang menjadi penghalang pandangan,
-> seperti pohon, tiang besi, dan jaring penahan daun. Dalam gambar
-> menjadi jelas jika titik buta adalah gerbang, sawah, dan bagian atas
-> pagar besi.
-
-<figure>
-<img src="media/image14.jpeg" style="width:4.95in;height:1.34461in"
-alt="Gambar 1.2. 8 Bagian Depan 2" />
-<figcaption aria-hidden="true">Gambar 1.2. 8 Bagian Depan 2</figcaption>
-</figure>
-
-> Pada foto kedua menunjukan bagian depan dari lahan. Dari sudut pandang
-> ini terlihat bahwa terdapat titik buta yang sama, yaitu sawah dan
-> gerbang. Namun, karena ketinggian dari kolam depan yang lebih tinggi
-> di sisi pinggir lahan, membuat ada bagian lahan yang luput dari
-> pandangan, yang paling jelas adalah terhalangnya pandangan ke arah
-> kandang ayam di bagian tengah lahan oleh kolam depan. Selain itu pada
-> bagian ini juga sudah terinstal perangkat monitoring yang pada saat
-> waktu pengambilan gambar, sistem monitoring sebelumnya masih
-> digunakan.
+- Kompleksitas Infrastruktur: Mengatasi titik-titik buta tersebut membutuhkan unit kamera dedikasi yang terpisah dan skalabel, dilengkapi dengan kontrol gerak dinamis. Solusi ini memadukan perangkat keras tangguh dan algoritma cerdas dalam satu arsitektur intranet yang efisien tanpa menggunakan *cloud*.
 
 ### 1.2.2 Aspek Ekonomi
 
-- Biaya Operasional Berkelanjutan: Banyak solusi komersial, baik CCTV
-  maupun sistem kustom sebelumnya yang berbasis AI (seperti YOLO),
-  mengenakan biaya opeerasional berupa langganan bulanan untuk
-  penyimpanan cloud atau layanan pemrosesan data. Biaya operasional ini
-  dianggap tinggi oleh mitra, sehingga menjadi beban finansial jangka
-  panjang yang ingin dihindari oleh mitra.
-
-- Harga per Unit yang Tinggi: Berdasarkan pengamatan dan pencarian yang
-  dilakukan, terdapat beberapa brand CCTV yang cukup terkenal di
-  Indonesia. Pada tanggal 1 Oktober 2025 dilakukan pencarian data harga
-  dari beberapa unit CCTV pada sebuah platform e-commerce. Berdasarkan
-  pencarian di temukan beberapa data brand, jenis, dan harga produk.
-  Dalam tabel akan ditunjukan harga per unit CCTV dengan brand dan jenis
-  yang berbeda, namun harga belum termasuk pajak. Selain itu, harga
-  tersebut tanpa paket khusus seperti instalasi maupun komponen tambahan
-  lain seperti video recorder dan penyimpanan eksternal terpisah (SD
-  Card). Berikut adalah hasil pencarian data yang diperoleh seperti
-  dalam tabel berikut\[10\]\[11\]\[12\],
-
-  | Brand   | Variant/Jenis Produk               | Harga Per Unit |
-  |:--------|:-----------------------------------|:---------------|
-  | IMOU    | IMOU Ranger A1 3MP                 | Rp. 500.000    |
-  | IMOU    | IMOU Cruiser Dual 6MP              | Rp. 1.400.000  |
-  | IMOU    | IMOU Cuiser SC 3MP                 | Rp. 950.000    |
-  | IMOU    | IMOU Ranger Mini 3MP               | Rp. 600.000    |
-  | IMOU    | IMOU Ranger 2 3MP                  | Rp. 510.000    |
-  | IMOU    | IMOU Cue 2MP                       | Rp. 410.000    |
-  | IMOU    | IMOU Bulb 3MP                      | Rp. 800.000    |
-  | IMOU    | IMOU Cell PT LITE Wi-Fi            | Rp. 1.600.000  |
-  | IMOU    | IMOU Ranger Dual Pro 6MP           | Rp. 1.000.000  |
-  | IMOU    | IMOU DK2 3MP                       | Rp. 400.000    |
-  | Ezviz   | EZVIZ TY1 Pro 3MP                  | Rp. 475.000    |
-  | Ezviz   | EZVIZ H5 Poe 3MP                   | Rp. 855.000    |
-  | Ezviz   | EZVIZ HB8 Lite Battery-Powered Pan | Rp. 1.510.000  |
-  | Ezviz   | EZVIZ CP1 Pro 2MP                  | Rp. 450.000    |
-  | Ezviz   | EZVIZ H8c 3MP                      | Rp. 800.000    |
-  | Ezviz   | EZVIZ H3c Pro 8MP                  | Rp. 1.300.000  |
-  | Ezviz   | EZVIZ C6N 2MP                      | Rp. 425.000    |
-  | Ezviz   | EZVIZ H1c Smart Home               | Rp. 400.000    |
-  | Ezviz   | EZVIZ C8c 4MP                      | Rp. 1.000.000  |
-  | Uniview | UNV IPC2122LB-ASF28-A              | Rp. 757.000    |
-  | Uniview | UNV UAC-B115-AF28                  | Rp. 880.000    |
-  | Uniview | UNV UAC-B112-AF28                  | Rp. 510.000    |
-  | Uniview | UNV UAC-T115-F28                   | Rp. 710.000    |
-  | Uniview | UNV UAC-B112-F40                   | Rp. 530.000    |
-  | Uniview | UNV UAC-B115-F40                   | Rp. 730.000    |
-  | Uniview | UNV UAC-T112-F28                   | Rp. 280.000    |
-
-  Tabel 1. 1 Harga CCTV per Unit
-
-> Berdasarkan tabel harga tersebut diketahui ketiga brand tersebut
-> memiliki rata – rata harga per unit nya sebesar Rp 760.846,00 dengan
-> rentang harga per unitnya mulai dari Rp 280.000,00 hingga Rp
-> 1.600.000,00 untuk CCTV kelas properti pribadi. Untuk harga dari
-> setiap brand dan jenis sangat bervariasi, seperti dalam grafik
-> berikut.
-
-<figure>
-<img src="media/image15.png" style="width:4.35226in;height:2.71667in"
-alt="C:\Users\M S I\AppData\Local\Microsoft\Windows\INetCache\Content.MSO\5274A614.tmp" />
-<figcaption>Gambar 1.2. 9 Grafik Harga Rata- rata CCTV</figcaption>
-</figure>
-
-- IMOU memilki rentang harga mulai dari Rp 400.000,00 hingga Rp
-  1.600.000,00 dengan rata – rata harga per unitnya Rp 817.000,00 dengan
-  harga yang bervariasi bergantung pada variasi/jenis CCTV.
-
-- Ezviz memilki rentang harga mulai dari Rp 400.000,00 hingga Rp
-  1.510.000,00 dengan rata - rata harga per unitnya Rp 801.667,00 dengan
-  harga yang bervariasi bergantung pada variasi/jenis CCTV.
-
-- Uniview memilki rentang harga mulai dari Rp 280.000,00 hingga Rp
-  880.000,00 dengan rata – rata harga per unitnya Rp 628.143,00 dengan
-  harga yang bervariasi bergantung pada variasi/jenis CCTV.
+- Biaya Operasional Berkelanjutan: Akar permasalahan utama yang dihadapi mitra saat ini adalah beban tagihan bulanan. Sistem kustom terdahulu membebankan biaya langganan VPS sebesar [BIAYA_VPS] per bulan untuk pemrosesan AI di *cloud*. Biaya operasional yang terus berjalan ini menjadi beban finansial jangka panjang yang memicu mitra untuk menolak melanjutkan penggunaan sistem tersebut.
 
 ### 1.2.3 Aspek Fungsionalitas dan Keamanan:
 
@@ -703,13 +468,12 @@ alt="C:\Users\M S I\AppData\Local\Microsoft\Windows\INetCache\Content.MSO\5274A6
   melalui aplikasi gawai (mobile application). Keterbatasan ini
   menyulitkan fungsionalitas pemantauan pasif yang kontinu di pos
   penjagaan, karena petugas atau mitra tidak dapat memantau situasi
-  lahan secara langsung melalui layar televisi atau monitor besar secara
-  praktis tanpa harus membuka dan mengoperasikan aplikasi tersebut
+  lahan secara langsung dan praktis tanpa harus membuka dan mengoperasikan aplikasi tersebut
   terlebih dahulu. Hal ini mengurangi efektivitas sistem sebagai
-  instrumen pengawasan real-time yang responsif \[7\].
+  instrumen pengawasan real-time yang responsif [7].
 
 - Potensi Alarm Palsu (False Alarm): Ketergantungan pada satu jenis
-  sensor, misalnya hanya sensor gerak (PIR)\[8\], sangat rentan terhadap
+  sensor, misalnya hanya sensor gerak (PIR)[8], sangat rentan terhadap
   alarm palsu yang dipicu oleh hewan, pergerakan bayangan dan kondisi
   geologis sekitar atau perubahan cuaca.
 
@@ -725,111 +489,39 @@ alt="C:\Users\M S I\AppData\Local\Microsoft\Windows\INetCache\Content.MSO\5274A6
 
 ### 1.2.4 Aspek Sosial:
 
-Memberi Rasa Aman: Bagi pemilik lahan dengan mobilitas yang tinggi pasti
-akan sulit untuk terus memonitoring lahan miliknya. Berdasarkan
-keterangan mitra, monitoring lahan menjadi salah satu hal yang sulit
-untuk dilakukan, karena tidak adanya solusi yang bisa memberikan
-peringatan mengenai kondisi lahan, terlebih dalam waktu yang lama.
+- Pencurian tidak hanya menimbulkan kerugian material berupa hilangnya aset biologis, tetapi juga memberikan dampak psikologis berupa rasa tidak aman dan kecemasan yang konstan bagi peternak. Beban pikiran ini secara tidak langsung dapat menurunkan fokus dan produktivitas pengelola lahan UMKM dalam mengembangkan usahanya sehari-hari.
 
-## 1.3 Kompleksitas Permasalahan
-
-Permasalahan yang diangkat memiliki beberapa kompleksitas. Kompleksitas
-akan menunjukan seberapa jauh permasalahan memilki tahapan
-penyeselesaian ataupun seberapa sulit dari permasalahan tersebut.
-Berdasarkan observasi dan pendalaman permasalahan yang diangkat, ada
-beberapa temuan kriteria kompleks yang terpenuhi dan dijabarkan pada
-tabel berikut.
-
-<table style="width:97%;">
-<caption>Tabel 1. 2 Kompleksitas Permasalahan</caption>
-<colgroup>
-<col style="width: 12%" />
-<col style="width: 34%" />
-<col style="width: 50%" />
-</colgroup>
-<thead>
-<tr>
-<th><strong>No</strong></th>
-<th><strong>Kriteria Kompleksitas</strong></th>
-<th><strong>Penjelasan</strong></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1</td>
-<td>Penyelesaian permasalahan memerlukan pengetahuan keteknikan yang
-mendalam.</td>
-<td>Solusi yang dibutuhkan memerlukan integrasi pengetahuan di bidang
-sistem tertanam, komunikasi nirkabel, berbagai jenis sensor dan
-aktuator, dan rekayasa perangkat lunak untuk integrasi dengan layanan
-eksternal.</td>
-</tr>
-<tr>
-<td>2</td>
-<td>Permasalahan melibatkan isu-isu yang luas, saling bersinggungan, dan
-melibatkan masalah non teknis.</td>
-<td>Masalah ini tidak hanya bersifat teknis, tetapi juga sangat terikat
-dengan aspek ekonomi (kebutuhan biaya rendah), aspek fungsional
-(keandalan pada konektivitas terbatas), aspek keamanan (akurasi deteksi
-dan minimalisasi alarm palsu).</td>
-</tr>
-<tr>
-<td>4</td>
-<td>Permasalahan tersebut jarang ditemui.</td>
-<td>Pada prakteknya perusahaan tidak mempermasalahkan biaya
-berkelanjutan dari perangkat monitoring yang digunakan, sehingga camera
-monitoring yang <em>low-cost</em> akan menjadi solusi yang relatif murah
-dan tetap memiliki system yang mendukung protocol kemanan dari sebuah
-lahan atau tempat. Disamping itu, aka nada beberapa keterbatasan dari
-fitur bawaan alat akibat biaya yang di tekan.</td>
-</tr>
-<tr>
-<td>6</td>
-<td>Permasalahan melibatkan pemangku kepentingan yang beragam dengan
-berbagai kebutuhan.</td>
-<td><p>Permasalahan ini melibatkan beberapa aktor dalam
-pengaplikasiannya diantaranya,</p>
-<ol type="1">
-<li><p>Pemilik Peternakan Ayam</p></li>
-<li><p>Pemilik Lahan</p></li>
-<li><p>Pemilik Rumah</p></li>
-<li><p>Penjaga Lahan</p></li>
-</ol></td>
-</tr>
-</tbody>
-</table>
-
-## 1.4 Analisa Solusi yang Ada
+## 1.3 Analisa Solusi yang Ada
 
 Analisis ini mengkaji beberapa alternatif solusi pengawasan yang telah tersedia di pasaran maupun yang biasa diterapkan di lapangan. Tujuannya adalah mengevaluasi keunggulan dan keterbatasan masing-masing solusi secara objektif dalam konteks aplikasi pada lahan peternakan, guna memvalidasi secara ilmiah urgensi (*research gap*) dari pengembangan sistem yang diusulkan.
 
-### 1.4.1 Sistem Kustom Versi Lama (SBC + Webcam + YOLO)
+### 1.3.1 Sistem Kustom Versi Lama (SBC + Webcam + YOLO)
 
-Sistem pemantauan kustom versi purwarupa ini dirancang dengan mengintegrasikan kamera standar, mikrokomputer (*Single-Board Computer* / SBC) sebagai pengendali utama, serta algoritma YOLO (*You Only Look Once*) untuk mendeteksi objek.
-- **Kelebihan:** Sistem ini menawarkan modularitas pemrograman yang sangat baik, mampu mendeteksi wujud manusia secara presisi, serta dapat langsung menembakkan notifikasi peringatan (alarm) seketika ke gawai pemilik lahan saat terjadi intrusi.
-- **Keterbatasan:** Kendala teknis terbesarnya terletak pada tingginya biaya operasional akibat ketergantungan langganan komputasi VPS bulanan yang mahal. Selain itu, sistem ini menuntut *bandwidth* internet yang sangat besar (tidak ideal untuk pedesaan), memiliki arah pandang statis yang memicu titik buta luas, dan tidak mendukung siaran video berkelanjutan ke layar monitor pos penjagaan.
+Sistem ini merupakan solusi nyata yang sebelumnya diimplementasikan oleh tim Capstone Design terdahulu pada lahan mitra yang sama, dan telah dioperasikan selama sekitar 4 bulan. Sistem tersebut memadukan komputer papan tunggal (seperti Raspberry Pi) dengan *webcam* USB biasa, di mana data gambar dikirim ke server *cloud* (VPS) untuk diproses oleh algoritma YOLO.
+- **Kelebihan:** Sistem ini sangat adaptif secara perangkat lunak dan tidak terikat pada vendor kamera tertentu (*open-source*), sehingga dapat dikembangkan lebih lanjut oleh mahasiswa.
+- **Keterbatasan (Akar Masalah):** Meskipun berhasil mendeteksi manusia, mitra pada akhirnya mengajukan keberatan dan menghentikan pengoperasiannya. Hal ini murni disebabkan oleh tagihan biaya langganan VPS bulanan sebesar [BIAYA_VPS] yang harus ditanggung mitra secara terus-menerus. Selain itu, kinerja *webcam* luar ruangan kurang awet saat menghadapi cuaca ekstrem.
 
-### 1.4.2 Sistem CCTV IP Kamera Komersial
+### 1.3.2 Sistem CCTV IP Kamera Komersial
 
-Sistem pengawasan cerdas nirkabel tunggal (*Smart Home IP Camera*) merupakan perangkat komersial siap pakai yang saat ini banyak dipasarkan. Kamera jenis ini langsung terhubung ke *router* Wi-Fi dan merekam data secara lokal ke dalam kartu memori (*MicroSD*) yang disematkan di dalam badan kamera.
+Berdasarkan pengamatan di beberapa platform *e-commerce* pada 1 Oktober 2025, rentang harga per unit untuk tiga *brand* CCTV populer (IMOU, Ezviz, Uniview) berkisar antara Rp 280.000 hingga Rp 1.600.000. Rata-rata harga unit kelas properti pribadi tersebut berada di angka Rp 760.000. Meskipun harga perolehan awalnya relatif terjangkau, perangkat jenis ini memiliki beberapa keterbatasan mendasar. Sistem pengawasan cerdas nirkabel tunggal (*Smart Home IP Camera*) merupakan perangkat komersial siap pakai yang saat ini banyak dipasarkan. Kamera jenis ini langsung terhubung ke *router* Wi-Fi dan merekam data secara lokal ke dalam kartu memori (*MicroSD*) yang disematkan di dalam badan kamera.
 - **Kelebihan:** Proses instalasi perangkat ini sangat praktis (*plug-and-play*), harga pengadaan satuan yang relatif murah, serta menyuguhkan kemudahan akses pemantauan visual jarak jauh melalui aplikasi telepon pintar.
 - **Keterbatasan:** Dalam konteks aplikasi peternakan, sistem ini sangat bergantung pada ketersediaan *bandwidth* internet dan layanan komputasi awan, menjadikannya sama sekali tidak andal untuk dioperasikan di wilayah pinggiran atau pedesaan yang ketersediaan sinyalnya fluktuatif. Selain itu, penyimpanan lokal di kartu memori membuat sistem ini sangat rawan terhadap tindak pencurian fisik; apabila unit kamera dicuri, maka seluruh rekaman video bukti akan hilang tak berbekas. Algoritma deteksi bawaan kamera ini umumnya juga hanya menganalisis perubahan piksel, sehingga rawan memicu alarm palsu akibat pergerakan daun atau hewan peliharaan.
 
-### 1.4.3 Sistem CCTV Berbasis DVR (Analog/HD-TVI/AHD)
+### 1.3.3 Sistem CCTV Berbasis DVR (Analog/HD-TVI/AHD)
 
 Sistem pengawasan sirkuit tertutup tradisional berbasis kabel koaksial dan perangkat DVR (*Digital Video Recorder*) merupakan standar industri keamanan konvensional yang sangat mapan. Rangkaian unit kamera saling dihubungkan menggunakan tarikan kabel fisik menuju mesin DVR terpusat untuk direkam ke dalam *hard disk*.
 - **Kelebihan:** Keunggulan utama dari sistem DVR adalah kemampuannya menyediakan pemantauan pasif yang sangat andal secara kontinu (24/7) secara luring (*offline*) melalui monitor besar, berkat ketersediaan antarmuka *output* langsung (HDMI/VGA). Transmisi video via kabel analog murni juga memastikan tidak adanya penundaan (latensi) atau gangguan frekuensi nirkabel.
 - **Keterbatasan:** Kelemahan krusial sistem ini saat diimplementasikan di peternakan terletak pada ketergantungannya pada kabel fisik. Membentangkan puluhan hingga ratusan meter kabel daya dan koaksial melintasi topologi lahan terbuka tidak hanya memicu pembengkakan biaya infrastruktur, namun juga tidak praktis dan rawan terputus akibat paparan cuaca ekstrem atau gigitan hama.
 - **Terkait Dukungan AI:** Secara objektif, perangkat DVR komersial generasi masa kini memang telah didukung oleh fitur deteksi analitik AI bawaan. Namun, ketersediaan fitur analitik tersebut umumnya disematkan pada jajaran model premium yang menuntut konsekuensi lonjakan harga perolehan yang sangat drastis, menjadikannya kurang realistis jika diterapkan oleh peternak skala UMKM.
 
-### 1.4.4 Sistem CCTV Wireless Berbasis NVR dengan AI
+### 1.3.4 Sistem CCTV Wireless Berbasis NVR dengan AI
 
 Sebagai jalan tengah evolusi teknologi pengawasan, saat ini tersedia pula solusi gabungan kamera CCTV nirkabel modern (*Wireless IP Camera*) dengan mesin pusat pengelola NVR (*Network Video Recorder*). Kamera berkomunikasi dengan mesin NVR melalui jaringan Wi-Fi lokal (*intranet*) tanpa harus terkoneksi ke internet publik.
 - **Kelebihan:** Konfigurasi ini sukses mempertahankan keandalan DVR lama (pemantauan luring melalui monitor HDMI dan perekaman stabil di *hard disk*) namun dipadukan dengan instalasi nirkabel yang lebih ringkas. Unit kamera tipe menengah-atas di kelas ini bahkan telah dibekali dengan cip *Edge AI Human Detection* internal yang bertugas mengenali postur manusia secara lokal (*on-device*).
 - **Keterbatasan:** Kelemahan fundamental solusi komersial ini adalah sifat ekosistem lunaknya yang kaku akibat penguncian pemasok (*vendor lock-in*). Algoritma AI bawaannya tertutup; sehingga jika kamera gagal beradaptasi dan sering memicu alarm palsu terhadap karakteristik pohon atau hewan ternak lokal, pengguna tidak dapat melatih ulang (*retrain*) algoritma model AI tersebut. Lebih lanjut, ekosistem perangkat ini dirancang tertutup secara fungsional sehingga mustahil diintegrasikan secara luas dengan sensor mekanis eksternal tambahan.
 - **Estimasi Biaya:** Mengacu pada survei harga di *marketplace* Indonesia untuk konfigurasi kelas menengah (mencakup 1 unit *Wireless* NVR 10-*channel*, 4 unit kamera *wireless* pendukung AI, dan sebuah *hard disk surveillance* 2TB), estimasi biaya investasi pengadaan di luar *router* dan monitor berada di rentang **Rp4,8 juta hingga Rp5,2 juta**. Nominal tersebut masih tergolong beban permodalan yang cukup membebani bagi pelaku UMKM di level desa.
 
-## 1.5 Kesimpulan
+## 1.4 Kesimpulan
 
 Berdasarkan analisis komprehensif yang telah dipaparkan pada sub-bab
 sebelumnya, pengangkatan masalah ini sebagai proyek Capstone Design
@@ -850,11 +542,11 @@ beberapa poin krusial berikut:
     menawarkan tantangan teknis yang kompleks dan multidimensional bagi
     mahasiswa teknik. Solusi yang dirancang harus mengintegrasikan aspek
     perangkat keras dan perangkat lunak secara seimbang, meliputi
-    penerapan komputasi lokal berdaya rendah, pembagian
+    penerapan komputasi lokal tanpa biaya langganan, pembagian
     arsitektur terpisah dengan unit kamera dedikasi yang skalabel, kontrol gerak kamera dinamis, hingga
     optimalisasi komunikasi data lokal (intranet) nirkabel.
 
-3.  **Kesenjangan Kritis Solusi yang Tersedia:** Seluruh alternatif keamanan yang ada saat ini memiliki celah fungsional yang belum sepenuhnya beradaptasi dengan kondisi peternakan mitra. Sistem CCTV nirkabel modern (*Wireless NVR*) berfitur AI memang canggih, namun sistem tertutup pabrikan tersebut bersifat kaku (*vendor lock-in*). Akibatnya, algoritma deteksinya tidak bisa dilatih ulang saat sering terjadi alarm palsu, dan mustahil diintegrasikan dengan sensor keamanan fisik tambahan (seperti *tripwire*). Di sisi lain, sistem kabel analog (DVR) terkendala inefisiensi tarikan kabel di lahan terbuka. Sementara itu, sistem pengawasan kustom generasi lama (SBC) maupun IP Kamera standar sama-sama terbelenggu oleh fatalnya ketergantungan terhadap koneksi internet *cloud* serta tingginya biaya langganan VPS bulanan.
+3.  **Kesenjangan Kritis Solusi yang Tersedia:** Seluruh alternatif keamanan yang ada saat ini memiliki celah fungsional yang belum beradaptasi penuh dengan kondisi peternakan mitra. Sistem nirkabel modern (*Wireless NVR*) berfitur AI bersifat kaku (*vendor lock-in*), sehingga algoritma tidak bisa dilatih ulang dan sulit diintegrasikan dengan sensor keamanan tambahan. Di sisi lain, sistem kabel analog (DVR) terkendala inefisiensi infrastruktur fisik di lahan terbuka. Sementara itu, IP Kamera standar terbelenggu oleh kewajiban langganan ekosistem *cloud* pabrikan, sedangkan sistem pengawasan kustom generasi lama (SBC) terbukti gagal dipertahankan akibat tingginya biaya langganan VPS bulanan.
 
 4.  **Penyediaan Alternatif Sistem Berdaya Guna Tinggi:** Kehadiran
     alternatif sistem pengawasan yang ekonomis namun tetap memiliki
@@ -863,6 +555,7 @@ beberapa poin krusial berikut:
     operasional bulanan hingga hampir 0%, sistem ini mampu mengeliminasi
     pengeluaran finansial tambahan yang tidak diinginkan, sekaligus
     meminimalkan risiko kerugian produksi akibat gangguan keamanan fisik.
+
 
 # BAB II SPESIFIKASI SISTEM
 
