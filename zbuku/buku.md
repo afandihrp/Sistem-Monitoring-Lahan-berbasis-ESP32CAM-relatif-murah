@@ -320,56 +320,53 @@ memperbaiki flowchart.</p></li>
 
 # BAB I PENDAHULUAN
 
-> **Catatan revisi (hapus sebelum submit):**
-> - Bagian bertanda `[ISI: ...]` wajib diisi dengan data asli sebelum dokumen ini difinalisasi.
-> - Nomor sitasi [1]-[12] mengikuti dokumen asli sebagai acuan sementara — cek ulang urutan sitasi sesuai format IEEE setelah restrukturisasi ini selesai, karena beberapa bagian dipindah antar sub-bab.
-> - Tabel harga CCTV yang tadinya panjang (26 baris) sudah diringkas jadi 3-4 kalimat dan dipindah ke 1.3.2 (Analisa Solusi), sesuai aturan template bahwa 1.2 hanya membahas masalah, bukan solusi.
-
 ## 1.1 Deskripsi Umum Masalah dan Kebutuhan
 
-Sistem monitoring pada sektor pertanian dan peternakan merupakan instrumen krusial untuk meminimalkan risiko kerugian finansial akibat tindakan pencurian atau intrusi liar. Saat ini, solusi pengawasan yang umum diterapkan di lapangan didominasi oleh perangkat CCTV (*Closed-Circuit Television*) berbasis IoT (*Internet of Things*) komersial. Namun, efektivitas operasional dari sistem komersial ini sering terganggu oleh tingginya frekuensi alarm palsu (*false positive*) dalam mengidentifikasi ancaman manusia, karena algoritma bawaan sistem umumnya belum mampu membedakan secara presisi antara pergerakan intrusi nyata dengan gangguan lingkungan alami seperti pergerakan dedaunan, perubahan intensitas cahaya, atau aktivitas hewan ternak di sekitar lahan.
+Sistem monitoring pada sektor pertanian dan peternakan berperan penting dalam mendeteksi dini indikasi pencurian atau intrusi liar, sehingga pemilik lahan dapat merespons ancaman lebih cepat dan berpotensi menekan risiko kerugian finansial. Perlu ditegaskan bahwa fungsi utama sistem semacam ini bersifat **detektif** (mendeteksi dan memberi peringatan dini), bukan preventif dalam arti menghalangi pelaku secara fisik; kecepatan deteksi dan respons yang dihasilkanlah yang menjadi nilai tambah utamanya. Saat ini, solusi pengawasan yang umum diterapkan didominasi oleh perangkat CCTV (*Closed-Circuit Television*) berbasis IoT (*Internet of Things*) komersial. Namun, efektivitas operasional sistem ini sering terganggu oleh tingginya frekuensi alarm palsu (*false positive*), karena algoritma bawaan umumnya belum mampu membedakan secara presisi antara intrusi nyata dengan gangguan lingkungan alami seperti pergerakan dedaunan, perubahan intensitas cahaya, atau aktivitas hewan ternak di sekitar lahan.
 
-Sebagai alternatif penanganan, terdapat tren pengembangan sistem pemantauan kustom yang mengintegrasikan kamera, unit pemroses lokal, dan algoritma deteksi objek berbasis kecerdasan buatan seperti YOLO (*You Only Look Once*). Pendekatan ini pernah diterapkan secara langsung pada lahan mitra oleh tim capstone sebelumnya, menggunakan konfigurasi Raspberry Pi 4 sebagai unit pemroses, webcam sebagai node kamera, dan layanan VPS (*Virtual Private Server*) berbasis cloud untuk menjalankan inferensi deteksi manusia. Sistem tersebut telah dioperasikan pada lahan mitra selama **[ISI: durasi pemakaian, misal "kurang lebih 8 bulan"]**. Setelah periode pemakaian tersebut, mitra mulai keberatan menanggung biaya langganan VPS bulanan sebesar **[ISI: nominal biaya VPS per bulan, misal "Rp150.000–Rp300.000"]**, karena dianggap sebagai beban operasional berkelanjutan yang tidak sebanding dengan skala usaha UMKM yang dijalankan. Keluhan mitra inilah yang menjadi titik tolak langsung dari permasalahan yang diangkat pada proyek ini: bagaimana merancang sistem monitoring yang mempertahankan kemampuan deteksi objek berbasis AI, namun menghilangkan ketergantungan pada biaya komputasi cloud berulang.
+Sebagai alternatif, terdapat tren pengembangan sistem pemantauan kustom yang mengintegrasikan kamera, unit pemroses lokal, dan algoritma deteksi objek berbasis AI seperti YOLO (*You Only Look Once*). Pendekatan ini pernah diterapkan secara langsung pada lahan mitra oleh tim capstone sebelumnya, menggunakan konfigurasi Raspberry Pi 4 sebagai unit pemroses, webcam sebagai node kamera, dan layanan VPS (*Virtual Private Server*) berbasis *cloud* untuk inferensi deteksi manusia. Sistem tersebut telah dioperasikan selama **[ISI: durasi pemakaian, misal "kurang lebih 8 bulan"]**. Setelah periode tersebut, mitra mulai keberatan menanggung biaya langganan VPS bulanan sebesar **[ISI: nominal biaya VPS per bulan, misal "Rp150.000–Rp300.000"]**, karena dianggap sebagai beban operasional (*OPEX*) yang tidak sebanding dengan skala usaha UMKM. Keluhan mitra inilah yang menjadi titik tolak permasalahan: bagaimana merancang sistem monitoring yang mempertahankan kemampuan deteksi AI, namun menghilangkan ketergantungan pada biaya komputasi *cloud* berulang.
 
-Kelemahan lain yang melingkupi pendekatan berbasis cloud ini adalah rendahnya rasio efisiensi antara biaya investasi dengan luas cakupan pemantauan (*underwhelming cost-to-coverage ratio*). Mengingat lahan agraris memiliki karakteristik area terbuka yang sangat luas, penggunaan kamera dengan sudut pandang statis memaksa pengguna melipatgandakan jumlah perangkat demi memperoleh cakupan pengawasan yang komprehensif, sehingga biaya pengadaan dan pemeliharaan sistem membengkak secara eksponensial. Ditambah lagi, ketergantungan sistem pengawasan pada konektivitas internet aktif dan server eksternal menjadi kendala kritis bagi wilayah yang memiliki keterbatasan aksesibilitas jaringan telekomunikasi, sehingga operasional sistem menjadi tidak andal (*unreliable*) bagi pelaku usaha sektor agraris skala UMKM (Usaha Mikro, Kecil, dan Menengah).
+Kelemahan lain dari pendekatan berbasis *cloud* adalah rendahnya rasio efisiensi antara biaya investasi dengan luas cakupan pemantauan. Mengingat lahan agraris memiliki karakteristik area terbuka yang sangat luas, penggunaan kamera bersudut pandang statis memaksa pengguna melipatgandakan jumlah perangkat demi memperoleh cakupan pengawasan yang komprehensif, sehingga biaya pengadaan membengkak secara eksponensial. Ditambah lagi, ketergantungan pada *streaming* video ke server eksternal membutuhkan *bandwidth* internet besar yang menjadi kendala kritis bagi wilayah rural dengan jaringan telekomunikasi fluktuatif, membuat operasional sistem menjadi tidak andal (*unreliable*).
 
-Oleh karena itu, diperlukan sebuah alternatif perancangan sistem monitoring cerdas yang mampu menekan biaya operasional melalui penggunaan unit pemroses pusat yang mengolah algoritma deteksi objek secara lokal secara mandiri, tanpa ketergantungan pada server eksternal berbayar. Unit pemroses pusat ini harus dirancang terpisah dari node penangkap gambar, serta mendukung integrasi dengan beberapa unit kamera dedikasi (ESP32-CAM) secara skalabel yang dapat ditambahkan sesuai kebutuhan lahan tanpa memicu pembengkakan biaya investasi yang signifikan. Setiap unit kamera dedikasi tersebut juga dilengkapi dengan mekanisme kontrol gerak kamera (pan-tilt) secara dinamis untuk memperluas cakupan area pantau dan mengurangi jumlah titik buta pada lahan terbuka.
-
-Permasalahan ini semakin relevan apabila dikaitkan dengan tingginya angka kriminalitas di sektor properti dan aset produksi. Berdasarkan data Pemerintah Provinsi Jawa Barat tahun 2019–2021, sebanyak 14 dari 19 kabupaten/kota tercatat mengalami kasus pencurian, dengan total 9.452 desa terdampak dalam kurun tiga tahun, seperti terlihat dalam grafik berikut [1][2].
+Permasalahan ini semakin relevan apabila dikaitkan dengan tingginya angka kriminalitas di sektor properti dan aset produksi. Berdasarkan data Pemerintah Provinsi Jawa Barat tahun 2019–2021, sebanyak 14 dari 19 kabupaten/kota tercatat mengalami kasus pencurian, dengan total 9.452 desa terdampak dalam kurun tiga tahun [1][2].
 
 <figure>
 <img src="media/image6.png" style="width:3.14548in;height:2.34259in" />
 <figcaption>Gambar 1.1.1 Grafik Kasus Pencurian Tahun 2019–2021</figcaption>
 </figure>
 
-Pencurian termasuk dalam permasalahan umum yang sering dialami dalam usaha peternakan secara khusus [3]. Pencurian dapat mempengaruhi aset biologis dan produk peternakan, seperti ayam dan telur. Selain itu, gangguan hama seperti ular, kucing, anjing liar, dan tikus juga termasuk risiko keamanan yang berkontribusi pada berkurangnya aset biologis atau produk peternakan. Tanpa adanya sistem *monitoring* untuk mendeteksi hal-hal tersebut, dampak yang timbul antara lain [3][4]:
+Pencurian termasuk dalam permasalahan umum yang sering dialami dalam usaha peternakan [3]. Kehilangan aset biologis (ayam) maupun produk (telur) secara langsung mengurangi *output* produksi dan menurunkan pendapatan. Selain itu, aksi pencurian seringkali disertai perusakan fasilitas kandang, yang mengakibatkan proses produksi terhambat dan memunculkan biaya tambahan untuk perbaikan. Di samping itu, gangguan dari hama seperti ular, kucing liar, anjing liar, dan tikus juga berkontribusi pada berkurangnya aset biologis atau produk peternakan [3][4]. Tanpa adanya sistem *monitoring* yang andal, kerugian finansial dan psikologis bagi pemilik lahan akan terus berulang.
 
-1. **Mengurangi Output Produksi** — berkurangnya aset biologis (ayam) secara langsung menurunkan volume produk yang dihasilkan, baik telur maupun ayam potong.
-2. **Mengganggu Proses Produksi** — kerusakan fasilitas akibat usaha pengambilan paksa menimbulkan biaya tambahan untuk perbaikan kandang atau alat produksi.
-
-Berangkat dari kondisi tersebut, diperlukan solusi monitoring keamanan lahan yang murah, mandiri, dan tidak bergantung pada biaya berlangganan berkelanjutan. Kebutuhan ini semakin spesifik pada studi kasus peternakan ayam milik mitra, yang memiliki pagar utama sepanjang 35 meter dan area titik buta berbentuk "L" seluas 3×10 m dan 4×10 m. Lokasi hanya memiliki akses listrik tanpa koneksi internet kabel yang stabil, sehingga penggunaan sistem keamanan berbasis *cloud* tidak memungkinkan secara berkelanjutan.
+Kebutuhan ini semakin spesifik pada studi kasus peternakan ayam milik mitra, yang memiliki pagar utama sepanjang 35 meter dan area titik buta berbentuk "L" seluas 3×10 m dan 4×10 m. Secara topografi dan infrastruktur, terdapat pemisahan lokasi yang signifikan antara aset produksi dan tempat tinggal mitra. Kandang peternakan dan lahan terbuka berada pada jarak sekitar 100 meter dari rumah mitra. Di area peternakan telah tersedia infrastruktur jaringan eksisting berupa router yang terhubung langsung ke rumah mitra menggunakan kabel *fiber optik*. Rumah mitra akan dijadikan sebagai pos komando pusat yang menaungi PC Server untuk komputasi AI dan *Kiosk Monitor* untuk pemantauan pasif. Sayangnya, sistem kustom generasi sebelumnya gagal memanfaatkan *backbone fiber optik* lokal ini secara optimal; sistem tersebut justru memaksa seluruh *streaming* video dari router peternakan keluar ke internet publik menuju VPS *cloud*, yang tidak hanya memboroskan *bandwidth* tetapi juga memicu biaya langganan yang sebenarnya bisa dihindari jika komputasi dipusatkan secara lokal di PC Server rumah mitra.
 
 Berdasarkan keterangan dari pemilik lahan, dibutuhkan sistem yang mampu:
+1. Memberikan notifikasi visual (foto) secara *real-time* melalui aplikasi pesan instan (Telegram) sebagai sistem peringatan dini asinkron yang selalu aktif dengan konsumsi *bandwidth* minimal.
+2. Menyediakan antarmuka pemantauan terpusat berbasis web (*Kiosk Monitor*) yang mendukung mode lokal (LAN) untuk pemantauan pasif 24/7 di pos rumah mitra tanpa membebani internet.
+3. Mendukung akses jarak jauh (WAN) melalui internet secara *on-demand* (hanya saat dibutuhkan) melalui peramban web *mobile*, dengan syarat PC Server dalam keadaan menyala.
+4. Beroperasi secara mandiri dengan memindahkan beban komputasi AI ke infrastruktur lokal, sehingga menghilangkan biaya operasional (*OPEX*) berlangganan *cloud*.
 
-- Memberikan notifikasi visual (foto) secara *real-time* melalui aplikasi Telegram saat terdeteksi penyusup.
-- Memungkinkan kontrol gerak kamera jarak jauh tanpa harus berlangganan layanan *cloud*.
-- Beroperasi secara mandiri dengan biaya operasional berulang mendekati nol.
+Permasalahan ini memenuhi kriteria *Complex Engineering Problem* (CEP) pada beberapa aspek berikut:
 
-Dengan demikian, inti dari masalah pada judul *"Tingginya Biaya Operasional pada Monitoring Lahan Peternakan Ayam"* adalah kebutuhan akan sistem keamanan alternatif yang hemat biaya, tidak bergantung pada layanan komputasi cloud berbayar, namun tetap responsif dan fungsional dalam mendeteksi ancaman keamanan.
+**Tabel 1.1 Kompleksitas Permasalahan**
 
-Permasalahan ini juga memenuhi kriteria *complex engineering problem* pada beberapa aspek berikut: (1) penyelesaiannya memerlukan pengetahuan mendalam yang mengintegrasikan sistem tertanam, komunikasi nirkabel, sensor-aktuator, dan rekayasa perangkat lunak edge AI; (2) melibatkan isu lintas bidang yang saling bersinggungan — teknis, ekonomi, dan keamanan — bukan sekadar masalah rekayasa tunggal; dan (3) melibatkan pemangku kepentingan yang beragam, yaitu pemilik peternakan, pemilik lahan, pemilik rumah, dan penjaga lahan, yang masing-masing memiliki kebutuhan berbeda terhadap sistem yang dirancang.
+| No | Kriteria Kompleksitas | Penjelasan |
+|:---|:---|:---|
+| 1 | Penyelesaian permasalahan memerlukan pengetahuan keteknikan yang mendalam. | Solusi yang dibutuhkan memerlukan integrasi pengetahuan di bidang sistem tertanam (ESP32-CAM), komunikasi nirkabel (Intranet Lokal), rekayasa perangkat lunak (*Backend Server*), dan implementasi *Machine Learning* (YOLO) untuk deteksi objek secara *real-time*. |
+| 2 | Permasalahan melibatkan isu-isu yang luas, saling bersinggungan, dan melibatkan masalah non-teknis. | Masalah ini tidak hanya bersifat teknis, tetapi juga sangat terikat dengan aspek ekonomi (kebutuhan OPEX nol/biaya rendah), aspek fungsional (keandalan pada konektivitas internet terbatas), dan aspek keamanan (akurasi deteksi dan minimalisasi *alarm palsu*). |
+| 3 | Permasalahan tersebut jarang ditemui pada skala industri besar, namun krusial bagi UMKM. | Optimasi biaya komputasi AI pada infrastruktur jaringan yang tidak stabil jarang menjadi prioritas pada skala industri besar yang memiliki *budget* IT tak terbatas. Namun, pada skala UMKM di area rural, setiap rupiah biaya operasional sangat diperhitungkan, menuntut adanya rekayasa arsitektur sistem yang inovatif untuk memisahkan beban komputasi dan beban akuisisi data secara efisien. |
+| 4 | Permasalahan melibatkan pemangku kepentingan yang beragam dengan berbagai kebutuhan. | Permasalahan ini melibatkan beberapa aktor: (1) Pemilik Peternakan (butuh keamanan aset biologis), (2) Pemilik Lahan (butuh pemantauan area buta), dan (3) Penjaga Lahan (butuh sistem notifikasi yang tidak membingungkan/*false alarm*). |
 
 ## 1.2 Analisa Masalah
 
-Masalah yang diangkat menyangkut multi-aspek, yaitu teknis, ekonomi, dan fungsionalitas-keamanan. Berikut penjelasan tiap aspek yang terpengaruh.
+Masalah yang diangkat menyangkut multi-aspek, yaitu teknis, ekonomi, dan fungsionalitas-keamanan. Berikut adalah analisis akar permasalahan yang terjadi di lapangan.
 
 ### 1.2.1 Aspek Teknis
 
-- **Ketergantungan pada Komputasi Eksternal Berbayar**: Hambatan utama sistem sebelumnya adalah kebutuhan komputasi inferensi AI yang cukup berat untuk dijalankan pada perangkat tunggal berdaya rendah secara real-time, sehingga tim sebelumnya memilih menyewa layanan VPS eksternal. Solusi ini secara fungsional berhasil, tetapi menimbulkan biaya berulang yang dianggap tidak berkelanjutan oleh mitra. Oleh karena itu, arsitektur sistem yang diusulkan perlu memindahkan seluruh proses inferensi ke unit pemroses lokal (PC) yang berada pada satu kali biaya investasi (*one-time cost*), tanpa biaya langganan bulanan apa pun.
+- **Inefisiensi Pemanfaatan Infrastruktur Jaringan Lokal:** Lahan peternakan dan rumah mitra (sebagai pos komando) terpisah sejauh kurang lebih 100 meter namun telah terhubung oleh *backbone fiber optik* yang memadai untuk lalu lintas data lokal. Masalah fundamental pada sistem terdahulu adalah arsitekturnya yang memaksa *streaming* video dari kamera di lahan untuk di-*routing* keluar melalui internet publik menuju VPS *cloud* secara 24/7 hanya untuk keperluan inferensi AI. Pendekatan ini sangat tidak efisien karena membebani *bandwidth* internet publik (yang di area rural sering fluktuatif) untuk lalu lintas yang sebenarnya bisa diisolasi sepenuhnya di dalam jaringan lokal melalui *fiber optik* yang sudah ada. Ketergantungan pada *cloud* ini pula yang menyebabkan sistem sering mengalami putus koneksi (*offline*) dan gagal mendeteksi intrusi secara *real-time* tepat pada saat dibutuhkan.
 
-- **Efisiensi Bandwidth dan Kemandirian Jaringan**: Ketergantungan pada transmisi video langsung berkapasitas besar ke server eksternal boros bandwidth dan tidak praktis pada wilayah dengan kestabilan jaringan yang sering berfluktuasi. Oleh karena itu, arsitektur komunikasi sistem dirancang mandiri menggunakan jaringan lokal (intranet); seluruh lalu lintas data visual dari kamera ke unit pemroses diisolasi secara lokal melalui access point internal, dan koneksi internet luar hanya digunakan secara minimal untuk mengirimkan notifikasi teks/foto ringan via Telegram saat terdeteksi intrusi.
+- **Keterbatasan Komputasi pada Perangkat Edge (SBC):** Sistem kustom sebelumnya menggunakan *Single-Board Computer* (SBC) seperti Raspberry Pi 4 sebagai unit pemroses di lahan. Kendala teknis fundamentalnya adalah SBC berbasis ARM tersebut tidak memiliki akselerator *neural network* (NPU/GPU) yang mumpuni untuk menjalankan inferensi model AI kompleks seperti YOLO secara *real-time* (FPS akan *drop* drastis hingga tidak fungsional untuk deteksi *real-time*). Keterbatasan *hardware* inilah yang pada akhirnya memaksa sistem lama untuk melakukan *offloading* komputasi ke VPS *cloud*, yang memicu biaya langganan bulanan dan ketergantungan mutlak pada stabilitas internet.
 
-- **Jangkauan Area dan Titik Buta**: Luasnya area (pagar 35 m) dan adanya area titik buta berbentuk "L" tidak memungkinkan diawasi hanya dengan satu kamera statis. Berdasarkan observasi langsung terhadap denah lahan (Gambar 1.2.1), teridentifikasi sejumlah titik rawan dan titik buta, baik di dalam maupun di sekitar area yang akan dipantau — terutama pada area belakang (pencahayaan minim), area teras (terhalang pagar dan struktur bangunan), serta area tengah dan depan lahan yang terhalang oleh rumah kaca, pepohonan, dan kolam. Kondisi ini menegaskan kebutuhan akan kamera dengan kontrol gerak (pan-tilt) dinamis dan kemungkinan penambahan unit kamera secara skalabel, alih-alih penambahan kamera statis dalam jumlah besar yang membengkakkan biaya.
+- **Jangkauan Area dan Titik Buta (*Blind Spot*):** Luasnya area (pagar 35 m) dan adanya area titik buta berbentuk "L" tidak memungkinkan diawasi hanya dengan satu kamera statis. Berdasarkan observasi langsung terhadap denah lahan (Gambar 1.2.1), teridentifikasi sejumlah titik rawan, terutama pada area belakang (pencahayaan minim), area teras (terhalang pagar), serta area tengah dan depan yang terhalang oleh rumah kaca, pepohonan, dan kolam. Kondisi topografi ini menuntut penambahan node kamera pada titik-titik spesifik yang apabila dilakukan menggunakan perangkat komersial konvensional akan memicu pembengkakan biaya investasi dan kompleksitas instalasi kabel fisik yang rawan putus di lahan terbuka.
 
 <figure>
 <img src="media/image7.jpeg" style="width:2.6in;height:2.93145in" />
@@ -378,815 +375,277 @@ Masalah yang diangkat menyangkut multi-aspek, yaitu teknis, ekonomi, dan fungsio
 
 ### 1.2.2 Aspek Ekonomi
 
-- **Biaya Operasional Berkelanjutan**: Solusi kustom berbasis AI yang menggunakan komputasi cloud (seperti sistem sebelumnya) mengenakan biaya operasional bulanan untuk layanan VPS. Sebagaimana disebutkan pada sub-bab 1.1, biaya ini mencapai **[ISI: nominal, misal Rp150.000–Rp300.000/bulan]**, yang dalam jangka panjang terakumulasi menjadi beban finansial signifikan bagi mitra berskala UMKM.
+- **Biaya Operasional Berkelanjutan (OPEX):** Solusi kustom berbasis AI yang menggunakan komputasi *cloud* membebankan biaya operasional bulanan untuk layanan VPS. Sebagaimana disebutkan pada sub-bab 1.1, biaya ini mencapai **[ISI: nominal]**, yang dalam jangka panjang terakumulasi menjadi beban finansial signifikan yang ditolak oleh mitra berskala UMKM karena dianggap tidak berkelanjutan (*unsustainable*).
 
-- **Perbandingan Kasar terhadap Solusi Komersial**: Sebagai gambaran awal, survei singkat pada platform e-commerce per 1 Oktober 2025 terhadap tiga brand CCTV populer di Indonesia (IMOU, Ezviz, Uniview) menunjukkan rentang harga per unit antara Rp280.000 hingga Rp1.600.000, dengan rata-rata sekitar Rp760.000 per unit [10][11][12]. Angka ini belum termasuk biaya perekam (DVR/NVR), penyimpanan, maupun instalasi, dan akan dibahas lebih lanjut sebagai pembanding pada sub-bab 1.3 (Analisa Solusi yang Ada).
+- **Tingginya Biaya Investasi Awal (CAPEX) Solusi Komersial:** Survei pada platform *e-commerce* terhadap tiga *brand* CCTV populer (IMOU, Ezviz, Uniview) menunjukkan rentang harga satuan Rp280.000 hingga Rp1.600.000, dengan rata-rata sekitar Rp760.000 per unit [10][11][12]. Angka ini belum termasuk biaya perekam (NVR/DVR), penyimpanan, maupun instalasi. Untuk menutupi seluruh titik buta lahan mitra yang memerlukan minimal beberapa unit kamera, biaya investasi awal solusi komersial akan sangat membebani permodalan UMKM.
 
 ### 1.2.3 Aspek Fungsionalitas dan Keamanan
 
-- **Potensi Alarm Palsu (*False Alarm*)**: Ketergantungan pada satu jenis sensor, misalnya hanya sensor gerak (PIR) [8], sangat rentan terhadap alarm palsu yang dipicu oleh hewan, pergerakan bayangan, atau perubahan cuaca. Diperlukan pendekatan deteksi berlapis (sensor mekanis + deteksi visual berbasis AI) untuk menekan tingkat kesalahan ini.
+- **Potensi Alarm Palsu (*False Alarm*):** Ketergantungan pada sensor gerak dasar (PIR) atau analisis perubahan piksel sangat rentan terhadap alarm palsu yang dipicu oleh hewan ternak, bayangan, dahan pohon, atau perubahan cuaca [8]. Di lingkungan peternakan, hal ini menurunkan tingkat kepercayaan (*trust*) pengguna terhadap sistem dan berpotensi membuat mereka mengabaikan notifikasi ancaman yang sesungguhnya.
 
-- **Keterbatasan Luas Cakupan Pengawasan (Sudut Pandang Statis)**: Perangkat kamera pengawas standar umumnya bekerja dengan sudut pandang (*field of view*) yang statis dan kaku, menyebabkan area titik buta yang luas pada lahan terbuka (lihat 1.2.1), sehingga menurunkan efisiensi fungsional alat dalam memantau area peternakan yang luas secara dinamis.
+- **Keterbatasan Luas Cakupan Pengawasan:** Perangkat kamera pengawas standar bekerja dengan sudut pandang (*field of view*) yang statis dan kaku, menyebabkan area titik buta yang luas pada lahan terbuka, sehingga menurunkan efisiensi fungsional alat dalam memantau area peternakan secara komprehensif.
 
 ### 1.2.4 Aspek Sosial
 
-Bagi pemilik lahan dengan mobilitas tinggi, pemantauan berkelanjutan terhadap kondisi lahan menjadi sulit dilakukan secara manual. Berdasarkan keterangan mitra, ketiadaan solusi yang mampu memberikan peringatan dini atas kondisi lahan — terlebih dalam rentang waktu yang lama tanpa pengawasan langsung — menimbulkan rasa tidak aman yang berkelanjutan bagi pemilik maupun penjaga lahan **[ISI: opsional — tambahkan 1 data/sitasi pendukung terkait dampak psikologis atau keresahan pelaku UMKM agraris akibat gangguan keamanan, jika tersedia]**.
+Bagi pemilik lahan dengan mobilitas tinggi, pemantauan berkelanjutan secara manual sangat sulit dilakukan. Ketiadaan solusi peringatan dini yang andal menimbulkan beban psikologis dan rasa tidak aman yang berkelanjutan bagi pemilik maupun penjaga lahan, terlebih saat meninggalkan aset produksinya dalam waktu yang lama tanpa ada sistem yang memberikan jaminan deteksi dini atas kondisi lahan.
 
 ## 1.3 Analisa Solusi yang Ada
 
-Analisis ini mengkaji beberapa alternatif solusi pengawasan yang telah tersedia, baik yang pernah diterapkan langsung di lahan mitra maupun yang umum ditemukan di pasaran, guna memvalidasi *research gap* dari sistem yang diusulkan.
+Analisis ini mengkaji beberapa alternatif solusi pengawasan guna memvalidasi *research gap* dari sistem yang diusulkan.
 
 ### 1.3.1 Sistem Kustom Sebelumnya (Raspberry Pi 4 + Webcam + VPS)
 
-Sistem ini merupakan solusi yang **secara nyata pernah diimplementasikan oleh tim capstone terdahulu pada lahan mitra yang sama**, menggunakan Raspberry Pi 4 sebagai pengendali utama, webcam sebagai node kamera, dan algoritma YOLO yang dijalankan melalui layanan VPS untuk mendeteksi objek manusia. Sistem ini dioperasikan selama **[ISI: durasi]** sebelum akhirnya mitra mengajukan keberatan atas biaya langganan.
+Sistem ini pernah diimplementasikan oleh tim capstone terdahulu pada lahan mitra menggunakan Raspberry Pi 4 dan algoritma YOLO yang dijalankan melalui layanan VPS.
 
-- **Kelebihan**: Modularitas pemrograman yang baik, mampu mendeteksi wujud manusia secara presisi, serta mengirimkan notifikasi peringatan langsung ke gawai pemilik lahan saat terjadi intrusi.
-- **Keterbatasan**: Kendala teknis dan finansial terbesarnya adalah ketergantungan pada langganan komputasi VPS bulanan sebesar **[ISI: nominal]**, yang dinilai memberatkan mitra dalam jangka panjang. Selain itu, sistem ini menuntut bandwidth internet yang cukup besar untuk mengirim data ke VPS secara berkelanjutan, serta memiliki arah pandang kamera yang statis sehingga menyisakan titik buta yang cukup luas pada area lahan.
+- **Kelebihan:** Modularitas pemrograman yang baik, mampu mendeteksi wujud manusia secara presisi, dan mengirimkan notifikasi langsung ke gawai.
+- **Keterbatasan:** Kendala teknis terbesarnya adalah **keterbatasan daya komputasi (CPU/GPU) pada Raspberry Pi 4** yang berbasis ARM dan tidak memiliki NPU mumpuni untuk inferensi YOLO secara *real-time*. Akibatnya, sistem **terpaksa melakukan *offloading* ke VPS Cloud**, memicu biaya langganan bulanan sebesar **[ISI: nominal]** yang memberatkan mitra. Selain itu, sistem menuntut *bandwidth* internet besar secara kontinu dan memiliki arah pandang statis.
 
 ### 1.3.2 Sistem CCTV IP Kamera Komersial
 
-Kamera IP nirkabel tunggal (*Smart Home IP Camera*) merupakan perangkat siap pakai yang terhubung langsung ke router Wi-Fi dan merekam data secara lokal ke kartu memori (*MicroSD*) di dalam badan kamera. Survei harga pada platform e-commerce (per 1 Oktober 2025) terhadap tiga brand populer — IMOU, Ezviz, dan Uniview — menunjukkan rentang harga satuan Rp280.000 hingga Rp1.600.000, dengan rata-rata sekitar Rp760.000 per unit untuk kelas CCTV properti pribadi, belum termasuk biaya instalasi maupun penyimpanan tambahan [10][11][12].
+Kamera IP nirkabel tunggal (*Smart Home IP Camera*) yang terhubung langsung ke *router* Wi-Fi dan merekam data ke kartu memori (*MicroSD*). Harga satuan berkisar antara Rp280.000 hingga Rp1.600.000 dengan rata-rata sekitar Rp760.000 per unit [10][11][12].
 
-- **Kelebihan**: Instalasi praktis (*plug-and-play*), harga satuan relatif murah, serta kemudahan akses pemantauan jarak jauh melalui aplikasi telepon pintar.
-- **Keterbatasan**: Untuk konteks peternakan, sistem ini tetap bergantung pada ketersediaan internet untuk akses jarak jauh, dan penyimpanan lokal di kartu memori membuatnya rawan terhadap pencurian fisik — apabila unit kamera dicuri, seluruh rekaman bukti turut hilang. Algoritma deteksi bawaan umumnya hanya menganalisis perubahan piksel, sehingga rawan memicu alarm palsu akibat pergerakan daun atau hewan.
+- **Kelebihan:** Instalasi praktis (*plug-and-play*), harga satuan relatif murah, dan mudah diakses melalui aplikasi telepon pintar.
+- **Keterbatasan:** Sangat bergantung pada ketersediaan *bandwidth* internet untuk akses jarak jauh. Penyimpanan lokal di kartu memori rawan terhadap pencurian fisik (jika kamera dicuri, rekaman hilang). Algoritma deteksi bawaan umumnya hanya menganalisis perubahan piksel, sehingga rawan memicu alarm palsu.
 
 ### 1.3.3 Sistem CCTV Berbasis DVR (Analog/HD-TVI/AHD)
 
-Sistem sirkuit tertutup berbasis kabel koaksial dan DVR (*Digital Video Recorder*) merupakan standar industri keamanan konvensional yang mapan, di mana unit kamera dihubungkan melalui kabel fisik menuju mesin DVR terpusat.
+Sistem sirkuit tertutup berbasis kabel koaksial/UTP dan DVR (*Digital Video Recorder*) merupakan standar industri keamanan konvensional yang mapan.
 
-- **Kelebihan**: Mampu menyediakan pemantauan pasif yang andal secara kontinu (24/7) secara luring melalui monitor besar berkat antarmuka output langsung (HDMI/VGA), dengan latensi minimal karena transmisi kabel analog murni.
-- **Keterbatasan**: Ketergantungan pada kabel fisik menjadi kelemahan krusial di lahan terbuka — membentangkan kabel daya dan koaksial sepanjang puluhan meter memicu pembengkakan biaya infrastruktur dan rawan terputus akibat cuaca ekstrem atau gigitan hama. Fitur deteksi analitik AI pada DVR komersial umumnya hanya tersedia pada model premium dengan harga jauh lebih tinggi, sehingga kurang realistis bagi peternak skala UMKM.
+- **Kelebihan:** Mampu menyediakan cakupan area yang sangat baik dan andal secara kontinu (24/7) secara luring (*offline*). Transmisi kabel analog murni memastikan latensi nol dan tidak terpengaruh oleh fluktuasi sinyal nirkabel.
+- **Keterbatasan:** Kelemahan fundamentalnya terletak pada **kompleksitas infrastruktur dan instalasi**. Di lahan peternakan terbuka dengan jarak hingga 100 meter antara kandang dan rumah mitra, membentangkan puluhan meter kabel daya dan data sangat tidak praktis, memicu biaya infrastruktur (kabel, pipa pelindung, galian) yang mahal, serta sangat rawan terputus akibat cuaca ekstrem, gigitan hama, atau aktivitas fisik di lahan. Selain itu, fitur analitik AI pada DVR komersial umumnya hanya tersedia pada model premium dengan harga yang tidak realistis bagi UMKM.
 
 ### 1.3.4 Sistem CCTV Wireless Berbasis NVR dengan AI
 
-Solusi ini menggabungkan kamera CCTV nirkabel modern (*Wireless IP Camera*) dengan mesin pusat NVR (*Network Video Recorder*), berkomunikasi melalui jaringan Wi-Fi lokal tanpa harus terkoneksi ke internet publik.
+Solusi ini menggabungkan kamera nirkabel modern dengan mesin pusat NVR (*Network Video Recorder*) yang berkomunikasi melalui jaringan Wi-Fi lokal (*intranet*).
 
-- **Kelebihan**: Mempertahankan keandalan pemantauan luring melalui monitor HDMI dan perekaman stabil di hard disk, dipadukan dengan instalasi nirkabel yang lebih ringkas. Unit kamera kelas menengah-atas bahkan dibekali cip *Edge AI Human Detection* internal untuk mengenali postur manusia secara lokal (*on-device*).
-- **Keterbatasan**: Ekosistem tertutup (*vendor lock-in*) menjadi kelemahan fundamental — algoritma AI bawaan tidak dapat dilatih ulang (*retrain*) meskipun sering memicu alarm palsu terhadap karakteristik pohon atau hewan ternak lokal, dan sistem sulit diintegrasikan dengan sensor mekanis eksternal tambahan.
-- **Estimasi Biaya**: Untuk konfigurasi kelas menengah (1 unit Wireless NVR 10-channel, 4 unit kamera wireless pendukung AI, dan hard disk surveillance 2TB), estimasi biaya investasi berada di rentang Rp4,8 juta hingga Rp5,2 juta di luar router dan monitor — nominal yang masih cukup membebani permodalan UMKM skala desa.
+- **Kelebihan:** Menyelesaikan masalah instalasi kabel pada DVR dengan tetap mempertahankan keandalan pemantauan luring dan cakupan area yang luas.
+- **Keterbatasan:** Kendala utamanya adalah **biaya investasi (CAPEX) yang sangat tinggi** (estimasi Rp4,8 juta hingga Rp5,2 juta untuk konfigurasi kelas menengah) dan sifat ekosistemnya yang tertutup (*proprietary / vendor lock-in*). Algoritma AI bawaan pabrik tidak dapat dilatih ulang (*retrain*) ketika sistem terus-menerus memicu *false alarm* akibat pergerakan daun atau hewan ternak. Mitra dipaksa menerima logika deteksi bawaan pabrik yang kaku dan tidak bisa dikustomisasi sesuai kebutuhan unik lahan peternakan.
 
-### Ringkasan Perbandingan
+### 1.3.5 Matriks Perbandingan Solusi
 
-| Solusi | Biaya Berulang | Ketergantungan Internet | Fleksibilitas AI | Cakupan Area |
-|---|---|---|---|---|
-| Sistem lama (RPi+Webcam+VPS) | Tinggi (langganan VPS) | Tinggi | Tinggi (custom) | Rendah (statis) |
-| IP Kamera Komersial | Rendah–sedang | Tinggi (akses jarak jauh) | Rendah | Rendah (statis) |
-| DVR Analog | Rendah | Rendah | Sangat rendah/tidak ada | Rendah (statis) |
-| Wireless NVR+AI | Rendah | Rendah | Rendah (*locked*) | Rendah (statis) |
-| **Sistem diusulkan (ESP32-CAM+PC+YOLO)** | **Sangat rendah (one-time cost)** | **Rendah (intranet lokal)** | **Tinggi (custom, retrainable)** | **Tinggi (pan-tilt, skalabel)** |
+**Tabel 1.2 Matriks Perbandingan Solusi Monitoring**
+
+| Solusi | Model Biaya (OPEX & CAPEX) | Ketergantungan Internet | Fleksibilitas AI | Kompleksitas Instalasi & Infrastruktur |
+|:---|:---|:---|:---|:---|
+| **Sistem Lama (RPi+VPS)** | **OPEX Tinggi** (Langganan VPS bulanan) | Tinggi (Wajib *streaming* ke Cloud) | Tinggi (*Custom*) | Sedang (Butuh RPi & Webcam di tiap titik) |
+| **IP Kamera Komersial** | **CAPEX Sedang**, OPEX Rendah | Tinggi (Akses jarak jauh butuh internet stabil) | Rendah (*Locked*) | Mudah (*Plug-and-play*, tapi rawan kehilangan MicroSD) |
+| **DVR Analog** | **CAPEX Tinggi** (Kabel & pipa pelindung panjang), OPEX Nol | Nol (Luring penuh) | Sangat Rendah / Tidak Ada | **Sangat Rumit.** Menarik kabel koaksial & daya sepanjang 100 m dari lahan ke rumah mitra sangat tidak praktis, rentan putus digigit hama/terkena cangkul, dan merusak estetika lahan. |
+| **Wireless NVR + AI** | **CAPEX Sangat Tinggi** (Rp 4,8 jt–5,2 jt+), OPEX Nol | Rendah (Intranet lokal) | Rendah (*Proprietary/Locked*) | Mudah (Nirkabel), namun terkendala *Vendor Lock-in* |
+| **Sistem Diusulkan (ESP32-CAM + PC + YOLO)** | **CAPEX Rendah** (Manfaatkan PC existing), **OPEX Nol** | **Sangat Rendah & Terkendali.** AI & Monitoring rutin 24/7 berjalan via LAN (*Fiber Optik*). Internet hanya digunakan untuk *payload* Telegram dan akses *on-demand* via Web Kiosk *Mobile*. | **Tinggi (*Custom & Retrainable*)** | **Mudah & Skalabel.** Memanfaatkan *backbone fiber optik* & router *existing* di lahan. Node ESP32-CAM terhubung ke WiFi lokal, *stream* langsung ke PC Server di rumah via LAN tanpa butuh kabel data fisik baru. |
 
 ## 1.4 Kesimpulan
 
 Berdasarkan analisis yang telah dipaparkan, pengangkatan masalah ini sebagai proyek Capstone Design memiliki urgensi, relevansi, dan nilai kemanfaatan yang tinggi, dirangkum dalam beberapa poin berikut:
 
-1. **Urgensi Pengamanan Lahan Berbiaya Efisien**: Sistem yang sebelumnya digunakan mitra terbukti fungsional secara teknis, namun menimbulkan beban biaya berlangganan VPS bulanan yang pada akhirnya ditolak oleh mitra karena dianggap tidak berkelanjutan bagi skala usaha UMKM.
+1. **Urgensi Pengamanan Lahan Berbiaya Efisien:** Sistem yang sebelumnya digunakan mitra terbukti fungsional secara teknis, namun menimbulkan beban biaya berlangganan VPS bulanan yang pada akhirnya ditolak oleh mitra karena dianggap tidak berkelanjutan bagi skala usaha UMKM.
 
-2. **Kompleksitas Rancangan Multidimensional**: Solusi yang dirancang harus mengintegrasikan aspek perangkat keras dan perangkat lunak secara seimbang — komputasi lokal tanpa biaya berlangganan, arsitektur terpisah dengan unit kamera dedikasi yang skalabel, kontrol gerak kamera dinamis, hingga optimalisasi komunikasi data lokal (intranet) nirkabel.
+2. **Kompleksitas Rancangan Multidimensional:** Solusi yang dirancang harus mengintegrasikan aspek perangkat keras dan perangkat lunak secara seimbang — komputasi lokal tanpa biaya berlangganan, arsitektur terpisah dengan unit kamera dedikasi yang skalabel, hingga optimalisasi komunikasi data lokal nirkabel melalui pemanfaatan infrastruktur *fiber optik* eksisting untuk mengatasi keterbatasan *bandwidth* internet.
 
-3. **Kesenjangan Kritis Solusi yang Tersedia**: Sistem CCTV wireless NVR berfitur AI bersifat kaku akibat *vendor lock-in* — algoritma deteksinya tidak dapat dilatih ulang saat sering memicu alarm palsu, dan sulit diintegrasikan dengan sensor keamanan fisik tambahan. Sistem DVR analog terkendala inefisiensi tarikan kabel di lahan terbuka. IP Kamera komersial rawan kehilangan bukti rekaman akibat pencurian fisik kartu memori. Sementara itu, sistem kustom yang pernah diterapkan langsung pada lahan mitra (RPi+Webcam+VPS) justru menjadi bukti paling konkret bahwa pendekatan AI custom secara teknis layak, namun **model biaya berbasis langganan VPS-lah** yang menjadi akar penolakan mitra — bukan kemampuan deteksinya.
+3. **Kesenjangan Kritis Solusi yang Tersedia:** Sistem CCTV wireless NVR berfitur AI bersifat kaku akibat *vendor lock-in* (algoritma tidak bisa di-*retrain* untuk menghindari *false alarm* hewan/daun). Sistem DVR analog terkendala inefisiensi tarikan kabel di lahan terbuka. IP Kamera komersial rawan kehilangan bukti rekaman akibat pencurian fisik. Sementara itu, sistem kustom sebelumnya (RPi+VPS) menjadi bukti konkret bahwa pendekatan AI *custom* secara teknis layak, namun model biaya berbasis langganan *cloud* dan keterbatasan komputasi SBC-lah yang menjadi akar penolakan mitra.
 
-4. **Penyediaan Alternatif Sistem Berdaya Guna Tinggi**: Kehadiran sistem pengawasan yang mempertahankan fleksibilitas deteksi AI custom sebagaimana sistem sebelumnya, namun memindahkan seluruh biaya komputasi dari model langganan bulanan menjadi investasi satu kali (*one-time cost*) berbasis PC lokal, menjadi solusi krusial bagi pelaku usaha UMKM agraris untuk menekan biaya operasional bulanan mendekati nol tanpa mengorbankan akurasi maupun fleksibilitas deteksi.
+4. **Penyediaan Alternatif Sistem Berdaya Guna Tinggi:** Kehadiran sistem pengawasan yang mempertahankan fleksibilitas deteksi AI *custom*, namun memindahkan seluruh biaya komputasi dari model langganan bulanan menjadi investasi satu kali (*one-time cost*) berbasis PC Server lokal (*Low-Power Mini PC repurposed*), menjadi solusi krusial bagi pelaku UMKM. Perlu digarisbawahi bahwa kontribusi utama sistem ini terletak pada kecepatan deteksi dan notifikasi dini (bersifat detektif), sehingga waktu respons terhadap potensi ancaman dapat dipersingkat tanpa membebani infrastruktur jaringan yang ada. Keberadaan node kamera yang aktif dan responsif juga berpotensi menimbulkan efek jera (*deterrent effect*) secara psikologis bagi pelaku, meskipun secara teknis sistem ini tidak menjamin pencegahan fisik secara mutlak.
 
 # BAB II SPESIFIKASI SISTEM
 
 ## 2.1 Dasar Penentuan Spesifikasi
 
-Spesifikasi sistem dirancang berdasarkan analisis lapangan dan evaluasi
-terhadap alternatif komersial pada tahap *Capstone Design* sebelumnya.
-Kendala utama mitra tidak hanya terbatas pada tingginya biaya investasi
-awal instalasi sistem komersial (seperti NVR atau DVR), tetapi juga pada
-mahalnya biaya operasional penyewaan *server cloud* pada sistem kustom
-lama, serta tingginya rasio alarm palsu. Lebih jauh lagi, sistem pabrikan
-bersifat kaku (*vendor lock-in*), sehingga mustahil diintegrasikan dengan
-lapisan sensor fisik tambahan maupun modifikasi model AI. Oleh karena itu,
-spesifikasi utama difokuskan pada keterbukaan akses (*full control*)
-dengan mengeliminasi ketergantungan infrastruktur *cloud*. Sebagai
-solusinya, sistem mendayagunakan komputer pribadi (PC) bekas sebagai unit
-*server* komputasi lokal (*edge computing*) serbaguna guna meminimalkan
-biaya operasional rutin hingga mendekati 0%, sekaligus memberikan
-kebebasan mutlak dalam adaptasi algoritma deteksi.
+Spesifikasi sistem dirancang berdasarkan analisis lapangan, evaluasi terhadap alternatif komersial, dan batasan arsitektur yang telah ditetapkan pada tahap *Capstone Design 1* (CD-1). Kendala utama mitra tidak hanya terbatas pada tingginya biaya investasi awal instalasi sistem komersial, tetapi juga pada mahalnya biaya operasional penyewaan *server cloud* (VPS) pada sistem kustom lama, serta tingginya rasio alarm palsu di lingkungan peternakan. 
 
-Untuk mengakomodasi fleksibilitas perangkat keras yang tidak dimiliki
-oleh sistem komersial, spesifikasi unit kamera difokuskan pada penggunaan
-mikrokontroler ESP32-CAM. Meskipun memiliki keterbatasan resolusi,
-komponen ini secara spesifik dipilih karena sangat terjangkau, berdimensi
-mungil (mudah disembunyikan), sangat hemat daya, dan memiliki *firmware*
-terbuka yang memungkinkan integrasi sensor IoT fisik secara bebas (seperti
-*tripwire* kawat pagar dan sensor gerak PIR). Arsitektur fisik antara PC
-*server* dan unit kamera ESP32-CAM ini sengaja dipisah secara jaringan
-agar sistem bersifat skalabel secara mandiri.
+Penentuan spesifikasi teknis dan batasan operasional sistem ini didasarkan pada beberapa landasan utama:
+1. **Standar Ketahanan Perangkat:** Mengacu pada klasifikasi ketahanan perangkat luar ruangan (seperti standar IP65/IP67) untuk memastikan selubung node kamera mampu bertahan terhadap debu, kelembapan, dan cuaca ekstrem di area peternakan.
+2. **Literatur *Benchmark* AI:** Mengacu pada standar evaluasi model *Computer Vision* (seperti YOLO pada dataset *surveillance*) yang menetapkan ambang batas metrik *Precision* dan *Recall* untuk meminimalisir *false positive* akibat dinamika lingkungan alam.
+3. **Konteks Lapangan & Wawancara Mitra:** Berdasarkan observasi langsung pada CD-1, lahan memiliki geometri tidak beraturan (berbentuk "L"), pagar perimeter sepanjang 35 meter, dan area titik buta akibat vegetasi serta struktur kandang. Selain itu, terdapat infrastruktur *existing* berupa jaringan intranet lokal (*fiber optik*) yang memisahkan area lahan dengan rumah mitra (pos komando PC Server).
 
-Dalam hal transmisi data, sistem menyajikan visualisasi situasi melalui
-dua jalur terisolasi demi menyiasati fluktuasi sinyal internet pedesaan.
-Pertama, aliran data video berkapasitas besar diisolasi penuh di dalam
-jaringan intranet nirkabel lokal. Hal ini bertujuan mendukung pemantauan
-pasif secara kontinu melalui monitor pos penjagaan tanpa memakan
-*bandwidth*. Kedua, untuk mobilitas jarak jauh, koneksi internet minimalis
-hanya digunakan sesekali untuk menembakkan notifikasi peringatan dini
-(teks dan foto) ke ponsel pengguna secara eksklusif saat terjadi intrusi.
-
-Kondisi fisik lahan mitra juga mendasari penentuan spesifikasi tata
-letak fisik perangkat. Hambatan visual berupa vegetasi rimbun berketinggian
-4 hingga 5 meter dan pagar pembatas sepanjang 35 meter yang tertutup
-banyak objek menciptakan area titik buta yang rawan. Faktor lingkungan
-inilah yang mewajibkan spesifikasi mekanisme kontrol gerak aktif pada
-setiap unit ESP32-CAM untuk menyapu sudut pandang secara dinamis, sehingga
-mampu menutupi kelemahan cakupan arah pandang statis yang jamak ditemui
-pada kamera komersial murah.
+Oleh karena itu, spesifikasi utama difokuskan pada keterbukaan akses (*full control*) dengan mengeliminasi ketergantungan infrastruktur *cloud*. Sistem didayagunakan untuk meminimalkan biaya operasional rutin hingga mendekati 0%, sekaligus memberikan kebebasan mutlak dalam adaptasi algoritma deteksi dan manajemen konfigurasi node secara terpusat.
 
 ### 2.1.1 Kebutuhan Fungsional
-
-> Hasil akhir sistem diharapkan mampu:
-
-1.  Melakukan deteksi keberadaan objek atau aktivitas mencurigakan pada
-    area pemantauan secara otomatis menggunakan sensor fisik.
-2.  Mengambil dokumentasi visual berupa foto sebagai bukti autentik jika
-    terdeteksi aktivitas intrusi.
-3.  Mengirimkan notifikasi peringatan dini secara waktu nyata ke ponsel
-    pengguna saat terjadi pemutusan kawat pagar atau saat terdeteksi
-    adanya pergerakan.
-
-4.  Mengaktifkan sistem alarm suara di area monitoring untuk menjadi
-    sistem alarm bagi pemilik lahan.
-
-5.  Mengendalikan posisi sudut kamera secara aktif (pan-tilt) melalui
-    instruksi yang dikirimkan via mobile application.
-
-| **Kriteria Kinerja** | **Spesifikasi dan Batasan Sistem** |
-|:---|:---|
-| **Cakupan Area** | Penempatan kamera secara strategis dikombinasikan dengan kontrol gerak aktif untuk memaksimalkan area pantau dan meminimalkan titik buta (*blind spot*). |
-| **Akurasi Deteksi** | Sistem harus mampu mengidentifikasi pergerakan relevan (manusia atau objek besar) dengan akurasi tinggi dan meminimalkan pemicu tidak valid (*false positive*) akibat gangguan lingkungan alami (hewan kecil, daun tertiup angin, motor, dsb). |
-| **Reliabilitas** | Sistem mampu beroperasi secara kontinu dalam jangka waktu panjang tanpa memerlukan intervensi manual. |
-| **Response Time** | Latensi antara deteksi intrusi fisik hingga pengiriman notifikasi ke *mobile application* seminimal mungkin. |
-| **Durabilitas** | Selubung luar perangkat tahan terhadap cuaca ekstrem untuk penempatan luar ruangan (*outdoor*). |
-| **Ekonomi** | Total pengadaan dan biaya operasional jauh lebih ekonomis dibandingkan sistem komersial dengan mengoptimalkan rasio cakupan terhadap biaya (cost-to-coverage ratio). |
-| **Keamanan Data** | Transmisi data internet menggunakan enkripsi untuk melindungi privasi serta mencegah akses tidak sah. |
-
-Tabel 2. 1 Kebutuhan Non-Fungsional (Non-Functional Requirements)
+Hasil akhir sistem diharapkan mampu:
+1. Melakukan deteksi keberadaan objek atau aktivitas mencurigakan pada area pemantauan secara otomatis menggunakan perpaduan sensor fisik dan visual AI.
+2. Mengambil dokumentasi visual berupa foto dan video sebagai bukti autentik jika terdeteksi aktivitas intrusi.
+3. Mengirimkan notifikasi peringatan dini secara waktu nyata ke ponsel pengguna (via Telegram) saat terdeteksi adanya pergerakan manusia.
+4. Mengaktifkan sistem alarm suara di area monitoring sebagai peringatan lokal.
+5. Mengendalikan posisi sudut kamera secara otomatis berbasis zona dan menyediakan kontrol manual melalui antarmuka *Web Kiosk*.
+6. Mendeteksi upaya sabotase fisik (pemotongan atau penarikan paksa) pada pagar perimeter menggunakan sensor mekanis/kawat (*tripwire*) untuk mencegah intrusi yang menghindari deteksi visual dan PIR.
 
 ### 2.1.2 Parameter Penilaian Kinerja
-
-Untuk mengevaluasi efektivitas arsitektur sistem yang diusulkan
-berdasarkan keinginan mitra, ditetapkan parameter penilaian kinerja
-kuantitatif sebagai berikut:
-
-- **Akurasi Deteksi Aktivitas:** Tingkat keberhasilan identifikasi
-  aktivitas atau pergerakan objek pada area pemantauan wajib mencapai
-  minimal 85% dari total percobaan.
-
-- **Tingkat Alarm Palsu (False Positive Rate):** Toleransi kesalahan
-  deteksi akibat dinamika lingkungan (hewan kecil, perubahan cahaya,
-  atau pergerakan daun) dibatasi maksimal 15%.
-
-- **Kecepatan Respons (Response Time):** Latensi pengiriman notifikasi
-  dari saat deteksi fisik hingga diterima di mobile application tidak
-  boleh melebihi 10 detik.
-
-- **Stabilitas Visualisasi:** Transmisi visual wajib mempertahankan
-  kelancaran visualisasi tanpa adanya tampilan yang terputus atau
-  bergejolak.
+Untuk mengevaluasi efektivitas arsitektur sistem, ditetapkan parameter penilaian kinerja kuantitatif sebagai berikut:
+- **Akurasi Deteksi Aktivitas:** Tingkat keberhasilan identifikasi aktivitas manusia wajib memenuhi metrik *Precision* minimal 85% untuk menekan *false alarm*.
+- **Tingkat Alarm Palsu (*False Positive Rate*):** Toleransi kesalahan deteksi akibat dinamika lingkungan dibatasi maksimal 15%.
+- **Kecepatan Respons (*Response Time*):** Latensi pengiriman notifikasi dari saat deteksi fisik/visual hingga diterima di *mobile application* tidak boleh melebihi 10 detik.
+- **Stabilitas Visualisasi:** Transmisi visual wajib mempertahankan kelancaran visualisasi tanpa adanya tampilan yang terputus (*frame drop*) pada dasbor pemantau lokal.
 
 ### 2.1.3 Pertimbangan Konteks Lapangan
-
-Penentuan spesifikasi teknis dan penempatan kamera sangat dipengaruhi
-oleh karakteristik fisik peternakan mitra:
-
-- **Geometri Lahan Irregular:** Area berbentuk huruf "L" dan sekat fisik
-  menghalangi garis pandang lurus, mewajibkan penempatan unit kamera
-  pada titik sudut verteks untuk memaksimalkan sudut sapuan.
-
-- **Titik Infiltrasi Rawan:** Area pagar sepanjang 35 meter dan dinding
-  tinggi membutuhkan pengawasan perimeter ketat melalui penempatan
-  kamera yang sejajar dengan garis batas lahan.
-
-- **Hambatan Visual Vegetasi:** Rimbunnya vegetasi setinggi 4 s.d. 5
-  meter menghalangi sudut pandang atas, menuntut penempatan kamera di
-  ketinggian menengah dengan sudut hadap dinamis agar tetap memperoleh
-  pandangan bebas hambatan.
-
-- **Kondisi Pencahayaan:** Ketiadaan fitur penglihatan malam (night
-  vision) pada unit kamera diatasi melalui pemanfaatan sensor fisik
-  aktif (sensor gerak dan sensor kawat pagar) sebagai sistem cadangan
-  (fallback system). Sistem cadangan ini bekerja secara optimal untuk
-  mendeteksi ancaman dan memicu alarm peringatan dini secara mandiri
-  saat visibilitas kamera menurun drastis pada malam hari.
-
-### 2.1.4 Pertimbangan Biaya dan Value
-
-Sistem dirancang untuk memaksimalkan rasio efisiensi biaya terhadap area
-cakupan sebagai berikut:
-
-- Biaya kapital yang kompetitif jika dibandingkan dengan sistem CCTV
-  komersial atau Solusis sistem kustom versi lama dengan cakupan area
-  yang sama atau lebih.
-
-- Batasan Biaya Operasional (*Operational Cost*): Pemrosesan logika
-  secara lokal dan penggunaan jaringan intranet menekan pengeluaran sewa
-  server cloud hingga Rp 0,00 (nol rupiah).
-
-- Optimalisasi Nilai Guna (Value): Memberikan pengawasan perimeter yang
-  andal dan mencakup seluruh area rawan tanpa mengorbankan kelayakan
-  finansial bagi pelaku usaha skala UMKM.
+Penentuan spesifikasi teknis sangat dipengaruhi oleh karakteristik fisik peternakan mitra:
+- **Geometri Lahan Irregular:** Area berbentuk huruf "L" mewajibkan penempatan unit kamera pada titik sudut verteks dengan mekanisme *Zone-Based Steering* untuk memaksimalkan sudut sapuan.
+- **Hambatan Visual Vegetasi:** Rimbunnya vegetasi menuntut penempatan kamera di ketinggian menengah dengan sudut hadap yang dapat disesuaikan.
+- **Kondisi Pencahayaan:** Ketiadaan fitur penglihatan malam (*night vision*) yang memadai pada kamera *low-cost* diatasi melalui pemanfaatan sensor fisik aktif (PIR) sebagai sistem cadangan (*fallback system*) yang dikendalikan secara terpusat oleh Server untuk mendeteksi ancaman pada malam hari.
+- **Risiko Sabotase Perimeter:** Pagar sepanjang 35 meter rawan terhadap upaya perusakan fisik (dipotong/ditarik) oleh intrus yang mengetahui titik buta kamera. Hal ini mewajibkan adanya lapisan keamanan fisik independen (*tripwire*) yang tidak bergantung pada kondisi pencahayaan maupun cuaca.
 
 ## 2.2 Batasan dan Spesifikasi
 
-Berdasarkan observasi, analisis, dan wawancara yang telah dilakukan,
-mitra membutuhkan sistem monitoring dengan harga terjangkau tanpa
-mengurangi fitur yang dapat disediakan oleh perangkat penyusunnya.
-Adapun beberapa batasan dari sistem monitoring tersebut adalah sebagai
-berikut.
+Berdasarkan observasi, analisis, dan arsitektur yang disepakati pada CD-1, sistem monitoring ini memiliki batasan dan spesifikasi mengikat sebagai berikut.
 
 ### 2.2.1 Batasan Wilayah
+Seluruh perangkat sistem monitoring (Node ESP32-CAM, Sensor PIR, dan Node Tripwire) akan dipasang hanya dalam batas wilayah lahan milik mitra. Pembatasan ini dimaksudkan untuk memberikan perlindungan perimeter dari risiko eksternal, terutama ancaman pencurian aset biologis maupun peralatan yang berada di dalam area lahan.
 
-Seluruh perangkat sistem monitoring akan dipasang hanya dalam batas
-wilayah lahan milik mitra. Pembatasan ini dimaksudkan untuk memberikan
-perlindungan terhadap lahan dari berbagai risiko eksternal, terutama
-ancaman pencurian yang menjadi permasalahan utama. Mitra menyampaikan
-bahwa pada beberapa kesempatan sebelumnya telah terjadi kehilangan aset
-biologis maupun peralatan yang berada di dalam area lahan dan merupakan
-milik mitra. Pada kejadian tersebut, mitra tidak dapat mengidentifikasi
-pelaku pencurian. Melalui instalasi sistem monitoring, diharapkan
-potensi terulangnya insiden serupa dapat diminimalkan, sekaligus
-memungkinkan identifikasi pelaku apabila kasus tersebut kembali terjadi.
+### 2.2.2 Batasan Biaya dan Operasional
+Sistem dibatasi pada penggunaan perangkat *low-cost* (ESP32-CAM/ESP32-C3) dan *open-source* untuk menekan CAPEX. Pemrosesan AI dilakukan secara lokal (*Edge Computing*) menggunakan PC *existing* mitra untuk mengeliminasi OPEX *cloud* secara mutlak (Rp 0,00). Tidak ada layanan berlangganan pihak ketiga yang diizinkan dalam arsitektur sistem ini.
 
-### 2.2.2 Batasan Biaya
-
-> Berbagai opsi perangkat untuk sistem monitoring masih dievaluasi
-> dengan mempertimbangkan efisiensi biaya serta kebutuhan operasional
-> jangka panjang. Perangkat input maupun aktuator yang tidak memerlukan
-> biaya operasional berkelanjutan dan memiliki harga relatif rendah
-> menjadi salah satu alternatif yang sedang dipertimbangkan, terutama
-> jika dibandingkan dengan solusi komersial seperti instalasi CCTV dari
-> vendor tertentu atau penggunaan *AI model* dengan *framework* khusus
-> untuk deteksi objek.
->
-> Metode deteksi berbasis *AI* pada umumnya membutuhkan dukungan *cloud
-> service* agar *framework* tersebut dapat berjalan dan terintegrasi
-> sepenuhnya dengan sistem monitoring. Ketergantungan pada *cloud
-> service* berpotensi menimbulkan biaya operasional tambahan bagi mitra.
-> Oleh karena itu, tim masih mempertimbangkan opsi lain yang dapat
-> mengurangi biaya dan kompleksitas sistem, misalnya dengan memanfaatkan
-> sensor sebagai mekanisme pendeteksi ancaman tanpa harus menggunakan
-> pemrosesan berbasis *cloud*.
->
-> Tujuan utama dari pengembangan sistem monitoring lahan adalah memenuhi
-> kebutuhan pemilik lahan yang memiliki tingkat mobilisasi tinggi.
-> Dengan adanya sistem monitoring, pemilik lahan maupun pemilik
-> peternakan dapat memperoleh rasa aman karena kondisi lahan dapat
-> dipantau dari jarak jauh. Selain itu, sistem monitoring juga perlu
-> dilengkapi dengan fitur peringatan dini dan alarm. Namun, integrasi
-> fitur tersebut sering kali membutuhkan layanan tambahan yang berbiaya
-> cukup besar. Oleh karena itu, diperlukan alternatif yang mampu menekan
-> biaya operasional jangka panjang sekaligus menghindari biaya instalasi
-> awal yang terlalu tinggi.
-
-Pengembangan sistem monitoring ini utamanya ditujukan untuk digunakan
-oleh pemilik lahan. Selain itu, beberapa pihak lain seperti pengurus
-lahan dan pengurus peternakan ayam juga dapat mengakses sistem
-monitoring tersebut. Ketiga pengguna ini masing-masing akan memperoleh
-wewenang untuk mengatur sudut kamera melalui perintah (*command*) yang
-dikirimkan melalui aplikasi pesan.
-
-Aplikasi pesan tersebut tidak hanya berfungsi sebagai remote control,
-tetapi juga digunakan sebagai platform untuk sistem peringatan dini dan
-alarm. Mekanisme peringatan dini dilakukan dengan cara mengambil gambar
-kondisi terkini di lahan, kemudian mengirimkannya kepada ketiga pengguna
-melalui satu nomor telepon seluler yang terhubung ke aplikasi pesan.
-Pendekatan ini memungkinkan penekanan biaya untuk penyediaan fitur
-peringatan dini dan alarm, serta meningkatkan efektivitas sistem secara
-keseluruhan \[3\]\[4\]\[5\]\[6\].
-
-Tabel 2. 2 Batasan Spesifikasi
-
-<table>
-<colgroup>
-<col style="width: 42%" />
-<col style="width: 57%" />
-</colgroup>
-<thead>
-<tr>
-<th colspan="2"><strong>Batasan</strong></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Tujuan</strong></td>
-<td>Sistem monitoring lahan dengan fitur peringatan dini dan remote
-control via Messanging app</td>
-</tr>
-<tr>
-<td><strong>Target Pengguna</strong></td>
-<td>Pemilik Lahan, Pengurus Lahan, dan Pengurus Peternakan Ayam</td>
-</tr>
-<tr>
-<td><strong>Alat dan <em>Software</em></strong></td>
-<td><em>Low-cost</em> camera, sensor, dan <em>messaging app</em></td>
-</tr>
-</tbody>
-</table>
+**Ketergantungan Ketersediaan Daya Server (*Server Uptime Dependency*):**
+Mengingat arsitektur sistem ini memusatkan seluruh logika komputasi AI, manajemen konfigurasi, dan *routing* notifikasi pada PC Server lokal, maka sistem ini memiliki batasan operasional di mana **PC Server wajib dalam keadaan menyala (*standby/on*) selama 24 jam**. Jika terjadi pemutusan daya atau kegagalan sistem pada PC Server, maka seluruh fungsi deteksi (baik visual AI maupun sensor PIR) dan notifikasi akan terhenti sementara (*system downtime*) hingga Server kembali *online*.
 
 ### 2.2.3 Spesifikasi Kebutuhan Fungsional
+Spesifikasi kebutuhan fungsional mendeskripsikan layanan, fitur, dan respons aktif yang wajib disediakan oleh sistem.
 
-Spesifikasi kebutuhan fungsional mendeskripsikan layanan, fitur, dan
-respons aktif yang wajib disediakan oleh sistem untuk merespons kondisi
-lingkungan fisik serta instruksi dari pengguna. Berdasarkan hasil
-diskusi dan analisis kebutuhan bersama mitra, berikut adalah rincian
-spesifikasi kebutuhan fungsional yang akan diimplementasikan:
-
-1.  **Deteksi Gerakan Multi-arah (Sensor Inframerah)**
-
-> Fitur ini merupakan gerbang utama penginderaan sistem untuk memantau
-> keamanan perimeter lahan peternakan secara waktu nyata (real-time).
-
+**1. Deteksi Perimeter Cadangan (Sentralisasi Konfigurasi Berbasis *Push*)**
 | **Parameter** | **Spesifikasi Fungsional** |
 |:---|:---|
-| **Deskripsi** | Sistem melakukan pemindaian area perimeter secara aktif menggunakan tiga sensor deteksi gerak yang ditempatkan secara spasial pada sektor Kiri, Tengah, dan Kanan. |
-| **Fungsi** | Mengidentifikasi pergerakan objek secara dini secara spasial dan mengirimkan sinyal interupsi ke unit pengontrol. |
-| **Komponen Aktif** | Tiga unit sensor Passive Infrared (PIR). |
-| **Input** | Radiasi inframerah dari pergerakan objek dalam jangkauan sensor sebesar . |
+| **Deskripsi** | Setiap kali ESP32-CAM menyala (*booting*) atau terhubung kembali ke jaringan, ia akan melakukan *handshake* dengan PC Server. Server kemudian mengirimkan *payload* konfigurasi satu kali (*one-time config*) berisi jadwal aktif PIR. Jika pengguna mengubah jadwal via Web Kiosk, Server langsung mengirimkan *push-update* secara *real-time*. |
+| **Fungsi** | Menjadikan PC Server sebagai *Single Source of Truth*. Mencegah inkonsistensi waktu dan mempermudah pengguna mengubah jadwal tanpa perlu memprogram ulang (*flashing*) mikrokontroler. |
+| **Kondisi Default (*Fail-Safe*)** | Jika ESP32-CAM menyala namun gagal terhubung ke PC Server, *default state* firmware adalah **PIR DISABLED** (Non-aktif) untuk mencegah *spam false alarm* akibat panas matahari di siang hari. |
+| **Komponen Aktif** | PC Server (*Config Manager*), Web Kiosk, ESP32-CAM, Sensor PIR. |
 
-Tabel 2. 3 Deteksi Aktivitas/Gerakan dengan Sensor
-
-\*\*\*\*
-
-2.  **Penyelarasan Arah Kamera Otomatis (Motor Penggerak)**
-
-> Fitur ini dirancang untuk mengarahkan modul penangkap gambar secara
-> otomatis ke titik terjadinya deteksi gerakan guna mengeliminasi area
-> titik buta.
-
+**2. Penyelarasan Arah Kamera Berbasis Zona (*Zone-Based Preset Steering*)**
 | **Parameter** | **Spesifikasi Fungsional** |
 |:---|:---|
-| **Deskripsi** | Memutar modul penangkap gambar secara mekanis mengarah secara presisi ke zona sensor yang mendeteksi adanya aktivitas. |
-| **Fungsi** | Mengarahkan lensa kamera secara cepat ke sektor spasial target (sudut , , atau ) tanpa memerlukan intervensi manual. |
-| **Komponen Aktif** | Motor servo penyesuai sudut. |
-| **Input** | Perintah parameter sudut dari unit pengontrol berdasarkan zona pemicuan sensor. |
+| **Deskripsi** | Memutar modul penangkap gambar secara mekanis ke sudut *preset* yang telah dikalibrasi berdasarkan zona sensor yang terpicu (misal: 0° untuk Kiri, 45° untuk Tengah, 90° untuk Kanan). |
+| **Fungsi** | Mengarahkan lensa kamera secara cepat ke sektor spasial target tanpa memerlukan intervensi manual dan tanpa *delay* pemrosesan *tracking* yang berat. |
+| **Komponen Aktif** | Motor servo penyesuai sudut, ESP32-CAM. |
 
-3.  **Analisis Citra AI dan Pengenalan Manusia (Server AI)**
-
-> Fitur ini mengintegrasikan penginderaan fisik dengan kecerdasan buatan
-> lokal untuk memverifikasi jenis objek yang memicu sensor.
-
+**3. Analisis Citra AI dan Pengenalan Manusia (Server AI)**
 | **Parameter** | **Spesifikasi Fungsional** |
 |:---|:---|
-| **Deskripsi** | Memproses gambar tangkapan kamera secara lokal menggunakan model klasifikasi kecerdasan buatan untuk mengidentifikasi keberadaan manusia. |
-| **Fungsi** | Meminimalkan kesalahan deteksi (false alarm) dengan cara membuat kotak pembatas (bounding box) hanya jika objek terverifikasi sebagai manusia. |
-| **Komponen Aktif** | Server pemroses kecerdasan buatan lokal. |
-| **Input** | File gambar biner resolusi tinggi dari server backend. |
+| **Deskripsi** | Memproses *stream* gambar dari ESP32-CAM secara lokal menggunakan model YOLO untuk mengidentifikasi keberadaan manusia. |
+| **Fungsi** | Meminimalkan kesalahan deteksi (*false alarm*) dengan cara membuat *bounding box* hanya jika objek terverifikasi sebagai manusia. |
+| **Komponen Aktif** | PC Server (Inference Engine). |
 
-4.  **Pelacakan Objek Dinamis (Object Tracking)**
-
-> Fitur ini diimplementasikan untuk melakukan pemantauan aktif secara
-> berkelanjutan mengikuti pergerakan target.
-
+**4. Pelacakan Objek Berbasis *Deadzone* (*Deadzone-Based Object Tracking*)**
 | **Parameter** | **Spesifikasi Fungsional** |
 |:---|:---|
-| **Deskripsi** | Menggerakkan posisi hadap kamera secara dinamis mengikuti arah pergerakan manusia agar objek target selalu berada di tengah frame visual. |
-| **Fungsi** | Mempertahankan fokus pengawasan visual secara otomatis selama objek manusia terdeteksi di area pemantauan. |
-| **Komponen Aktif** | Motor servo penyesuai sudut dan server pengolah data koordinat. |
-| **Input** | Koordinat bounding box objek manusia dari server kecerdasan buatan secara terus-menerus. |
+| **Deskripsi** | PC Server mengevaluasi posisi *bounding box* manusia. Kamera **hanya** diperintahkan bergerak jika objek manusia keluar dari area toleransi tengah layar (*deadzone*, misal: 40% area tengah *frame*). Perintah pergerakan dibatasi pada **interval *polling* 600 ms**. |
+| **Fungsi** | Mempertahankan objek manusia di dalam *frame* visual secara halus, mencegah motor servo rusak akibat osilasi (*jitter*), dan menjaga stabilitas jaringan intranet lokal. |
+| **Komponen Aktif** | Server AI, Motor Servo, ESP32-CAM. |
 
-5.  **Pengiriman Notifikasi Peringatan Instan (Platform Pesan)**
-
-> Fitur ini memfasilitasi kebutuhan pengiriman bukti visual ancaman
-> kepada pemilik lahan peternakan secara instan.
-
+**5. Pengiriman Notifikasi Peringatan Instan (Platform Pesan)**
 | **Parameter** | **Spesifikasi Fungsional** |
 |:---|:---|
-| **Deskripsi** | Mengirimkan snapshot kejadian yang dilengkapi garis bounding box hasil deteksi kecerdasan buatan langsung ke perangkat pengguna melalui aplikasi pesan instan. |
-| **Fungsi** | Menyediakan notifikasi peringatan dini (early warning) instan ke perangkat seluler pengguna dari jarak jauh. |
-| **Komponen Aktif** | Server pengontrol utama dan platform komunikasi pesan instan. |
-| **Input** | File citra beranotasi bounding box dari server pengontrol. |
+| **Deskripsi** | Mengirimkan *snapshot* kejadian yang dilengkapi *bounding box* langsung ke perangkat pengguna melalui Telegram Bot API. |
+| **Fungsi** | Menyediakan notifikasi peringatan dini (*early warning*) instan ke perangkat seluler pengguna dari jarak jauh (WAN). |
 
-6.  **Perekaman Video Kejadian Otomatis (Sistem Perekaman)**
-
-> Fitur ini didedikasikan untuk mendokumentasikan rentetan peristiwa
-> intrusi dalam bentuk video utuh.
-
+**6. Perekaman Video Kejadian Otomatis (Sistem Perekaman)**
 | **Parameter** | **Spesifikasi Fungsional** |
 |:---|:---|
-| **Deskripsi** | Merekam aliran frame kejadian secara asinkron dari awal pemicuan sensor hingga masa tenggang berakhir, merendernya, dan mengirimkannya ke perangkat pengguna. |
-| **Fungsi** | Menyediakan bukti dokumentasi video kejadian intrusi yang lengkap sebagai arsip digital. |
-| **Komponen Aktif** | Server pengontrol utama dan pustaka pengolah video. |
-| **Input** | Aliran frame gambar selama sesi deteksi aktif. |
-| **Output** | File rekaman video berformat standar yang dikirim ke pengguna dan disimpan ke sistem penyimpanan lokal. |
+| **Deskripsi** | Merekam aliran *frame* kejadian secara asinkron dari awal pemicuan sensor/AI hingga masa tenggang berakhir, merendernya, dan menyimpannya ke penyimpanan lokal Server. |
+| **Fungsi** | Menyediakan bukti dokumentasi video kejadian intrusi yang lengkap sebagai arsip digital yang tidak bisa dicuri (karena disimpan di PC Server di rumah mitra, bukan di MicroSD kamera). |
+| **Komponen Aktif** | Server pengontrol utama dan pustaka pengolah video (OpenCV/FFmpeg). |
 
-7.  **Pemantauan Langsung dan Kontrol Parameter Lokal (Dasbor
-    Pemantau)**
-
-> Fitur ini memenuhi kebutuhan pemantauan pasif yang terus-menerus di
-> pos penjagaan atau rumah pemilik secara lokal.
-
+**7. Pemantauan Langsung dan Kontrol Parameter Lokal (*Web Kiosk*)**
 | **Parameter** | **Spesifikasi Fungsional** |
 |:---|:---|
-| **Deskripsi** | Menyediakan antarmuka visual lokal untuk menampilkan streaming video lokal, mengontrol sudut kamera secara manual, dan menyesuaikan parameter gambar secara lokal. |
-| **Fungsi** | Menyediakan visualisasi situasi langsung tanpa membebani bandwidth internet serta memungkinkan konfigurasi sensor secara real-time. |
-| **Komponen Aktif** | Dasbor antarmuka pengguna lokal dan server pengontrol utama. |
-| **Input** | Aliran video dan interaksi tombol kontrol dari pengguna. |
-| **Output** | Tampilan siaran langsung yang lancar, penyesuaian parameter kamera (kecerahan, kontras, saturasi), dan kontrol sudut manual. |
+| **Deskripsi** | Menyediakan antarmuka visual lokal (berbasis Web) untuk menampilkan *streaming* video lokal, mengontrol sudut kamera, dan mengatur jadwal PIR. |
+| **Fungsi** | Menyediakan visualisasi situasi langsung tanpa membebani *bandwidth* internet luar (berjalan di atas intranet *fiber optik*). |
 
-> **Tambahan :** Keseluruhan spesifikasi kebutuhan fungsional merupakan
-> permintaan dari mitra setelah melalui proses diskusi secara
-> langsung\[1\]\[11\].
+**8. Deteksi Sabotase Perimeter (Node *Tripwire* / Kawat Pagar)**
+| **Parameter** | **Spesifikasi Fungsional** |
+|:---|:---|
+| **Deskripsi** | Memantau integritas fisik pagar perimeter menggunakan kawat konduktor yang dialiri tegangan rendah (prinsip pembagi tegangan). Jika kawat putus atau tegangan berfluktuasi drastis melewati ambang batas (*threshold*), node sensor akan mengirimkan sinyal interupsi bahaya ke Server. |
+| **Fungsi** | Memberikan lapisan keamanan anti-sabotase yang mutlak. Mencegah pelaku masuk dengan cara memotong pagar, melengkapi kelemahan PIR yang hanya mendeteksi pergerakan panas. |
+| **Kondisi Default** | Selalu aktif (*always-on*) 24 jam karena tidak terpengaruh oleh interferensi cahaya matahari atau cuaca, berbeda dengan PIR. |
+| **Komponen Aktif** | Node *Tripwire* (Mikrokontroler ESP32-C3), Kawat Konduktor, Resistor Pembagi Tegangan. |
 
 ### 2.2.4 Spesifikasi Kebutuhan Non-Fungsional
 
-> Kebutuhan non-fungsional dirancang untuk menetapkan standar kualitas
-> operasional, keandalan transmisi, serta batasan ekonomi agar sistem
-> dapat bekerja secara optimal di lingkungan luar ruangan berdasarkan
-> analisis konteks lapangan Bab I.
-
 | **Kriteria Kinerja** | **Spesifikasi Teknis dan Batasan Operasional** |
 |:---|:---|
-| **Akurasi Deteksi** | Model kecerdasan buatan lokal wajib mengidentifikasi objek manusia dengan tingkat akurasi minimal 85% serta meminimalkan pemicu tidak valid (false positive) akibat perubahan cahaya, pergerakan daun, atau hewan di bawah 15%. |
-| **Response Time** | Latensi pengiriman notifikasi dari pemicuan sensor awal hingga pesan peringatan diterima pengguna tidak boleh melebihi 10 detik. Latensi video streaming lokal pada dasbor pemantau lokal wajib berada di bawah 1000 ms. |
-| **Resiliensi Jaringan** | Sistem harus mendukung fitur penyesuaian resolusi dinamis untuk menyesuaikan kualitas gambar dan laju streaming berdasarkan kekuatan sinyal jaringan nirkabel lokal guna mencegah penumpukan data (buffering). |
-| **Reliabilitas** | Sistem wajib beroperasi secara kontinu selama 24 jam penuh. Layanan pemantauan langsung lokal (live stream) dan kontrol manual pada dasbor pemantau lokal harus tetap berjalan 100% stabil meskipun koneksi internet publik (WAN) luar terputus. |
-| **Keamanan Data** | Seluruh komunikasi data lokal wajib diamankan dengan protokol enkripsi standar industri pada port aman. Kredensial keamanan dan token akses harus disimpan secara terenkripsi dalam memori perangkat. |
-| **Durabilitas** | Selubung pelindung luar (outdoor enclosure) wajib menggunakan material sintetis yang tahan radiasi UV, air hujan, debu, dan cuaca ekstrem. Selubung dalam menggunakan material standard yang kokoh. |
-| **Ekonomi** | Total biaya pengadaan komponen (capital cost) harus kompetitif jika dibandingkan dengan pengadaan beberapa unit CCTV komersil standar maupun solusi kustom berbasis komputer papan tunggal (SBC) versi sebelumnya untuk cakupan area setara, serta mengeliminasi biaya rutin bulanan sewa server cloud pihak ketiga sehingga biaya operasional rutin tetap sebesar Rp 0.00. |
-
-> **Tambahan :** Keseluruhan spesifikasi kebutuhan non-fungsional
-> merupakan permintaan dari mitra setelah melalui proses diskusi secara
-> langsung\[1\]\[11\].
+| **Akurasi Deteksi** | Model AI lokal wajib mencapai metrik *Precision* minimal 85% dan meminimalkan *false positive* akibat perubahan cahaya, pergerakan daun, atau hewan di bawah 15%. |
+| **Response Time** | Latensi pengiriman notifikasi dari pemicuan sensor/AI hingga pesan diterima pengguna tidak boleh melebihi 10 detik. Latensi *streaming* lokal wajib di bawah 1000 ms. |
+| **Resiliensi Jaringan** | Sistem mendukung penyesuaian resolusi dinamis untuk mencegah *buffering* pada jaringan intranet nirkabel lokal. |
+| **Reliabilitas** | Layanan pemantauan langsung lokal dan kontrol manual pada *Web Kiosk* harus tetap berjalan 100% stabil meskipun koneksi internet publik (WAN) terputus. |
+| **Konfigurabilitas (UX)** | Sistem wajib menyediakan antarmuka (*Web Kiosk*) bagi pengguna untuk mengatur jadwal aktivasi sensor PIR secara *real-time* tanpa memerlukan akses ke kode sumber (*flashing*). |
+| **Durabilitas** | Selubung pelindung luar (*outdoor enclosure*) wajib menggunakan material sintetis yang tahan radiasi UV, air hujan, dan debu (minimal standar IP65). |
+| **Ekonomi** | Mengeliminasi biaya rutin bulanan sewa *server cloud* pihak ketiga sehingga biaya operasional rutin tetap sebesar Rp 0,00. |
 
 ## 2.3 Pengukuran/Verifikasi Spesifikasi
 
-Metode pengukuran dan verifikasi digunakan untuk memastikan bahwa
-purwarupa sistem yang dikembangkan memenuhi seluruh spesifikasi
-fungsional dan non-fungsional yang telah ditetapkan pada sub-bab
-sebelumnya. Parameter pengujian ini didasarkan pada hasil analisis
-kebutuhan serta target performa dari mitra. Mitra menetapkan standar
-keberhasilan sistem minimal sebesar 85% untuk tingkat akurasi deteksi,
-dengan latensi respons yang rendah, serta stabilitas transmisi data yang
-lancar tanpa kehilangan bingkai visual (frame) yang bergejolak di layar
-dasbor pemantau lokal.
+Metode pengukuran dan verifikasi digunakan untuk memastikan bahwa purwarupa sistem memenuhi seluruh spesifikasi yang telah ditetapkan.
 
 ### 2.3.1 Pengujian Keandalan Operasional Sistem Kontinu
+Pengujian performa kontinu dilakukan untuk memastikan sistem dapat beroperasi secara stabil dalam durasi yang panjang tanpa mengalami penurunan waktu respons atau kegagalan sistem (*crash*). Skenario pengujian keandalan sistem dibagi berdasarkan segmentasi waktu transisi pencahayaan alami lingkungan luar ruangan.
 
-Pengujian performa kontinu dilakukan untuk memastikan sistem dapat
-beroperasi secara stabil dalam durasi yang panjang tanpa mengalami
-penurunan waktu respons atau kegagalan sistem (crash). Kestabilan
-transmisi data visual dari modul kamera menuju dasbor pemantau lokal
-juga dipantau secara pasif untuk memastikan kelancaran visualisasi
-situasi di area lahan terbuka. Skenario pengujian keandalan sistem
-dibagi berdasarkan segmentasi waktu transisi pencahayaan alami
-lingkungan luar ruangan.
+| **Jangka Waktu Pengujian** | **Checkpoint Pengujian** | **Hasil yang Diharapkan** |
+|:---|:---|:---|
+| Sistem dinyalakan secara kontinu selama 24 jam penuh | Pengambilan sampel gambar tampilan dasbor pemantau lokal pada waktu **siang hari** | Dasbor lokal dapat menampilkan situasi lahan dan *streaming* video secara lancar tanpa indikasi *crash* atau penurunan performa sistem. |
+| | Pengambilan sampel gambar tampilan dasbor pemantau lokal pada waktu **sore hari** | Dasbor lokal dapat menampilkan situasi lahan dan *streaming* video secara lancar tanpa indikasi *crash* atau penurunan performa sistem. |
+| | Pengambilan sampel gambar tampilan dasbor pemantau lokal pada waktu **malam hari** | Dasbor lokal dapat menampilkan situasi lahan dan *streaming* video secara lancar tanpa indikasi *crash* atau penurunan performa sistem. |
 
-<table style="width:99%;">
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 27%" />
-<col style="width: 45%" />
-</colgroup>
-<thead>
-<tr>
-<th><strong>Jangka Waktu Pengujian</strong></th>
-<th><strong>Checkpoint Pengujian</strong></th>
-<th><strong>Hasil yang Diharapkan</strong></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td rowspan="3">Sistem dinyalakan secara kontinu selama penuh</td>
-<td>Pengambilan sampel gambar tampilan dasbor pemantau lokal pada waktu
-siang hari</td>
-<td>Dasbor lokal dapat menampilkan situasi lahan dan streaming video
-secara lancar tanpa indikasi crash atau penurunan performa sistem</td>
-</tr>
-<tr>
-<td>Pengambilan sampel gambar tampilan dasbor pemantau lokal pada waktu
-sore hari</td>
-<td>Dasbor lokal dapat menampilkan situasi lahan dan streaming video
-secara lancar tanpa indikasi crash atau penurunan performa sistem</td>
-</tr>
-<tr>
-<td>Pengambilan sampel gambar tampilan dasbor pemantau lokal pada waktu
-malam hari</td>
-<td>Dasbor lokal dapat menampilkan situasi lahan dan streaming video
-secara lancar tanpa indikasi crash atau penurunan performa sistem</td>
-</tr>
-</tbody>
-</table>
+### 2.3.2 Pengujian Akurasi Deteksi Manusia (Confusion Matrix)
+Pengujian akurasi deteksi dilakukan menggunakan metrik standar *Machine Learning* untuk membedakan antara *False Positive* (Alarm Palsu) dan *False Negative* (Maling Lolos).
 
-### 2.3.2 Pengujian Akurasi Deteksi Manusia
+**Tabel 2.1 Metrik Evaluasi Model AI**
+| Metrik | Formula | Deskripsi & Target |
+|:---|:---|:---|
+| **Precision (Presisi)** | $TP / (TP + FP)$ | Mengukur akurasi alarm. Target $\ge 85\%$. Memastikan sistem tidak memicu *false alarm* akibat hewan/daun (FP). |
+| **Recall (Sensitivitas)** | $TP / (TP + FN)$ | Mengukur kepekaan sistem. Target $\ge 90\%$. Memastikan tidak ada intrusi manusia yang lolos dari deteksi (FN). |
+| **Accuracy (Akurasi)** | $(TP + TN) / Total$ | Rasio keseluruhan prediksi yang benar terhadap total skenario pengujian. |
 
-Pengujian akurasi deteksi dilakukan untuk menguji keandalan model
-kecerdasan buatan lokal dalam membedakan objek manusia dari objek
-non-manusia guna meminimalkan munculnya alarm palsu (false alarm) akibat
-dinamika lingkungan alam peternakan. Pengujian ini menggunakan skenario
-simulasi objek nyata yang melintasi area perimeter pengawasan.
+*(Keterangan: TP = True Positive, FP = False Positive, TN = True Negative, FN = False Negative).*
 
-<table style="width:99%;">
-<colgroup>
-<col style="width: 31%" />
-<col style="width: 31%" />
-<col style="width: 36%" />
-</colgroup>
-<thead>
-<tr>
-<th colspan="3" style="text-align: center;"><strong>Skenario
-Pengujian</strong></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: center;"><strong>Kategori Objek</strong></td>
-<td style="text-align: center;"><strong>Skenario Kondisi
-Objek</strong></td>
-<td style="text-align: center;"><strong>Hasil yang
-Diharapkan</strong></td>
-</tr>
-<tr>
-<td style="text-align: center;">Objek Manusia</td>
-<td style="text-align: center;"><p>1. Manusia dalam posisi duduk di area
-perimeter</p>
-<p>2. Manusia berjalan melintasi area perimeter</p>
-<p>3. Manusia berlari di area perimeter</p></td>
-<td style="text-align: center;">Sistem berhasil memverifikasi objek
-sebagai manusia, membuat kotak pembatas (bounding box), memicu alarm
-lokal, dan mengirimkan pesan notifikasi visual ke pengguna</td>
-</tr>
-<tr>
-<td style="text-align: center;">Objek Non-manusia</td>
-<td style="text-align: center;"><p>1. Pergerakan hewan (kucing/anjing
-liar)</p>
-<p>2. Pergerakan kendaraan (motor/mobil)</p>
-<p>3. Pergerakan vegetasi ditiup angin</p></td>
-<td style="text-align: center;">Sistem tidak mendeteksi objek sebagai
-manusia, tidak memicu alarm lokal, dan tidak mengirimkan pesan
-notifikasi ke pengguna</td>
-</tr>
-</tbody>
-</table>
+Selanjutnya akan ditentukan tindakan lanjutan untuk menanggapi hasil dari pengujian, berdasarkan tabel tingkat akurasi alarm berikut:
 
-Selanjutnya pengujian akan dilakukan dengan beberapa iterasi percobaan,
-lalu akan dilakukan penghitungan hasil pengujian dengan fomula seperti
-berikut.
+| **Kategori** | **Batasan Persentase (Precision)** | **Tindakan Lanjutan** |
+|:---|:---|:---|
+| **Gagal** | 0% s.d. 84,99% | Melakukan proses kalibrasi ulang sensitivitas sensor deteksi, *debugging* baris kode model klasifikasi AI, serta pemeriksaan kembali terhadap sirkuit fisik sebelum pengujian ulang. |
+| **Berhasil** | 85% s.d. 100% | Melakukan optimalisasi minor pada parameter ambang batas (*threshold*) algoritma klasifikasi untuk mempertahankan tingkat akurasi minimum. |
 
-<table>
-<colgroup>
-<col style="width: 60%" />
-<col style="width: 39%" />
-</colgroup>
-<thead>
-<tr>
-<th><p>Formula.</p>
-<p><span class="math display">$$Persentase = \ \frac{n - \Sigma x}{n}\
-100\%$$</span></p></th>
-<th><p>Keterangan.</p>
-<p><span
-class="math display"><em>x</em> = <em>j</em><em>u</em><em>m</em><em>l</em><em>a</em><em>h</em> <em>f</em><em>a</em><em>l</em><em>s</em><em>e</em> <em>a</em><em>l</em><em>a</em><em>r</em><em>m</em></span></p>
-<p><span
-class="math display"><em>n</em> = <em>j</em><em>u</em><em>m</em><em>l</em><em>a</em><em>h</em> <em>t</em><em>o</em><em>t</em><em>a</em><em>l</em> <em>i</em><em>t</em><em>e</em><em>r</em><em>a</em><em>s</em><em>i</em></span></p></th>
-</tr>
-</thead>
-<tbody>
-</tbody>
-</table>
+### 2.3.3 Pengujian *Deadzone Tracking* & *Zone Steering*
+Pengujian ini memvalidasi logika *Deadzone* dan *Throttling* (jeda 600ms) untuk mencegah *servo jitter*.
 
-lalu akan di tentukan tindakan lanjutan untuk menanggapi hasil dari
-pengujian, Tindakan tersebut akan di tentukan dengan tabel tingkat
-akurasi alarm berikut\[1\]\[7\].
+| **Keadaan Objek** | **Pergerakan Objek** | **Hasil yang Diharapkan (Respons Servo)** |
+|:---|:---|:---|
+| **Objek di dalam Deadzone** | Manusia berdiri/bergerak di area 40% tengah layar. | **Motor Servo DIAM (*Lock*).** Server mendeteksi manusia, namun tidak mengirim perintah gerak. Gambar stabil tanpa *jitter*. |
+| **Objek Keluar Deadzone** | Manusia berjalan ke tepi layar melewati batas *deadzone*. | **Motor Servo Bergerak.** Server mengirim perintah *pan*. Perintah berikutnya **ditunda (*throttled*) minimal 600 ms** untuk mencegah osilasi mekanis. |
+| **Pemicuan Sensor Fisik** | Sensor PIR Kiri/Tengah/Kanan terpicu. | Kamera berputar ke sudut *preset* (0°, 45°, atau 90°) secara presisi tanpa *delay* pemrosesan visual. |
 
-<table style="width:99%;">
-<caption><strong>Tabel 2. 4 Tingkat Akurasi Alarm</strong></caption>
-<colgroup>
-<col style="width: 29%" />
-<col style="width: 29%" />
-<col style="width: 40%" />
-</colgroup>
-<thead>
-<tr>
-<th colspan="3" style="text-align: center;"><strong>Tingkat Akurasi
-Alarm</strong></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: center;"><strong>Kategori</strong></td>
-<td style="text-align: center;"><strong>Batasan Persentase</strong></td>
-<td style="text-align: center;"><strong>Tindakan Lanjutan</strong></td>
-</tr>
-<tr>
-<td style="text-align: center;">Gagal</td>
-<td style="text-align: center;">0% s.d. 84,99%</td>
-<td style="text-align: center;">Melakukan proses kalibrasi ulang
-sensitivitas sensor deteksi, debugging baris kode model klasifikasi AI,
-serta pemeriksaan kembali terhadap sirkuit fisik rangkaian elektronik
-sebelum melakukan pengujian ulang</td>
-</tr>
-<tr>
-<td style="text-align: center;">Berhasil</td>
-<td style="text-align: center;">85% s.d. 100%</td>
-<td style="text-align: center;">Melakukan optimalisasi minor pada
-parameter ambang batas (threshold) algoritma klasifikasi untuk
-mempertahankan tingkat akurasi minimum sebesar 85%</td>
-</tr>
-</tbody>
-</table>
-
-### 2.3.3 Pengujian Penyelarasan Arah Kamera dan Pelacakan Objek Dinamis
-
-Pengujian ini bertujuan untuk memvalidasi performa mekanis dari motor
-servo dalam menyelaraskan arah fokus hadap kamera secara otomatis ke
-titik zona sensor yang terpicu, serta mengevaluasi responsivitas gerakan
-kamera dalam mengikuti (tracking) objek manusia secara dinamis. Skenario
-pengujian ini dirancang untuk memastikan sistem dapat mengarahkan sudut
-hadap kamera ke koordinat derajat yang ditentukan secara presisi tanpa
-mengalami keterlambatan (delay) yang signifikan.
-
-<table style="width:99%;">
-<caption>Tabel 2. 5 Jenis Threat</caption>
-<colgroup>
-<col style="width: 32%" />
-<col style="width: 34%" />
-<col style="width: 32%" />
-</colgroup>
-<thead>
-<tr>
-<th colspan="3" style="text-align: center;"><strong>Jenis
-Threat</strong></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: center;"><strong>Keadaan Sensor</strong></td>
-<td style="text-align: center;"><strong>Pergerakan Objek</strong></td>
-<td style="text-align: center;"><strong>Hasil yang
-Diharapkan</strong></td>
-</tr>
-<tr>
-<td style="text-align: center;">Salah satu dari tiga sensor deteksi
-gerak terpicu</td>
-<td style="text-align: center;">Objek diam di dalam zona sensor yang
-aktif</td>
-<td style="text-align: center;">Motor servo berputar secara presisi
-mengarahkan modul kamera ke zona pemicuan (sudut , , atau )</td>
-</tr>
-<tr>
-<td style="text-align: center;">Terverifikasi sebagai manusia oleh
-server AI</td>
-<td style="text-align: center;">Objek manusia bergerak melintasi batas
-antar zona sensor secara kontinu</td>
-<td style="text-align: center;">Motor servo bergerak secara dinamis dan
-adaptif mengikuti arah pergeseran koordinat objek agar posisi manusia
-tetap berada di tengah frame visual</td>
-</tr>
-</tbody>
-</table>
-
-### 2.3.4 Pengujian Kualitas Gambar Tangkapan Kamera Berdasarkan Waktu
-
-Pengujian ini dirancang untuk mengevaluasi kualitas dokumentasi visual
-yang dihasilkan oleh modul kamera di bawah intensitas cahaya lingkungan
-yang bervariasi pada area luar ruangan peternakan mitra. Hasil pengujian
-digunakan untuk menentukan batas visibilitas dan menguji efektivitas
-sensor fisik sebagai mekanisme cadangan (fallback system) ketika
-pencahayaan lingkungan menurun drastis.
-
-<table style="width:98%;">
-<colgroup>
-<col style="width: 24%" />
-<col style="width: 24%" />
-<col style="width: 24%" />
-<col style="width: 24%" />
-</colgroup>
-<thead>
-<tr>
-<th colspan="4" style="text-align: center;"><strong>Skenario
-Kondisi</strong></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: center;"><strong>Tingkat Kecerahan</strong></td>
-<td style="text-align: center;"><strong>Skenario Waktu</strong></td>
-<td style="text-align: center;"><strong>Tindakan</strong></td>
-<td style="text-align: center;"><strong>Hasil yang
-Diharapkan</strong></td>
-</tr>
-<tr>
-<td style="text-align: center;">Kecerahan Tinggi</td>
-<td style="text-align: center;">Pagi hingga Sore Hari (08.00 s.d.
-17.00)</td>
-<td style="text-align: center;">Pemotretan gambar situasi lahan secara
-berkala di bawah cahaya matahari langsung</td>
-<td style="text-align: center;">Objek fisik dan detail perimeter lahan
-dalam gambar dapat diidentifikasi secara jelas oleh pengguna</td>
-</tr>
-<tr>
-<td style="text-align: center;">Kecerahan Rendah</td>
-<td style="text-align: center;">Malam Hari (18.00 s.d. 23.59)</td>
-<td style="text-align: center;">Pemotretan gambar situasi lahan dalam
-kondisi gelap tanpa bantuan lampu sorot</td>
-<td style="text-align: center;">Area perimeter tidak terlihat jelas oleh
-kamera, namun sensor gerak fisik tetap aktif memicu bunyi alarm lokal
-secara mandiri sebagai sistem cadangan</td>
-</tr>
-</tbody>
-</table>
+### 2.3.4 Pengujian Kualitas Gambar & *Fallback* Malam Hari
+| **Tingkat Kecerahan** | **Skenario Waktu** | **Tindakan Pengujian** | **Hasil yang Diharapkan** |
+|:---|:---|:---|:---|
+| **Kecerahan Tinggi** | Siang Hari | Manusia berjalan di depan sensor PIR di bawah terik matahari. | **Sistem TIDAK memicu alarm.** PIR dalam mode *disarmed* (ditolak oleh jadwal Server). Sistem murni mengandalkan AI Visual. |
+| **Kecerahan Rendah** | Malam Hari (Gelap) | Manusia berjalan di depan sensor PIR tanpa lampu. | **Sistem Memicu Alarm & Notifikasi.** PIR dalam mode *armed* dan berfungsi sebagai *fallback system* karena kamera tidak dapat memverifikasi objek. |
 
 ### 2.3.5 Pengujian Jangkauan dan Sudut Deteksi Sensor Gerak
+Pengujian jangkauan deteksi fisik dilakukan untuk memastikan seluruh garis pagar perimeter utama sepanjang 35 meter dapat tertutup secara kontinu oleh sapuan area deteksi sensor.
 
-Pengujian jangkauan deteksi fisik dilakukan untuk memastikan seluruh
-garis pagar perimeter utama sepanjang 35 meter dapat tertutup secara
-kontinu oleh sapuan area deteksi sensor. Dua parameter utama yang diukur
-dalam pengujian ini adalah jarak jangkauan deteksi efektif dan lebar
-sudut pandang sensor (field of view/FoV) berdasarkan kategori tingkat
-keberhasilan.
+| **Kategori** | **Jangkauan dan Sudut** | **Tindakan Lanjutan** |
+|:---|:---|:---|
+| **Rendah** | Jarak deteksi < 3 meter atau sudut pandang < 60° | Sensitivitas sensor fisik harus ditingkatkan. Jika celah deteksi (*blind spot*) masih terbentuk, perlu dilakukan penyesuaian posisi spasial atau penambahan jumlah sensor fisik di titik krusial. |
+| **Sedang** | Jarak deteksi 3 s.d. 5 meter atau sudut pandang 60° s.d. 90° | Sistem telah memenuhi target spesifikasi standar. Fokus diarahkan pada optimalisasi penyaringan sinyal masukan (*background filtering*) untuk mengurangi *false positive*. |
+| **Tinggi** | Jarak deteksi 5 s.d. 7 meter atau sudut pandang 90° s.d. 120° | Sistem bekerja pada kapasitas maksimum. Konfigurasi spasial sensor dapat dievaluasi kembali untuk memperlebar jarak interval pemasangan antar sensor guna menghemat perangkat. |
 
-<table style="width:99%;">
-<colgroup>
-<col style="width: 26%" />
-<col style="width: 26%" />
-<col style="width: 45%" />
-</colgroup>
-<thead>
-<tr>
-<th colspan="3"
-style="text-align: center;"><strong>Jangkauan</strong></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: center;"><strong>Kategori</strong></td>
-<td style="text-align: center;"><strong>Jangkauan dan
-Sudut</strong></td>
-<td style="text-align: center;"><strong>Tindakan Lanjutan</strong></td>
-</tr>
-<tr>
-<td style="text-align: center;">Rendah</td>
-<td style="text-align: center;">Jarak deteksi &lt; 3 meter atau sudut
-pandang &lt; 60</td>
-<td style="text-align: center;">Sensitivitas sensor fisik harus
-ditingkatkan untuk memperluas jarak penginderaan. Jika celah deteksi
-(blind spot) masih terbentuk akibat sudut yang terlalu sempit, maka
-perlu dilakukan penyesuaian posisi spasial atau penambahan jumlah sensor
-fisik di titik-titik krusial</td>
-</tr>
-<tr>
-<td style="text-align: center;">Sedang</td>
-<td style="text-align: center;">Jarak deteksi 3 s.d. 5 meter atau sudut
-pandang 60° s.d. 90°</td>
-<td style="text-align: center;">Sistem telah memenuhi target spesifikasi
-standar. Fokus diarahkan pada optimalisasi penyaringan sinyal masukan
-(background filtering) untuk mengurangi munculnya pemicu tidak valid
-(false positive)</td>
-</tr>
-<tr>
-<td style="text-align: center;">Tinggi</td>
-<td style="text-align: center;">Jarak deteksi 5 s.d. 7 meter atau sudut
-pandang 90° s.d. 120°</td>
-<td style="text-align: center;">Sistem bekerja pada kapasitas maksimum.
-Konfigurasi spasial sensor dapat dievaluasi kembali untuk memperlebar
-jarak interval pemasangan antar sensor guna menghemat kebutuhan jumlah
-perangkat tanpa mengurangi kontinuitas area pemantauan</td>
-</tr>
-</tbody>
-</table>
+### 2.3.6 Pengujian Sentralisasi Konfigurasi PIR (*Push-Update & Fail-Safe*)
+Pengujian ini dilaksanakan untuk memvalidasi mekanisme konfigurasi terpusat berbasis dorongan instruksi (*Push-Update*) dari sistem Server ke node ujung (*Edge Node*). Skenario ini membuktikan bahwa perangkat modul kamera bertindak murni secara pasif tanpa menyimpan *state* statis, serta menguji respon modul saat kehilangan sambungan komunikasi dengan peladen utama (*Fail-Safe*).
+
+| **Skenario Simulasi** | **Kondisi Prasyarat** | **Hasil yang Diharapkan (Output Sistem)** |
+|:---|:---|:---|
+| **Pembaruan Jadwal (*Push-Update*)** | Pengguna mengubah status atau durasi jadwal aktif PIR melalui Web Kiosk lokal pada Server. PC Server memancarkan sinyal pembaruan konfigurasi (*broadcast*). | Node ujung (ESP32-CAM) menangkap perintah dan segera memperbarui *state* (Enable/Disable PIR) secara seketika (*real-time*), tanpa memerlukan fase penyalaan ulang (*reboot*). |
+| **Keterputusan Jaringan (*Fail-Safe Boot*)** | Node ujung (ESP32-CAM) mengalami pemadaman sesaat dan hidup kembali (*booting*), namun PC Server sedang mati / koneksi *Intranet* terputus. | Node melakukan proses *boot* dalam *state* cadangan (*default*) yaitu **PIR DISABLED**. Sensor tidak akan menembakkan sinyal pendeteksian apapun, sehingga mencegah lonjakan *false alarm* pada siang hari saat tidak ada Server yang mengesahkan validitas ancaman. |
+
+### 2.3.7 Pengujian Responsivitas Sensor Sabotase Pagar (*Tripwire*)
+Pengujian ini dilakukan untuk memvalidasi keandalan node *tripwire* dalam mendeteksi anomali fisik pada kawat pagar dan kecepatan penyampaian notifikasi ke Server.
+
+| **Skenario Simulasi** | **Tindakan Pengujian** | **Hasil yang Diharapkan** |
+|:---|:---|:---|
+| **Kawat Utuh (Normal)** | Kawat pagar terpasang dan dialiri tegangan stabil. | Node ESP32-C3 membaca tegangan normal. Sistem dalam status *Standby*, tidak ada notifikasi yang dikirim. |
+| **Kawat Putus (Sabotase)** | Kawat pagar digunting atau ditarik paksa hingga putus. | Tegangan pada ADC mikrokontroler anjlok/berfluktuasi. Node segera mengirim *alert* HTTP ke Server. Server memicu alarm lokal dan mengirim notifikasi Telegram "Peringatan: Pagar Disabotase" dalam waktu < 3 detik. |
+| **Korsleting / Bypass** | Ujung kawat yang putus disatukan kembali secara paksa oleh intrus. | Sistem mendeteksi anomali tahanan/resistansi yang tidak sesuai dengan kalibrasi awal, dan tetap memicu alarm sabotase. |
 
 ## 2.4 Kesimpulan
 
-Dokumen Dokumen spesifikasi kebutuhan sistem (CD-2) ini telah merumuskan
-standarisasi spesifikasi yang komprehensif dan terukur untuk pembangunan
-purwarupa sistem monitoring keamanan lahan peternakan ayam milik mitra.
-Seluruh parameter kebutuhan dirancang secara terarah untuk menjawab
-kendala operasional yang dihadapi mitra pada CD-1, yaitu tingginya biaya
-investasi awal perangkat CCTV komersial, tingginya biaya operasional
-bulanan sewa server cloud untuk pemrosesan AI, serta keterbatasan luas
-cakupan pemantauan akibat adanya area titik buta (blind spot) berbentuk
-huruf L di lahan terbuka sepanjang 35 meter.
+Dokumen spesifikasi kebutuhan sistem (CD-2) ini telah merumuskan standarisasi spesifikasi yang komprehensif dan terukur untuk pembangunan purwarupa sistem monitoring keamanan lahan peternakan. Seluruh parameter dirancang secara terarah untuk menjawab kendala operasional pada CD-1, yaitu eliminasi biaya VPS, optimalisasi intranet lokal, dan penanganan area titik buta serta risiko sabotase.
 
-Dari aspek fungsionalitas, spesifikasi menetapkan bahwa sistem harus
-mampu mendeteksi keberadaan pergerakan objek secara dini melalui sensor
-fisik aktif, menyelaraskan sudut hadap kamera secara otomatis
-menggunakan motor penggerak mekanis ke arah zona deteksi, serta
-mengirimkan aliran data gambar resolusi tinggi menuju server lokal.
-Server lokal kemudian mengeksekusi model klasifikasi kecerdasan buatan
-(AI) secara lokal untuk memverifikasi keabsahan objek manusia, melakukan
-pelacakan objek secara dinamis (motion tracking), memicu bunyi alarm
-lokal di lokasi kejadian, serta mentransmisikan notifikasi visual instan
-secara langsung ke perangkat pengguna. Selain itu, sistem harus mampu
-menyediakan visualisasi situasi secara kontinu pada layar dasbor
-pemantau lokal di pos penjagaan tanpa membebani bandwidth internet luar.
+Dari aspek arsitektur dan fungsionalitas, spesifikasi meletakkan landasan berbasis arsitektur **Stateless Edge Node**, di mana parameter operasional modul penangkap gambar dikendalikan murni secara dinamis melalui mekanisme **Centralized Push Configuration** dari PC Server lokal. Mekanisme **Zone-Based Steering** dan **Deadzone-Based Tracking** (dengan *throttling* 600ms) diterapkan untuk mengatasi keterbatasan latensi jaringan dan mencegah kerusakan mekanis pada servo. Selain itu, logika *Fail-Safe Default* (PIR Disabled saat Server offline) memastikan sistem tidak membombardir pengguna dengan alarm palsu akibat interferensi lingkungan siang hari. Penambahan lapisan sensor *Tripwire* independen juga menjamin perimeter tetap terjaga dari ancaman sabotase fisik 24 jam penuh. Fitur perekaman video otomatis yang dipusatkan di Server turut menjamin keamanan bukti digital dari risiko pencurian fisik node kamera.
 
-Dari aspek non-fungsional, sistem ditargetkan mencapai tingkat akurasi
-deteksi manusia minimal sebesar 85% dengan toleransi tingkat alarm palsu
-maksimal 15%, serta memiliki latensi pengiriman pesan notifikasi di
-bawah 10 detik. Seluruh logika pemrosesan citra AI dan manajemen aliran
-video lokal diisolasi sepenuhnya di dalam jaringan intranet lokal agar
-sistem dapat beroperasi secara mandiri dengan biaya operasional rutin
-sebesar Rp 0,00, sekaligus menjamin fungsi pengawasan dan alarm lokal
-tetap berjalan stabil 100% meskipun jaringan internet luar (WAN)
-terputus.
+Dari aspek non-fungsional, sistem ditargetkan mencapai metrik *Precision* minimal 85% menggunakan evaluasi *Confusion Matrix*, serta menjamin fungsi pengawasan lokal (*Web Kiosk*) tetap berjalan 100% stabil meskipun jaringan internet luar (WAN) terputus. Melalui perumusan spesifikasi yang objektif dan terukur ini, tahap perancangan solusi pada dokumen CD-3 memiliki landasan arsitektur yang kokoh, ekonomis, dan bernilai guna tinggi bagi pelaku UMKM.
 
-Melalui perumusan spesifikasi yang jelas, terstruktur, dan objektif ini,
-tahap perancangan solusi pada dokumen CD-3 memiliki landasan yang kokoh.
-Hal ini memastikan bahwa purwarupa sistem keamanan yang dibangun
-nantinya tidak hanya andal dan responsif dalam mencegah tindak
-kriminalitas pencurian, tetapi juga sangat ekonomis dan bernilai guna
-tinggi bagi pelaku usaha skala UMKM agraris.
 
 # BAB III DESAIN SOLUSI
 
