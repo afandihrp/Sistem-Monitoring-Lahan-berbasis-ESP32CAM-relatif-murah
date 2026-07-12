@@ -26,7 +26,7 @@ function getLatestImageFilename() {
 function registerCommands(bot) {
   bot.start((ctx) => {
     const welcomeMessage = `
-Welcome to Gateway_OS Bot! 🛡️
+Welcome to Magic Cam Bot! 🪄
 Your surveillance gateway is online and ready.
 
 Available Commands:

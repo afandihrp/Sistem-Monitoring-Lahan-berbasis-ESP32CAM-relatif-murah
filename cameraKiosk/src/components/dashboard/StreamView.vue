@@ -162,7 +162,10 @@ const gridClass = computed(() => {
   const count = onlineDevices.value.length;
   if (count <= 1) return 'grid-container devices-1';
   if (count === 2) return 'grid-container devices-2';
-  return 'grid-container devices-3-4';
+  if (count <= 4) return 'grid-container devices-3-4';
+  if (count <= 6) return 'grid-container devices-5-6';
+  if (count <= 9) return 'grid-container devices-7-9';
+  return 'grid-container devices-more';
 })
 
 const handleSaveConfig = (config) => {
@@ -472,6 +475,28 @@ const handleSaveCameraConfig = (config) => {
 .grid-container.devices-3-4 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
+}
+.grid-container.devices-5-6 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+.grid-container.devices-7-9 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+.grid-container.devices-more {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-auto-rows: 1fr;
+}
+
+@media (max-width: 799px) {
+  .grid-container.devices-5-6,
+  .grid-container.devices-7-9,
+  .grid-container.devices-more {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: none;
+    grid-auto-rows: 1fr;
+  }
 }
 
 .grid-item {
