@@ -3,6 +3,7 @@ const fs = require('fs');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
+const sqlliteScheduler = require('./services/sqllite_scheduler');
 
 const state = require('./websocket/state');
 const {
@@ -43,6 +44,8 @@ const {
 
 // Require UDP server to initialize it automatically on load
 require('./websocket/udpServer');
+
+const schedulerManager = require('./websocket/schedulerManager');
 
 // Import AI and Logger services
 const { aiClient } = require('./services/aiClient');
@@ -341,7 +344,10 @@ function initWebSocket(servers) {
       // Send current system configurations immediately to synchronize
       ws.send(JSON.stringify({
         type: 'system_config_response',
-        config: state.globalSystemConfig
+        config: {
+          ...state.globalSystemConfig,
+          schedules: sqlliteScheduler.getAllSchedules()
+        }
       }));
     }
 
@@ -555,6 +561,12 @@ function initWebSocket(servers) {
           } else if (data.type === 'save_system_config' && !isCamera) {
             const config = data.config;
             if (config) {
+              // Extract schedules and save to SQLite
+              if (config.schedules !== undefined) {
+                sqlliteScheduler.saveAllSchedules(config.schedules);
+                delete config.schedules; // Remove from JSON config
+              }
+
               state.globalSystemConfig = { ...state.globalSystemConfig, ...config };
               
               // Sync legacy global AI settings
@@ -606,6 +618,8 @@ function initWebSocket(servers) {
               }
 
               saveSystemSettings();
+              // Re-run scheduler check in case schedules list changed or setting overrides need application
+              schedulerManager.checkAndApplySchedule();
               sendAiConfigToPython();
               console.log('[Settings] System settings saved, pushed to Python client, and broadcasted.');
 
@@ -615,7 +629,10 @@ function initWebSocket(servers) {
               // Broadcast updated config to ALL kiosks
               const systemConfigPayload = JSON.stringify({
                 type: 'system_config_response',
-                config: state.globalSystemConfig
+                config: {
+                  ...state.globalSystemConfig,
+                  schedules: sqlliteScheduler.getAllSchedules()
+                }
               });
               state.broadcastToKiosks(systemConfigPayload);
 
@@ -854,6 +871,7 @@ function initWebSocket(servers) {
 
 // Load settings immediately on server start
 loadSystemSettings();
+schedulerManager.initScheduler();
 
 module.exports = {
   initWebSocket,

@@ -54,6 +54,7 @@ const messages = {
         pir: 'PIR Sensor',
         telegram: 'Telegram',
         camera: 'Camera Detection',
+        schedule: 'Scheduler',
         other: 'Other'
       },
       pir: {
@@ -146,6 +147,31 @@ const messages = {
         udpStreamDesc: 'Stream binary frames via UDP to port 3001 instead of WebSockets (reduces latency)',
         fpsMeter: 'Show FPS Meter',
         fpsMeterDesc: 'Display the real-time frame rate (FPS) overlay on video feeds'
+      },
+      scheduler: {
+        title: 'System Settings Scheduler',
+        addBlock: 'Add Schedule Block',
+        noSchedules: 'No schedules configured. Click above to add one.',
+        blockName: 'Schedule Name',
+        executeTime: 'Execution Time',
+        settingsOverrides: 'Settings Overrides',
+        dragPresetsTitle: 'Drag settings from here',
+        addOverride: 'Add Setting Override',
+        enabled: 'Enabled',
+        presets: {
+          pirEnabled_true: 'PIR Sensor: ON',
+          pirEnabled_false: 'PIR Sensor: OFF',
+          cameraDetectionEnabled_true: 'Camera Detection: ON',
+          cameraDetectionEnabled_false: 'Camera Detection: OFF',
+          telegramAlertPir_true: 'Telegram PIR: ON',
+          telegramAlertPir_false: 'Telegram PIR: OFF',
+          telegramAlertAi_true: 'Telegram AI: ON',
+          telegramAlertAi_false: 'Telegram AI: OFF',
+          telegramAlertMotion_true: 'Telegram Motion: ON',
+          telegramAlertMotion_false: 'Telegram Motion: OFF',
+          udpStreamEnabled_true: 'UDP Stream: ON',
+          udpStreamEnabled_false: 'UDP Stream: OFF'
+        }
       }
     },
     servo: {
@@ -251,6 +277,7 @@ const messages = {
         pir: 'Sensor PIR',
         telegram: 'Telegram',
         camera: 'Deteksi Kamera',
+        schedule: 'Penjadwal',
         other: 'Lainnya'
       },
       pir: {
@@ -343,6 +370,31 @@ const messages = {
         udpStreamDesc: 'Alirkan bingkai biner melalui UDP ke port 3001 alih-alih WebSocket (mengurangi latensi)',
         fpsMeter: 'Tampilkan Pengukur FPS',
         fpsMeterDesc: 'Tampilkan hamparan frame rate (FPS) waktu nyata pada umpan video'
+      },
+      scheduler: {
+        title: 'Penjadwal Pengaturan Sistem',
+        addBlock: 'Tambah Blok Jadwal',
+        noSchedules: 'Belum ada jadwal. Klik tombol di atas untuk menambahkan.',
+        blockName: 'Nama Jadwal',
+        executeTime: 'Waktu Eksekusi',
+        settingsOverrides: 'Pengaturan Khusus',
+        dragPresetsTitle: 'Seret pengaturan dari sini',
+        addOverride: 'Tambah Pengaturan Khusus',
+        enabled: 'Diaktifkan',
+        presets: {
+          pirEnabled_true: 'Sensor PIR: AKTIF',
+          pirEnabled_false: 'Sensor PIR: NONAKTIF',
+          cameraDetectionEnabled_true: 'Deteksi Kamera: AKTIF',
+          cameraDetectionEnabled_false: 'Deteksi Kamera: NONAKTIF',
+          telegramAlertPir_true: 'Telegram PIR: AKTIF',
+          telegramAlertPir_false: 'Telegram PIR: NONAKTIF',
+          telegramAlertAi_true: 'Telegram AI: AKTIF',
+          telegramAlertAi_false: 'Telegram AI: NONAKTIF',
+          telegramAlertMotion_true: 'Telegram Gerak: AKTIF',
+          telegramAlertMotion_false: 'Telegram Gerak: NONAKTIF',
+          udpStreamEnabled_true: 'Streaming UDP: AKTIF',
+          udpStreamEnabled_false: 'Streaming UDP: NONAKTIF'
+        }
       }
     },
     servo: {

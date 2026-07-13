@@ -4,6 +4,94 @@
 
 #define ADC_PIN 0 // Menggunakan pin 0
 
+#define DEBUG_LED_PIN 8 // Pin 8 is the standard built-in LED for ESP32-C3 SuperMini.
+
+// ================= DEBUG LED TASK =================
+enum LedNotificationState {
+  LED_STATE_OFF = 0,
+  LED_STATE_CONNECTING_WIFI = 1,
+  LED_STATE_FINDING_SERVER = 2
+};
+volatile int ledNotificationState = LED_STATE_OFF;
+volatile float currentAdcVoltage = 0.0;
+
+void setDebugLed(bool on) {
+  if (DEBUG_LED_PIN == ADC_PIN) return; // Prevent breaking ADC if pins conflict
+  // C3 SuperMini LED is active LOW (0 = ON, 255 = OFF)
+  analogWrite(DEBUG_LED_PIN, on ? 0 : 255);
+}
+
+void ledTask(void * pvParameters) {
+  if (DEBUG_LED_PIN != ADC_PIN) {
+    pinMode(DEBUG_LED_PIN, OUTPUT);
+    digitalWrite(DEBUG_LED_PIN, HIGH); // Start OFF
+  }
+  
+  int lastWrittenState = -1;
+  for (;;) {
+    int state = __atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST);
+    if (state == LED_STATE_CONNECTING_WIFI) {
+      lastWrittenState = 1;
+      // 1 slow blink: 1000ms ON, 1000ms OFF
+      setDebugLed(true);
+      for (int i = 0; i < 10; i++) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != LED_STATE_CONNECTING_WIFI) break;
+      }
+      state = __atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST);
+      setDebugLed(false);
+      if (state == LED_STATE_CONNECTING_WIFI) {
+        for (int i = 0; i < 10; i++) {
+          vTaskDelay(pdMS_TO_TICKS(100));
+          if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != LED_STATE_CONNECTING_WIFI) break;
+        }
+      }
+    } else if (state == LED_STATE_FINDING_SERVER) {
+      lastWrittenState = 2;
+      // 2 fast blinks
+      setDebugLed(true);
+      for (int i = 0; i < 2; i++) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != LED_STATE_FINDING_SERVER) break;
+      }
+      setDebugLed(false);
+      for (int i = 0; i < 2; i++) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != LED_STATE_FINDING_SERVER) break;
+      }
+      if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) == LED_STATE_FINDING_SERVER) {
+        setDebugLed(true);
+        for (int i = 0; i < 2; i++) {
+          vTaskDelay(pdMS_TO_TICKS(100));
+          if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != LED_STATE_FINDING_SERVER) break;
+        }
+        setDebugLed(false);
+        for (int i = 0; i < 10; i++) {
+          vTaskDelay(pdMS_TO_TICKS(100));
+          if (__atomic_load_n(&ledNotificationState, __ATOMIC_SEQ_CST) != LED_STATE_FINDING_SERVER) break;
+        }
+      } else {
+        setDebugLed(false);
+      }
+    } else {
+      lastWrittenState = 0;
+      if (DEBUG_LED_PIN != ADC_PIN) {
+        float v = currentAdcVoltage;
+        if (v < 1.0) {
+          analogWrite(DEBUG_LED_PIN, 255); // OFF (Active Low)
+        } else if (v >= 2.0) {
+          analogWrite(DEBUG_LED_PIN, 0);   // BRIGHTEST (Active Low)
+        } else {
+          // Map 1.0V to 2.0V -> 255 to 0 (Active Low PWM)
+          int pwm = map(v * 100, 100, 200, 255, 0);
+          analogWrite(DEBUG_LED_PIN, pwm);
+        }
+      }
+      vTaskDelay(pdMS_TO_TICKS(100)); // Update PWM brightness at 10Hz
+    }
+  }
+}
+
 // ================= WIFI =================
 const char *ssid = "Tenda03";
 const char *password = "BRHtenda68";
@@ -24,7 +112,7 @@ const int ADC_MAX = 4095;
 // ================= THRESHOLD =================
 // Sesuaikan jika hasil pengujian berubah
 const float CUT_THRESHOLD =
-    1.0; // Ambang batas 1.0V (tengah-tengah antara normal 2V dan putus 0V)
+    1.5; // Ambang batas 1.5V (alarm dipicu jika tegangan melebihi ini)
 
 // ================= DEBOUNCE =================
 const int REQUIRED_CONSECUTIVE_READS =
@@ -52,6 +140,8 @@ void connectWiFi() {
   Serial.println("WiFi Connected");
   Serial.print("IP: ");
   Serial.println(WiFi.localIP());
+  
+  __atomic_store_n(&ledNotificationState, LED_STATE_FINDING_SERVER, __ATOMIC_SEQ_CST);
 }
 
 // ================= RESOLVE GATEWAY (UDP DISCOVERY) =================
@@ -229,6 +319,10 @@ void setup() {
 
   Serial.println("=== NODE PAGAR START ===");
 
+  // Start LED Task
+  xTaskCreate(ledTask, "LED Task", 2048, NULL, 1, NULL);
+  __atomic_store_n(&ledNotificationState, LED_STATE_CONNECTING_WIFI, __ATOMIC_SEQ_CST);
+
   analogReadResolution(12);
   analogSetPinAttenuation(ADC_PIN, ADC_11db);
 
@@ -240,6 +334,8 @@ void setup() {
     delay(2000);
   }
   Serial.println("Gateway ditemukan. Sistem standby memonitor tripwire...");
+  
+  __atomic_store_n(&ledNotificationState, LED_STATE_OFF, __ATOMIC_SEQ_CST);
 }
 
 // ================= LOOP =================
@@ -247,19 +343,20 @@ void loop() {
   // Teknik membacanya pake yang di voltage_divider_sensing (pin 0)
   int adc0 = analogRead(ADC_PIN);
   float voltage = ((float)adc0 / ADC_MAX) * VREF;
+  currentAdcVoltage = voltage; // Update global for PWM LED task
 
   Serial.printf("P0=%4d | Voltage=%.3f\n", adc0, voltage);
 
-  if (voltage <=
-      CUT_THRESHOLD) { // Diubah ke <= karena tegangan menjadi 0V saat putus
+  if (voltage >
+      CUT_THRESHOLD) { // Diubah ke > karena alarm dipicu saat tegangan > 1.5V
     cutCounter++;
-    normalCounter = 0; // Reset counter normal karena tegangan drop
+    normalCounter = 0; // Reset counter normal karena tegangan di atas threshold
 
-    Serial.print("Cut Counter: ");
+    Serial.print("Anomaly Counter: ");
     Serial.println(cutCounter);
 
     if (cutCounter >= REQUIRED_CONSECUTIVE_READS && !alertSent) {
-      Serial.println("CABLE CUT CONFIRMED");
+      Serial.println("ANOMALY DETECTED - ALARM TRIGGERED");
 
       sendAlert(voltage);
 
@@ -267,9 +364,9 @@ void loop() {
     }
   } else {
     normalCounter++;
-    cutCounter = 0; // Reset counter putus karena tegangan normal
+    cutCounter = 0; // Reset counter pemicu karena tegangan di bawah threshold
 
-    // Reset status alert hanya jika tegangan benar-benar stabil normal selama
+    // Reset status alert hanya jika tegangan benar-benar stabil di bawah threshold selama
     // beberapa waktu (debounce recovery)
     if (normalCounter >= REQUIRED_CONSECUTIVE_NORMAL) {
       if (alertSent) {

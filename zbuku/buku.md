@@ -553,6 +553,15 @@ Spesifikasi kebutuhan fungsional mendeskripsikan layanan, fitur, dan respons akt
 | **Kondisi Default** | Selalu aktif (*always-on*) 24 jam karena tidak terpengaruh oleh interferensi cahaya matahari atau cuaca, berbeda dengan PIR. |
 | **Komponen Aktif** | Node *Tripwire* (Mikrokontroler ESP32-C3), Kawat Konduktor, Resistor Pembagi Tegangan. |
 
+**Tabel 2.9 SKF9 Manajemen Konfigurasi Otomatis (*Event-Driven Scheduler*)**
+
+| Parameter | Spesifikasi Fungsional |
+|-----------|----------------------|
+| **Deskripsi** | Mesin penjadwal berbasis *event* yang tersimpan di database SQLite. Pada menit eksekusi yang ditentukan, *backend* secara instan menerapkan konfigurasi baru (seperti *Enable/Disable* PIR, modifikasi deteksi AI, atau pengaturan notifikasi Telegram) sebagai status permanen sistem hingga ada intervensi manual atau pemicu jadwal berikutnya. |
+| **Fungsi** | Menggantikan mekanisme *push-config* satu arah dengan sistem otomasi dua arah yang persisten. Memungkinkan mitra mengatur profil keamanan berbeda (misal: "Mode Siang", "Mode Malam", "Mode Libur") tanpa perlu mengakses dasbor secara manual setiap hari. |
+| **Kondisi Default (*Fail-Safe*)** | Jika tidak ada jadwal aktif atau server mengalami *restart*, sistem akan memuat konfigurasi terakhir yang tersimpan di SQLite. Jika database kosong/korup, *fallback default* adalah **PIR DISABLED** untuk mencegah *false alarm* siang hari. |
+| **Komponen Aktif** | PC Server (*Scheduler Manager* + SQLite DB), Web Kiosk (*System Settings UI*), ESP32-CAM, Sensor PIR. |
+
 ### 2.2.4 Spesifikasi Kebutuhan Non-Fungsional
 
 | **Kriteria Kinerja** | **Spesifikasi Teknis dan Batasan Operasional** |
@@ -562,6 +571,9 @@ Spesifikasi kebutuhan fungsional mendeskripsikan layanan, fitur, dan respons akt
 | **Resiliensi Jaringan** | Sistem mendukung penyesuaian resolusi dinamis untuk mencegah *buffering* pada jaringan intranet nirkabel lokal. |
 | **Reliabilitas** | Layanan pemantauan langsung lokal dan kontrol manual pada *Web Kiosk* harus tetap berjalan 100% stabil meskipun koneksi internet publik (WAN) terputus. |
 | **Konfigurabilitas (UX)** | Sistem wajib menyediakan antarmuka (*Web Kiosk*) bagi pengguna untuk mengatur jadwal aktivasi sensor PIR secara *real-time* tanpa memerlukan akses ke kode sumber (*flashing*). |
+| **Persistensi Konfigurasi** | Seluruh jadwal dan *override* konfigurasi wajib tersimpan di database relasional (SQLite), bukan *flat-file* JSON, untuk menjamin integritas data saat konkurensi tinggi atau *power loss*. |
+| **Responsivitas Scheduler** | Mesin penjadwal wajib melakukan *polling* siklus eksekusi maksimal setiap 10 detik dengan presisi tingkat menit. |
+| **Adaptabilitas UI Mobile** | Antarmuka pengaturan jadwal pada perangkat seluler wajib menggunakan *native browser clock API* untuk pengalaman input waktu yang optimal, sementara versi desktop/tablet menggunakan *custom dropdown menu*. |
 | **Durabilitas** | Selubung pelindung luar (*outdoor enclosure*) wajib menggunakan material sintetis yang tahan radiasi UV, air hujan, dan debu (minimal standar IP65). |
 | **Ekonomi** | Mengeliminasi biaya rutin bulanan sewa *server cloud* pihak ketiga sehingga biaya operasional rutin tetap sebesar Rp 0,00. |
 
@@ -569,7 +581,23 @@ Spesifikasi kebutuhan fungsional mendeskripsikan layanan, fitur, dan respons akt
 
 Metode pengukuran dan verifikasi digunakan untuk memastikan bahwa purwarupa sistem memenuhi seluruh spesifikasi yang telah ditetapkan.
 
-### 2.3.1 Pengujian Keandalan Operasional Sistem Kontinu
+### 2.3.1 Pengujian Durabilitas Material dan Ketahanan Selubung (*Enclosure*)
+
+Pengujian ini bertujuan memverifikasi spesifikasi non-fungsional Durabilitas (Tabel 2.10), yaitu selubung pelindung luar (*outdoor enclosure*) mampu bertahan terhadap radiasi UV, air hujan, dan debu sesuai acuan klasifikasi IP65/IP67. Verifikasi dibagi menjadi dua sub-pengujian: kekuatan mekanis material dan ketahanan terhadap masuknya air (*water ingress*).
+
+**Tabel 2.11 Pengujian Kekuatan Mekanis Material**
+
+| Parameter Uji | Metode Pengujian | Hasil yang Diharapkan |
+|--------------|-----------------|---------------------|
+| Kerapuhan akibat UV (*Brittleness Test*) | Casing akan dijemur selama 2 minggu di bawah banyak variasi cuaca | Tidak terjadi degradasi kekuatan casing dan perubahan bentuk |
+
+**Tabel 2.12 Pengujian Ketahanan Air (*Water Ingress Test*)**
+
+| Skenario | Metode Simulasi | Hasil yang Diharapkan |
+|----------|----------------|---------------------|
+| Simulasi Hujan | Casing akan disiram dengan air, tepat dibawah keran dengan air mengalir dari segala sudut, kecuali bagian bawah casing | Tidak ada air yang masuk kedalam casing |
+
+### 2.3.2 Pengujian Keandalan Operasional Sistem Kontinu
 Pengujian performa kontinu dilakukan untuk memastikan sistem dapat beroperasi secara stabil dalam durasi yang panjang tanpa mengalami penurunan waktu respons atau kegagalan sistem (*crash*). Skenario pengujian keandalan sistem dibagi berdasarkan segmentasi waktu transisi pencahayaan alami lingkungan luar ruangan.
 
 | **Jangka Waktu Pengujian** | **Checkpoint Pengujian** | **Hasil yang Diharapkan** |
@@ -578,7 +606,7 @@ Pengujian performa kontinu dilakukan untuk memastikan sistem dapat beroperasi se
 | | Pengambilan sampel gambar tampilan dasbor pemantau lokal pada waktu **sore hari** | Dasbor lokal dapat menampilkan situasi lahan dan *streaming* video secara lancar tanpa indikasi *crash* atau penurunan performa sistem. |
 | | Pengambilan sampel gambar tampilan dasbor pemantau lokal pada waktu **malam hari** | Dasbor lokal dapat menampilkan situasi lahan dan *streaming* video secara lancar tanpa indikasi *crash* atau penurunan performa sistem. |
 
-### 2.3.2 Pengujian Akurasi Deteksi Manusia (Confusion Matrix)
+### 2.3.3 Pengujian Akurasi Deteksi Manusia (Confusion Matrix)
 Pengujian akurasi deteksi dilakukan menggunakan metrik standar *Machine Learning* untuk membedakan antara *False Positive* (Alarm Palsu) dan *False Negative* (Maling Lolos).
 
 **Tabel 2.1 Metrik Evaluasi Model AI**
@@ -597,7 +625,7 @@ Selanjutnya akan ditentukan tindakan lanjutan untuk menanggapi hasil dari penguj
 | **Gagal** | 0% s.d. 84,99% | Melakukan proses kalibrasi ulang sensitivitas sensor deteksi, *debugging* baris kode model klasifikasi AI, serta pemeriksaan kembali terhadap sirkuit fisik sebelum pengujian ulang. |
 | **Berhasil** | 85% s.d. 100% | Melakukan optimalisasi minor pada parameter ambang batas (*threshold*) algoritma klasifikasi untuk mempertahankan tingkat akurasi minimum. |
 
-### 2.3.3 Pengujian *Deadzone Tracking* & *Zone Steering*
+### 2.3.4 Pengujian *Deadzone Tracking* & *Zone Steering*
 Pengujian ini memvalidasi logika *Deadzone* dan *Throttling* (jeda 600ms) untuk mencegah *servo jitter*.
 
 | **Keadaan Objek** | **Pergerakan Objek** | **Hasil yang Diharapkan (Respons Servo)** |
@@ -606,13 +634,13 @@ Pengujian ini memvalidasi logika *Deadzone* dan *Throttling* (jeda 600ms) untuk 
 | **Objek Keluar Deadzone** | Manusia berjalan ke tepi layar melewati batas *deadzone*. | **Motor Servo Bergerak.** Server mengirim perintah *pan*. Perintah berikutnya **ditunda (*throttled*) minimal 600 ms** untuk mencegah osilasi mekanis. |
 | **Pemicuan Sensor Fisik** | Sensor PIR Kiri/Tengah/Kanan terpicu. | Kamera berputar ke sudut *preset* (0°, 45°, atau 90°) secara presisi tanpa *delay* pemrosesan visual. |
 
-### 2.3.4 Pengujian Kualitas Gambar & *Fallback* Malam Hari
+### 2.3.5 Pengujian Kualitas Gambar & *Fallback* Malam Hari
 | **Tingkat Kecerahan** | **Skenario Waktu** | **Tindakan Pengujian** | **Hasil yang Diharapkan** |
 |:---|:---|:---|:---|
 | **Kecerahan Tinggi** | Siang Hari | Manusia berjalan di depan sensor PIR di bawah terik matahari. | **Sistem TIDAK memicu alarm.** PIR dalam mode *disarmed* (ditolak oleh jadwal Server). Sistem murni mengandalkan AI Visual. |
 | **Kecerahan Rendah** | Malam Hari (Gelap) | Manusia berjalan di depan sensor PIR tanpa lampu. | **Sistem Memicu Alarm & Notifikasi.** PIR dalam mode *armed* dan berfungsi sebagai *fallback system* karena kamera tidak dapat memverifikasi objek. |
 
-### 2.3.5 Pengujian Jangkauan dan Sudut Deteksi Sensor Gerak
+### 2.3.6 Pengujian Jangkauan dan Sudut Deteksi Sensor Gerak
 Pengujian jangkauan deteksi fisik dilakukan untuk memastikan seluruh garis pagar perimeter utama sepanjang 35 meter dapat tertutup secara kontinu oleh sapuan area deteksi sensor.
 
 | **Kategori** | **Jangkauan dan Sudut** | **Tindakan Lanjutan** |
@@ -621,7 +649,7 @@ Pengujian jangkauan deteksi fisik dilakukan untuk memastikan seluruh garis pagar
 | **Sedang** | Jarak deteksi 3 s.d. 5 meter atau sudut pandang 60° s.d. 90° | Sistem telah memenuhi target spesifikasi standar. Fokus diarahkan pada optimalisasi penyaringan sinyal masukan (*background filtering*) untuk mengurangi *false positive*. |
 | **Tinggi** | Jarak deteksi 5 s.d. 7 meter atau sudut pandang 90° s.d. 120° | Sistem bekerja pada kapasitas maksimum. Konfigurasi spasial sensor dapat dievaluasi kembali untuk memperlebar jarak interval pemasangan antar sensor guna menghemat perangkat. |
 
-### 2.3.6 Pengujian Sentralisasi Konfigurasi PIR (*Push-Update & Fail-Safe*)
+### 2.3.7 Pengujian Sentralisasi Konfigurasi PIR (*Push-Update & Fail-Safe*)
 Pengujian ini dilaksanakan untuk memvalidasi mekanisme konfigurasi terpusat berbasis dorongan instruksi (*Push-Update*) dari sistem Server ke node ujung (*Edge Node*). Skenario ini membuktikan bahwa perangkat modul kamera bertindak murni secara pasif tanpa menyimpan *state* statis, serta menguji respon modul saat kehilangan sambungan komunikasi dengan peladen utama (*Fail-Safe*).
 
 | **Skenario Simulasi** | **Kondisi Prasyarat** | **Hasil yang Diharapkan (Output Sistem)** |
@@ -629,7 +657,7 @@ Pengujian ini dilaksanakan untuk memvalidasi mekanisme konfigurasi terpusat berb
 | **Pembaruan Jadwal (*Push-Update*)** | Pengguna mengubah status atau durasi jadwal aktif PIR melalui Web Kiosk lokal pada Server. PC Server memancarkan sinyal pembaruan konfigurasi (*broadcast*). | Node ujung (ESP32-CAM) menangkap perintah dan segera memperbarui *state* (Enable/Disable PIR) secara seketika (*real-time*), tanpa memerlukan fase penyalaan ulang (*reboot*). |
 | **Keterputusan Jaringan (*Fail-Safe Boot*)** | Node ujung (ESP32-CAM) mengalami pemadaman sesaat dan hidup kembali (*booting*), namun PC Server sedang mati / koneksi *Intranet* terputus. | Node melakukan proses *boot* dalam *state* cadangan (*default*) yaitu **PIR DISABLED**. Sensor tidak akan menembakkan sinyal pendeteksian apapun, sehingga mencegah lonjakan *false alarm* pada siang hari saat tidak ada Server yang mengesahkan validitas ancaman. |
 
-### 2.3.7 Pengujian Responsivitas Sensor Sabotase Pagar (*Tripwire*)
+### 2.3.8 Pengujian Responsivitas Sensor Sabotase Pagar (*Tripwire*)
 Pengujian ini dilakukan untuk memvalidasi keandalan node *tripwire* dalam mendeteksi anomali fisik pada kawat pagar dan kecepatan penyampaian notifikasi ke Server.
 
 | **Skenario Simulasi** | **Tindakan Pengujian** | **Hasil yang Diharapkan** |
@@ -637,6 +665,19 @@ Pengujian ini dilakukan untuk memvalidasi keandalan node *tripwire* dalam mendet
 | **Kawat Utuh (Normal)** | Kawat pagar terpasang dan dialiri tegangan stabil. | Node ESP32-C3 membaca tegangan normal. Sistem dalam status *Standby*, tidak ada notifikasi yang dikirim. |
 | **Kawat Putus (Sabotase)** | Kawat pagar digunting atau ditarik paksa hingga putus. | Tegangan pada ADC mikrokontroler anjlok/berfluktuasi. Node segera mengirim *alert* HTTP ke Server. Server memicu alarm lokal dan mengirim notifikasi Telegram "Peringatan: Pagar Disabotase" dalam waktu < 3 detik. |
 | **Korsleting / Bypass** | Ujung kawat yang putus disatukan kembali secara paksa oleh intrus. | Sistem mendeteksi anomali tahanan/resistansi yang tidak sesuai dengan kalibrasi awal, dan tetap memicu alarm sabotase. |
+
+### 2.3.9 Pengujian Manajemen Konfigurasi Otomatis (*Event-Driven Scheduler*)
+
+Pengujian ini dilakukan untuk memvalidasi keandalan mesin penjadwal berbasis *event* dalam menerapkan konfigurasi baru secara otomatis pada waktu yang telah ditentukan.
+
+**Tabel 2.21 Pengujian Manajemen Konfigurasi Otomatis**
+
+| Skenario Simulasi | Tindakan Pengujian | Hasil yang Diharapkan |
+|------------------|-------------------|---------------------|
+| **Penjadwalan Mode Malam** | Pengguna membuat jadwal "Mode Malam" yang mengaktifkan PIR pada pukul 18:00 setiap hari. | Pada pukul 18:00, sistem secara otomatis mengaktifkan PIR tanpa intervensi manual. Status PIR berubah dari *DISABLED* menjadi *ENABLED*. |
+| **Penjadwalan Mode Siang** | Pengguna membuat jadwal "Mode Siang" yang menonaktifkan PIR pada pukul 06:00 setiap hari. | Pada pukul 06:00, sistem secara otomatis menonaktifkan PIR tanpa intervensi manual. Status PIR berubah dari *ENABLED* menjadi *DISABLED*. |
+| **Persistensi Setelah Restart** | Server di-*restart* setelah jadwal dibuat. | Setelah server kembali *online*, sistem memuat konfigurasi jadwal dari SQLite dan melanjutkan penjadwalan tanpa kehilangan data. |
+| **Override Manual** | Pengguna mengubah konfigurasi secara manual melalui Web Kiosk di luar jadwal. | Konfigurasi manual langsung diterapkan dan menjadi status permanen hingga jadwal berikutnya atau intervensi manual selanjutnya. |
 
 ## 2.4 Kesimpulan
 
@@ -651,95 +692,38 @@ Dari aspek non-fungsional, sistem ditargetkan mencapai metrik *Precision* minima
 
 ## 3.1 Alternatif Usulan Solusi
 
-Sistem pengawasan keamanan sangat penting untuk mencegah kehilangan aset
-di area peternakan mitra. Mengingat pemilik lahan memiliki mobilitas
-tinggi dan peternakan berada di area dengan hambatan infrastruktur internet
-serta keterbatasan anggaran, dirancang tiga pilihan solusi teknis
-berikut:
+Sistem pengawasan keamanan sangat penting untuk mencegah kehilangan aset di area peternakan mitra. Mengingat pemilik lahan memiliki mobilitas tinggi dan peternakan berada di area dengan hambatan infrastruktur internet serta keterbatasan anggaran, dirancang tiga pilihan solusi teknis berikut:
 
-1.  **Solusi A: Sistem Monitoring Cerdas ESP32-CAM dengan Sensor PIR & Pemutus Kawat, Gateway Node.js, dan Server PC Lokal Serbaguna**
+1. **Solusi A: Sistem Monitoring Cerdas ESP32-CAM dengan Sensor PIR & Pemutus Kawat, Gateway Node.js, dan Server PC Lokal Serbaguna**
 
-> Solusi ini menggunakan modul kamera nirkabel berbiaya sangat rendah
-> (ESP32-CAM) dengan *firmware* terbuka. Kamera ini
-> dipasang pada aktuator motor servo dan dibantu oleh gabungan sensor
-> gerak (PIR) multi-arah serta sensor mekanis pemutus kawat pagar
-> (*wire-break*). Ketika gerakan atau intrusi fisik terdeteksi, kamera
-> otomatis berputar ke arah ancaman. Aliran gambar dikirim murni melalui
-> jaringan Wi-Fi intranet lokal ke *Server Gateway* (Node.js), lalu
-> diteruskan ke *Server* AI (Python) pada PC lokal untuk mendeteksi
-> keberadaan manusia menggunakan algoritma YOLO secara *real-time*.
+> Solusi ini menggunakan modul kamera nirkabel berbiaya sangat rendah (ESP32-CAM) dengan *firmware* terbuka. Kamera ini dipasang pada aktuator motor servo dan dibantu oleh gabungan sensor gerak (PIR) multi-arah serta sensor mekanis pemutus kawat pagar (*wire-break*). Ketika gerakan atau intrusi fisik terdeteksi, kamera otomatis berputar ke arah ancaman. Aliran gambar dikirim murni melalui jaringan Wi-Fi intranet lokal ke *Server Gateway* (Node.js), lalu diteruskan ke *Server* AI (Python) pada PC lokal untuk mendeteksi keberadaan manusia menggunakan algoritma YOLO secara *real-time*.
 >
-> Walaupun pengadaan PC *Server* lokal membutuhkan biaya investasi awal,
-> pendekatan ini memberikan kompromi yang sangat menguntungkan. PC
-> *Server* memiliki kekuatan pemrosesan AI tangguh untuk memproses YOLO
-> secara lokal penuh tanpa penundaan, memangkas biaya langganan VPS
-> bulanan hingga menjadi Rp 0,00. Lebih jauh, PC ini dapat difungsikan
-> ganda secara bersamaan (*multitasking*) oleh pemilik lahan untuk keperluan administrasi.
-> Saat mendeteksi ancaman, sistem mampu melacak objek secara aktif,
-> mengirimkan foto bukti ke Telegram, merekam kejadian ke format MP4,
-> dan menayangkan video langsung pada dasbor lokal di pos penjagaan
-> secara mandiri tanpa membebani internet publik.
+> Walaupun pengadaan PC *Server* lokal membutuhkan biaya investasi awal (CAPEX), pendekatan ini menawarkan *engineering trade-off* yang sangat menguntungkan. **Berbeda dengan SBC (seperti Raspberry Pi 4 pada sistem sebelumnya) yang keterbatasan daya komputasinya memaksa ketergantungan pada VPS**, PC lokal memiliki kekuatan pemrosesan AI tangguh (mendukung akselerasi OpenVINO) untuk memproses YOLO secara lokal penuh tanpa penundaan, sehingga memangkas biaya langganan VPS bulanan hingga menjadi Rp 0,00. Lebih jauh, PC ini dapat difungsikan ganda secara bersamaan (*multitasking*) oleh pemilik lahan untuk keperluan administrasi sehari-hari, memberikan nilai guna (*value for money*) yang jauh lebih tinggi dibanding mesin NVR/DVR pabrikan yang kaku.
+> 
+> Saat mendeteksi ancaman, sistem mampu **mengarahkan kamera ke zona ancaman dan melakukan pelacakan berbasis *deadzone***, mengirimkan foto bukti ke Telegram, merekam kejadian ke format MP4, dan menayangkan video langsung pada dasbor lokal di pos penjagaan secara mandiri tanpa membebani *bandwidth* internet publik.
 
-2.  **Solusi B: Pengolahan Citra Webcam Beresolusi Tinggi Menggunakan
-    Komputer Papan Tunggal (SBC) Secara Lokal**
+2. **Solusi B: Pengolahan Citra Webcam Beresolusi Tinggi Menggunakan Komputer Papan Tunggal (SBC) Secara Lokal**
+   Solusi kedua menggunakan kamera standar (*webcam*) yang dihubungkan dengan kabel USB ke komputer papan tunggal (SBC) seperti Raspberry Pi di setiap titik pemantauan. Proses deteksi manusia dijalankan sepenuhnya secara lokal pada SBC. Sayangnya, solusi ini membawa batasan perangkat keras yang fatal. Ketergantungan pada transmisi kabel USB menjadikan instalasi fisik di lahan luas sangat kaku. Masalah paling kritis adalah keterbatasan cip prosesor SBC yang berdaya rendah; prosesor ini umumnya tidak sanggup memproses beban YOLO secara *real-time*, sehingga berisiko tinggi menyebabkan penundaan jeda video yang parah hingga memicu sistem gagal (*crash*).
 
-> Solusi kedua menggunakan kamera standar (*webcam*) beresolusi tinggi
-> yang dihubungkan dengan kabel USB ke komputer papan tunggal (SBC)
-> seperti Raspberry Pi di setiap titik pemantauan. Proses deteksi
-> manusia dengan algoritma YOLO dijalankan sepenuhnya secara lokal pada
-> memori SBC tersebut, menghasilkan kualitas gambar yang sangat jernih
-> tanpa memakan *bandwidth* internet.
->
-> Sayangnya, solusi ini membawa batasan perangkat keras yang fatal.
-> Ketergantungan pada transmisi kabel USB menjadikan instalasi fisik di
-> lahan luas sangat kaku dan tidak praktis. Harga pengadaan satu unit
-> SBC untuk tiap *webcam* juga melambungkan anggaran secara tidak wajar.
-> Masalah paling kritis adalah keterbatasan cip prosesor SBC yang berdaya
-> rendah; prosesor ini umumnya tidak sanggup memproses beban YOLO secara
-> *real-time*, sehingga berisiko tinggi menyebabkan penundaan jeda video
-> yang parah hingga memicu sistem gagal (*crash*) akibat kehabisan memori.
-
-3.  **Solusi C: Kamera CCTV IP Komersial dengan Integrasi Mikrokontroler
-    Alarm Sirine Eksternal**
-
-> Solusi ketiga menggunakan produk pabrikan berupa CCTV IP komersial siap
-> pakai yang dipasang permanen di sudut pagar. Karena kamera CCTV standar
-> umumnya hanya bersifat pasif tanpa peringatan instan seketika, sistem
-> ini diakali dengan menambahkan sirkuit mikrokontroler eksternal dan
-> sirine alarm keras yang dipicu melalui *output relay* CCTV.
->
-> Keunggulan solusi ini terletak pada durabilitas fisiknya (sertifikasi
-> tahan cuaca) dan kualitas penglihatan malam inframerah bawaan pabrik.
-> Akan tetapi, solusi ini terbelenggu oleh sifatnya yang tertutup
-> (*vendor lock-in*). Deteksi gerakannya sangat sederhana (berbasis analisis
-> piksel) sehingga sangat rawan memicu alarm palsu akibat gerakan daun atau hewan.
-> Lebih fatal lagi, fungsionalitas pemantauan jarak jauhnya diikat erat
-> dengan layanan *cloud* pabrikan; memaksa pengguna bergantung pada
-> koneksi internet stabil dan membayar biaya langganan operasional bulanan
-> demi membuka fitur penyimpanan atau analitik lanjut.
+3. **Solusi C: Kamera CCTV IP Komersial dengan Integrasi Mikrokontroler Alarm Sirine Eksternal**
+   Solusi ketiga menggunakan produk pabrikan berupa CCTV IP komersial siap pakai. Sistem ini diakali dengan menambahkan sirkuit mikrokontroler eksternal dan sirine alarm. Keunggulan solusi ini terletak pada durabilitas fisiknya (sertifikasi tahan cuaca). Akan tetapi, solusi ini terbelenggu oleh sifatnya yang tertutup (*vendor lock-in*). Deteksi gerakannya sangat sederhana (berbasis analisis piksel) sehingga sangat rawan memicu alarm palsu. Fungsionalitas pemantauan jarak jauhnya juga diikat erat dengan layanan *cloud* pabrikan yang memaksa pengguna membayar biaya langganan operasional bulanan.
 
 ### 3.1.1 Perbandingan Analisis Solusi
 
-Berikut adalah tabel komparasi parameter dari ketiga alternatif sistem
-yang diusulkan untuk mempermudah evaluasi:
-
 | **Parameter Evaluasi** | **Solusi A (ESP32-CAM + PC Server AI)** | **Solusi B (Webcam + SBC + YOLO)** | **Solusi C (CCTV IP Komersial + Sirine)** |
 |:---|:---|:---|:---|
-| **Biaya Instalasi Awal** | Sedang-Tinggi; memerlukan PC Server lokal, namun komponen kamera tepi sangat murah. | Tinggi; memerlukan pengadaan satu unit SBC mahal untuk setiap satu unit webcam. | Sedang-Rendah; paket komersial sangat murah karena diproduksi massal di pabrik. |
-| **Biaya Operasional Rutin** | Rp 0.00; seluruh pemrosesan AI berjalan penuh di jaringan lokal tanpa sewa cloud. | Sedang-Tinggi; berisiko membutuhkan bantuan cloud jika processing power lokal SBC tidak mencukupi. | Sedang; memerlukan biaya sewa cloud bulanan jika ingin menggunakan penyimpanan dan fitur pintar dari produsen. |
-| **Kekuatan Pemrosesan AI** | Sangat Kuat; PC Server lokal memiliki processing power tinggi untuk eksekusi YOLO real-time. | Terbatas; spesifikasi SBC tidak kuat untuk mengolah YOLO secara lokal tanpa lag atau delay. | Rendah; hanya berbasis deteksi gerakan pixel sederhana tanpa klasifikasi tipe objek. |
-| **Akurasi & Alarm Palsu** | Sangat Tinggi; verifikasi manusia diproses oleh PC Server AI lokal secara akurat. | Terbatas; akurasi menurun akibat lag pemrosesan pada SBC yang menyebabkan frame terlewat. | Rendah; sering terjadi alarm palsu akibat gerakan daun, bayangan, atau hewan ternak. |
-| **Fleksibilitas Jaringan** | Sangat Baik; transmisi video dari kamera tepi dikirim secara nirkabel via Wi-Fi lokal. | Sangat Kaku; webcam bergantung penuh pada koneksi fisik kabel USB dengan batas jarak pendek. | Baik; mendukung kabel ethernet PoE atau Wi-Fi komersial yang stabil namun bersifat tertutup. |
-| **Durabilitas Jangka Panjang** | Sedang; pemeliharaan mandiri sangat murah namun mekanik servo metal lebih tangguh dibanding varian plastik terhadap cuaca luar. | Sedang-Rendah; risiko kerusakan hardware SBC akibat beban kerja komputasi AI yang dipaksakan. | Sangat Baik; ekosistem komersial pabrikan dengan sertifikasi IP66 yang sangat tangguh terhadap cuaca luar ruangan. |
+| **Biaya Instalasi Awal** | Sedang; memerlukan PC Server lokal, namun komponen kamera tepi sangat murah. | Tinggi; memerlukan pengadaan satu unit SBC mahal untuk setiap satu unit webcam. | Sedang-Rendah; paket komersial sangat murah karena diproduksi massal. |
+| **Biaya Operasional Rutin** | Rp 0.00; seluruh pemrosesan AI berjalan penuh di jaringan lokal tanpa sewa cloud. | Sedang-Tinggi; berisiko membutuhkan bantuan cloud jika processing power SBC tidak cukup. | Sedang; memerlukan biaya sewa cloud bulanan untuk fitur pintar dari produsen. |
+| **Kekuatan Pemrosesan AI** | Sangat Kuat; PC Server lokal memiliki processing power tinggi untuk eksekusi YOLO real-time. | Terbatas; spesifikasi SBC tidak kuat untuk mengolah YOLO secara lokal tanpa lag. | Rendah; hanya berbasis deteksi gerakan pixel sederhana. |
+| **Akurasi & Alarm Palsu** | Sangat Tinggi; verifikasi manusia diproses oleh PC Server AI lokal secara akurat. | Terbatas; akurasi menurun akibat lag pemrosesan pada SBC. | Rendah; sering terjadi alarm palsu akibat gerakan daun atau hewan ternak. |
+| **Fleksibilitas Jaringan** | Sangat Baik; transmisi video dari kamera tepi dikirim secara nirkabel via Wi-Fi lokal. | Sangat Kaku; webcam bergantung penuh pada koneksi fisik kabel USB. | Baik; mendukung kabel ethernet PoE atau Wi-Fi komersial yang stabil namun tertutup. |
+| **Durabilitas Jangka Panjang** | Sedang; menggunakan casing custom cetak 3D dengan mitigasi penempatan teduh dan servo metal. | Sedang-Rendah; risiko kerusakan hardware SBC akibat beban kerja komputasi AI. | Sangat Baik; ekosistem komersial pabrikan dengan sertifikasi IP66. |
 
 ### 3.1.2 Skor Penjabaran Analisis Solusi
 
-Berdasarkan parameter analisis pembanding, dilakukan pembobotan nilai
-kelayakan menggunakan skala penilaian kuantitatif 1 s.d. 10 (nilai 10
-menunjukkan kondisi terbaik bagi pemenuhan kebutuhan mitra) seperti yang
-dijabarkan pada Tabel .…
+Berdasarkan parameter analisis pembanding, dilakukan pembobotan nilai kelayakan menggunakan skala penilaian kuantitatif 1 s.d. 10:
 
-| **Parameter Penilaian (1 - 10)** | **Solusi A (ESP32-CAM + PC Server AI)** | **Solusi B (Webcam + SBC + YOLO)** | **Solusi C (CCTV IP Komersial + Sirine)** |
+| **Parameter Penilaian (1 - 10)** | **Solusi A** | **Solusi B** | **Solusi C** |
 |:---|:---|:---|:---|
 | **Biaya Instalasi Awal** | 5 | 4 | 7 |
 | **Biaya Operasional Bulanan** | 10 | 6 | 5 |
@@ -752,63 +736,17 @@ dijabarkan pada Tabel .…
 
 ## 3.2 Analisis dan Pemilihan Solusi
 
-Berdasarkan hasil perhitungan skor pada Tabel 3.2, Solusi A ditetapkan
-sebagai pilihan terbaik dengan perolehan skor tertinggi sebesar 80.0%.
-Keputusan ini didasarkan pada pertimbangan analisis yang adil dan
-objektif berikut:
+Berdasarkan hasil perhitungan skor pada Tabel 3.1.2, Solusi A ditetapkan sebagai pilihan terbaik dengan perolehan skor tertinggi sebesar **81.4%**. Keputusan ini didasarkan pada pertimbangan analisis yang objektif berikut:
 
-- Justifikasi PC Server Lokal atas Biaya Awal: Dari aspek finansial
-  awal, Solusi C (CCTV Komersial) sebenarnya jauh lebih unggul (skor 7)
-  dibanding Solusi A (skor 5) karena harga paket pabrikan yang sangat
-  murah. Namun, investasi awal yang lebih tinggi pada Solusi A sangat
-  dapat dijustifikasi. PC Server menyediakan kekuatan pemrosesan
-  (processing power) yang sangat kuat untuk mengolah model YOLO secara
-  lokal penuh tanpa penurunan frame rate. Hal ini menjamin akurasi
-  deteksi tetap tinggi (skor 8) dan memangkas biaya operasional bulanan
-  hingga menjadi Rp 0.00 (skor 10) karena tidak memerlukan sewa cloud.
+- **Justifikasi PC Server Lokal atas Biaya Awal:** Investasi awal yang lebih tinggi pada Solusi A sangat dapat dijustifikasi. PC Server menyediakan kekuatan pemrosesan yang sangat kuat untuk mengolah model YOLO secara lokal penuh tanpa penurunan *frame rate*. Hal ini menjamin akurasi deteksi tetap tinggi (skor 8) dan memangkas biaya operasional bulanan hingga menjadi Rp 0.00 (skor 10).
+- **Durabilitas Fisik vs Kemandirian Sistem:** Solusi A memiliki kelemahan pada durabilitas perangkat fisik (skor 7) karena menggunakan *casing* custom cetak 3D berbahan PLA. Namun, hal ini dimitigasi melalui strategi penempatan node yang mayoritas berada di bawah naungan atap/tembok, serta pelapisan cat reflektif anti-UV. Keandalan mekanis juga ditingkatkan menggunakan servo metal MG90S yang didukung bantalan peluru (*bearing* 6805) sebagai *radial load relief joint* untuk menyerap gaya goyangan dinamis. Kelemahan fisik ini berhasil diimbangi oleh kemandirian jaringan (skor 9) yang memastikan sistem tetap berjalan 100% meskipun internet luar terputus.
+- **Kegagalan Pemrosesan Lokal pada SBC (Solusi B):** Solusi B ditolak secara mutlak karena jangkauan fisiknya sangat kaku akibat batas transmisi kabel USB (skor 3) dan keterbatasan hardware SBC yang tidak *real-time*.
 
-- Durabilitas Fisik vs Kemandirian Sistem: Solusi C memiliki keunggulan
-  mutlak pada durabilitas jangka panjang (skor 9) karena memiliki
-  sertifikasi ketahanan cuaca IP66 standar pabrik. Sementara itu, Solusi
-  A memiliki kelemahan pada durabilitas perangkat fisik (skor 7) karena
-  menggunakan casing custom cetak 3D mandiri berbahan PLA murah,
-  meskipun keandalannya telah ditingkatkan menggunakan servo mikro
-  beroda gigi logam MG90S yang didukung bantalan peluru (bearing)
-  eksternal berukuran *Inner Diameter* 25mm x *outer diameter* 37mm x
-  tinggi 7mm di bagian kaki dudukan servo. Bearing ini berfungsi
-  menyerap gaya goyangan dari gerakan rotasi cepat dan dinamis,
-  melindunginya dari stres mekanis berlebih pada poros servo. Kelemahan
-  fisik ini berhasil diimbangi oleh kemandirian jaringan (offline
-  capability) Solusi A yang sangat tinggi skor 9 Isolasi data pada
-  jaringan intranet lokal memastikan sistem tetap dapat melakukan fungsi
-  pengawasan, perekaman kejadian, alarm lokal, dan visualisasi siaran
-  langsung pada dasbor secara stabil 100% meskipun jaringan internet
-  luar terputus sepenuhnya.
-
-- Kegagalan Pemrosesan Lokal pada SBC (Solusi B): Solusi B ditolak
-  secara mutlak karena memiliki keterbatasan ganda. Selain biaya awal
-  yang mahal karena membutuhkan satu unit SBC per webcam, jangkauan
-  fisiknya sangat kaku akibat batas transmisi kabel USB (skor 3).
-  Masalah utama lainnya adalah keterbatasan hardware SBC yang tidak
-  real-time, sehingga berisiko tinggi memicu kelebihan beban kerja dan
-  kegagalan memori.
-
-Menjawab berbagai keterbatasan teknis dan permodalan dari seluruh alternatif solusi komersial di atas, pengembangan perangkat kustom berbasis mikrokontroler hemat daya ESP32-CAM (Solusi A) dipastikan sebagai pendekatan terpadu yang paling menjanjikan. Arsitektur solusi ini mengintegrasikan aktuasi spasial sensor PIR, node mekanis pendeteksi pemutusan kabel pagar (*Wire-break*), serta pemrosesan cerdas berarsitektur YOLO (*Object Detection*) pada server komputasi lokal.
-
-*Research gap* utama yang dijembatani oleh usulan ini bukan semata-mata soal rasionalisasi penekanan anggaran (dengan memanfaatkan komponen elektronika murah dan PC bekas), melainkan pada tingkat **fleksibilitas integrasi perangkat keras (IoT)** dan **keterbukaan adaptasi algoritma**. Sistem ini mendobrak kelemahan perangkat komersial pabrikan dengan menyajikan sarana mutlak untuk mengakomodasi lapisan sensor keamanan mekanis tanpa batasan (seperti pendeteksi potong pagar), sekaligus memberikan kebebasan mutlak kepada pengembang untuk memodifikasi dan merampingkan (*fine-tuning*) pemrosesan AI agar benar-benar akurat mengenali profil ancaman pada kondisi lingkungan yang nyata.
-
-Secara objektif, pemilihan modul kamera ESP32-CAM pada sistem ini merupakan sebuah kompromi rekayasa (*engineering trade-off*) yang sangat rasional dan dapat ditoleransi. Walaupun modul mikro ini tidak menawarkan kualitas ketajaman resolusi gambar setinggi kamera CCTV komersial modern, harga komponennya yang sangat murah dipadukan dengan kebebasan akses penuh (*full control*) terhadap level *firmware*-nya memberikan keuntungan strategis yang signifikan. Kebebasan *firmware* inilah yang menjadi kunci utama agar sistem dapat senantiasa dikembangkan dan disesuaikan fungsionalitasnya secara spesifik (*custom-tailored*) demi menjawab dinamika kebutuhan unik dari mitra pemilik lahan peternakan.
-
-Lebih jauh lagi, pemanfaatan komputer pribadi (PC) bekas sebagai *server* komputasi lokal dalam arsitektur ini memberikan nilai tambah fungsional (bonus) yang sangat menguntungkan bagi mitra. Berbeda dengan mesin NVR atau DVR komersial yang dirancang eksklusif dan kaku hanya untuk sistem keamanan, PC *server* kustom ini tetap mempertahankan kapabilitas aslinya sebagai komputer serbaguna. Artinya, pemilik peternakan masih dapat menggunakan layar dan komputer yang sama secara bersamaan (*multitasking*) untuk kegiatan produktif sehari-hari—seperti pembukuan keuangan, pencatatan administrasi, hingga mengakses internet—sehingga melipatgandakan efisiensi dan nilai guna (*value for money*) dari anggaran operasional yang dikeluarkan.
+*Research gap* utama yang dijembatani oleh usulan ini adalah pada tingkat **fleksibilitas integrasi perangkat keras (IoT)** dan **keterbukaan adaptasi algoritma**. Sistem ini mendobrak kelemahan perangkat komersial pabrikan (*vendor lock-in*) dengan menyajikan sarana mutlak untuk mengakomodasi lapisan sensor keamanan mekanis (*tripwire*), sekaligus memberikan kebebasan mutlak untuk memodifikasi pemrosesan AI (OpenVINO/YOLO).
 
 ## 3.3 Desain Solusi Terpilih
 
-Arsitektur Solusi A yang terpilih dirancang menggunakan pendekatan
-sistem terdistribusi nirkabel yang memisahkan bagian pengambilan data di
-lapangan dengan bagian pengolahan data pusat.
-
 ### 3.3.1 Diagram Blok Sistem Secara Keseluruhan
-
 <table style="width:96%;">
 <colgroup>
 <col style="width: 95%" />
@@ -845,10 +783,10 @@ pengguna dari jarak jauh secara instan.</p></li>
 <tbody>
 </tbody>
 </table>
-
-
-
-Secara struktural, arsitektur fisik implementasi sistem menggambarkan bagaimana aliran data berjalan dari lapisan sensor paling luar (*physical layer*) hingga ke lapisan antarmuka pengguna (*application layer*). Seluruh proses pemrosesan data sensitif seperti inferensi citra kecerdasan buatan, rendering video dengan FFmpeg, dan pencatatan riwayat kejadian dilakukan secara lokal pada server gateway. Hal ini menjamin privasi data internal peternakan tetap terjaga dengan aman dan latensi transmisi data tetap berada di bawah ambang batas kritis responsif sistem keamanan.
+Berdasarkan visualisasi diagram blok, sistem ini memisahkan fungsionalitas fisik di Lahan Peternakan dengan pusat koordinasi lokal:
+- **Alur Deteksi Gerak Fisik:** Node Kamera mengintegrasikan sensor PIR spasial, motor servo metal MG90S, dan modul ESP32-CAM. Sinyal pemicu dari PIR akan memutar servo secara instan ke sudut *preset*, dan citra lingkungan dikirimkan ke Router Wi-Fi lokal.
+- **Pusat Orkestrasi Lokal:** Seluruh data telemetri diterima oleh Server Gateway (Mini PC) untuk diolah secara lokal menggunakan OpenVINO.
+- **Pusat Peringatan Jarak Jauh:** Server Gateway merutekan paket data bahaya ke internet melalui Tailscale VPN untuk dikirimkan ke layanan Telegram Bot API.
 
 ```mermaid
 graph LR
@@ -886,12 +824,6 @@ graph LR
 ```
 
 ### 3.3.2 Desain Arsitektur Jaringan
-
-Untuk menjamin kelancaran visualisasi video berkapasitas besar tanpa
-membebani kuota data internet luar di area rural-suburban, dirancang
-konfigurasi pembagian zona jaringan fisik yang terstruktur seperti pada
-Gambar 3.17.
-
 |                                                    |
 |:--------------------------------------------------:|
 | ![](2.jpeg){width=“5.991303587051618in”            |
@@ -899,36 +831,12 @@ Gambar 3.17.
 | Gambar 3.17 Desain Arsitektur Jaringan             |
 
 ------------------------------------------------------------------------
-
-Berdasarkan Gambar 3.17, sistem ini secara cerdas mengisolasi lalu lintas
-data nirkabel ke dalam dua wilayah geografis utama:
-
-- Zona Lahan Peternakan (Sisi Transmisi Lokal): Area ini diisi oleh
-  beberapa kamera nirkabel (hingga 3 unit kamera ESP32-CAM) yang
-  menangkap gambar dari berbagai sudut kritis. Seluruh data aliran video
-  dikirimkan secara langsung menuju Router AP (Access Point) yang
-  dipasang khusus di area kandang. Router AP ini berfungsi sebagai
-  jembatan lokal (wireless bridge) yang mengonsolidasikan data dari
-  kamera sebelum ditransmisikan ke rumah pemilik.
-
-- Zona Rumah Pemilik Mitra (Sisi Pemrosesan Pusat): Sinyal nirkabel dari
-  Router AP ditangkap oleh Router Utama yang berada di rumah pemilik.
-  Router Utama ini dihubungkan langsung ke MiniPC Host Server (PC
-  Server) yang bertindak sebagai otak komputasi lokal.
-
-- Mekanisme Hemat Bandwidth (WAN): Karena seluruh lalu lintas data video
-  MJPEG yang sangat besar diisolasi sepenuhnya di dalam jaringan lokal
-  (intranet nirkabel), sistem tidak membebani koneksi internet WAN luar
-  sama sekali (0% bandwidth internet WAN) untuk kebutuhan siaran
-  langsung (live streaming) harian. Koneksi internet publik (WWW)
-  melalui Router Utama hanya digunakan secara intermiten (saat diakses)
-  dan asinkron untuk mengirim pesan notifikasi instan dan memantau
-  status dasbor web secara intermiten dari luar area peternakan.
+Sistem ini secara cerdas mengisolasi lalu lintas data nirkabel ke dalam dua wilayah geografis utama:
+- **Zona Lahan Peternakan:** Data aliran video dikirimkan secara langsung menuju Router AP (Access Point) yang dipasang khusus di area kandang. Router AP ini berfungsi sebagai jembatan lokal (*wireless bridge*).
+- **Zona Rumah Pemilik Mitra:** Sinyal dari Router AP ditangkap oleh Router Utama yang dihubungkan langsung ke MiniPC Host Server.
+- **Mekanisme Hemat Bandwidth (WAN):** Seluruh lalu lintas data video MJPEG diisolasi sepenuhnya di dalam jaringan lokal (intranet). Koneksi internet publik hanya digunakan secara asinkron untuk mengirim pesan notifikasi instan via Telegram.
 
 ### 3.3.3 Desain Aliran Data dan Integrasi Sistem
-
-Untuk memberikan gambaran mengenai bagaimana data bergerak dan diproses di dalam sistem, aliran data dan integrasi antar komponen diilustrasikan secara rinci pada Gambar 3.18.
-
 |                                                    |
 |:--------------------------------------------------:|
 | ![](1.jpeg){width=“6.098097112860892in”            |
@@ -936,51 +844,8 @@ Untuk memberikan gambaran mengenai bagaimana data bergerak dan diproses di dalam
 | Gambar 3.18 Desain Aliran Data dan Integrasi Sistem|
 
 ------------------------------------------------------------------------
-
-Merujuk pada arsitektur perangkat lunak pada Gambar 3.18, aliran data
-sistem dirancang agar berjalan sangat cepat dan aman melalui mekanisme
-integrasi berikut:
-
-- **Pengiriman Citra Lokal:** Kamera ESP32-CAM mengirimkan biner frame
-  gambar JPEG secara asinkron ke server Backend (Node.js/Express) di
-  dalam jaringan lokal.
-
-- **Pipeline Deteksi Kecerdasan Buatan:** Begitu frame diterima, Backend
-  meneruskan data gambar ke server detektor lokal berbasis Ultralytics
-  YOLO26 via TCP socket. Model klasifikasi mendeteksi keberadaan objek
-  manusia menggunakan daya pemrosesan PC Server lokal yang tinggi. Jika
-  bernilai positif, model mengembalikan koordinat pembatas (bounding
-  box) ke Backend untuk memicu fungsi pelacakan aktif servo dan
-  pengiriman alarm.
-
-- **Penyimpanan Log Kejadian:** Backend secara otomatis menyimpan
-  snapshot kejadian, koordinat koordinasi, dan metadata waktu ke dalam
-  Database lokal untuk kebutuhan audit keamanan di masa mendatang.
-
-- **Gerbang Akses Reverse Proxy Nginx:** Untuk menyajikan antarmuka
-  visual kepada pengguna, server web Nginx dikonfigurasi sebagai Reverse
-  Proxy di depan server Backend dan dasbor Frontend Vue.js. Nginx
-  bertindak sebagai pengatur jalur request data sekaligus pelindung
-  endpoint lokal.
-
-- **Jaringan Mesh Virtual Terenkripsi (Tailscale VPN):** Guna
-  memfasilitasi akses monitoring dari luar jaringan lokal (WWW) secara
-  aman dan intermiten tanpa perlu membeli alamat IP publik statis atau
-  melakukan konfigurasi port forwarding router yang rumit, sistem
-  mengintegrasikan Tailscale. Tailscale membentuk terowongan VPN mesh
-  terenkripsi (secure overlay network) langsung dari Mini PC ke jaringan
-  internet global, sehingga pengguna dapat memantau visualisasi dasbor
-  web dari luar peternakan secara aman dan intermiten.
-
-- **Aliran Notifikasi Cloud (Telegram):** Jika verifikasi manusia sukses
-  dilakukan oleh model YOLO, Backend akan langsung memicu request HTTPS
-  POST ke server Telegram API melalui koneksi WAN untuk mengirimkan
-  pesan peringatan dan snapshot beranotasi bounding box secara instan
-  kepada pemilik lahan.
-
-
-
-Aliran data (*data flow*) pada arsitektur perangkat lunak ini direpresentasikan melalui **Data Flow Diagram (DFD) Tingkat 1** (*Level 1*). Diagram ini memecah sistem pusat menjadi 4 sub-proses untuk memetakan transformasi data secara logis dari luar sistem (*External Entity*) menuju ke dalam bentuk keluaran akhir dan penyimpanan (*Data Store*).
+- **Pipeline Deteksi Kecerdasan Buatan:** Backend meneruskan data gambar ke server detektor lokal berbasis **Ultralytics YOLO v26 Nano** yang dikompilasi dengan **OpenVINO Toolkit** via TCP socket. Model klasifikasi mendeteksi keberadaan objek manusia menggunakan akselerasi instruksi set Intel AVX2 pada PC Server.
+- **Jaringan Mesh Virtual Terenkripsi (Tailscale VPN):** Guna memfasilitasi akses monitoring dari luar jaringan lokal (WWW) secara aman tanpa perlu konfigurasi *port forwarding* router yang rumit, sistem mengintegrasikan Tailscale.
 
 ```mermaid
 graph TD
@@ -1017,10 +882,6 @@ graph TD
     P4 -->|Berkas Video MP4| D2
     P4 -->|Data Pesan Peringatan| E3
 ```
-
-Berdasarkan diagram DFD Level 1 di atas, **Proses 1** bertugas menghimpun data mentah dari perangkat keras *edge* (kamera dan *tripwire*). Data gambar tersebut kemudian diumpankan ke **Proses 2** untuk menghasilkan abstraksi data koordinat manusia (*bounding box*). Keseluruhan data pengenalan tersebut disinkronisasikan oleh **Proses 3** yang bereaksi dengan mengirimkan balik instruksi penyesuaian posisi servo ke kamera, serta mendistribusikan aliran data tampilan (video) ke Dasbor Lokal. Jika bahaya terkonfirmasi valid, **Proses 4** akan dipicu untuk mencatatkan data riwayat kejadian ke dalam *Data Store* lokal (berupa tabel log dan arsip file media MP4) sembari mengekstrak data menjadi pesan peringatan untuk dikirimkan ke platform eksternal Telegram.
-
-Interaksi dinamis yang menunjukkan urutan waktu pengiriman pesan antar-komponen dijabarkan pada Sequence Diagram di bawah ini. Diagram ini menggambarkan proses deteksi dimulai dari sensor PIR pada perangkat keras edge, dilanjutkan ke gateway server lokal, divalidasi oleh AI server, hingga menghasilkan instruksi umpan balik pelacakan objek serta pengiriman notifikasi instan kepada pemilik peternakan.
 
 ```mermaid
 sequenceDiagram
@@ -1079,42 +940,13 @@ flowchart TD
     MoveServo --> End
 ```
 
-Diagram aliran di atas menjelaskan proses utama dari deteksi perimeter awal oleh sensor hingga pelacakan subjek oleh kamera. Setiap kali ancaman terdeteksi, sistem secara berurutan akan menyimpan rekaman kejadian, memberitahu pengguna via Telegram, dan terus melacak pergerakan intrusi.
-
 ### 3.3.4 Node Kamera
+- **Unit Pemroses Utama ESP32-S:** Mengelola pembacaan sensor fisik dan mengeksekusi perintah pergerakan servo melalui sinyal PWM.
+- **Sensor Gerak PIR Multi-arah:** Tiga unit sensor PIR dipasang secara spasial (Kiri, Tengah, Kanan).
+- **Motor Servo MG90S 9g (Metal Gear):** Aktuator mikro beroda gigi logam. Sendi kaki pada *casing* didesain untuk mengakomodasi laher (*bearing* tipe 6805, ID 25mm) yang berfungsi sebagai ***radial load relief joint***. Konfigurasi ini memastikan beban berat *casing* dan gaya angin tidak ditanggung langsung oleh *output shaft* servo, melainkan didistribusikan ke ring *bearing*, mencegah *gear stripping* dan memperpanjang usia pakai aktuator.
 
-Node Kamera bertindak sebagai unit penginderaan fisik dan aktuasi
-mekanis di area luar ruangan peternakan. Unit ini mengintegrasikan
-komponen perangkat keras berikut:
-
-- **Unit Pemroses Utama ESP32-S:** Bertindak sebagai pengendali utama
-  node kamera, mengelola pembacaan sensor fisik, mengontrol modul
-  nirkabel Wi-Fi internal pada frekuensi 2.4GHz serta mengeksekusi
-  perintah pergerakan servo melalui sinyal PWM.
-
-- **Modul Kamera OV2640:** Sensor citra CMOS beresolusi Megapiksel yang
-  dioptimalkan untuk menangkap gambar secara real-time dan
-  mentransmisikannya dalam bentuk aliran biner (binary frame stream)
-  dengan resolusi SVGA 800x600 piksel guna menjaga kestabilan aliran
-  video pada jaringan Wi-Fi lokal.
-
-- **Sensor Gerak Passive Infrared (PIR) Multi-arah:** Sebanyak tiga unit
-  sensor PIR dipasang secara spasial untuk menutupi sektor Kiri, Tengah,
-  dan Kanan. Sensor ini bekerja dengan membaca radiasi inframerah dari
-  pergerakan objek biologis bersuhu tubuh manusia dalam jangkauan 3 s.d.
-  7 meter. Sinyal dari ketiga sensor ini dibaca oleh ESP32-S melalui pin
-  GPIO digital untuk menentukan letak sektor terjadinya intrusi.
-
-- **Motor Servo MG90S 9g (Metal Gear):** Aktuator mikro beroda gigi
-  logam yang dikendalikan oleh sinyal PWM dari ESP32-S untuk memutar
-  lensa kamera ke arah sudut sensor PIR yang terpicu secara dinamis
-  (sudut 25 untuk sektor Kanan, 90° untuk sektor Tengah, dan 155° untuk
-  sektor Kiri). Sendi kaki pada casing didesain untuk mengakomodasi
-  lahar (bearing) berukuran *Inner Diameter* 25mm x *outer diameter*
-  37mm x tinggi 7mm guna menyerap gaya radial dan aksial akibat
-  pergerakan cepat, meminimalkan stres mekanis langsung pada as besi
-  servo, sehingga konstruksi kaki tetap kokoh, awet, dan tahan terhadap
-  goyangan dinamik di sepanjang garis perimeter pagar peternakan.
+**Desain Enclosure Tahan Cuaca (Outdoor Enclosure)**
+Selubung pelindung luar (*enclosure*) dirancang menggunakan FreeCAD dan dicetak dari material plastik **PLA (*Polylactic Acid*)**. Pemilihan material PLA didasarkan pada pertimbangan *cost-efficiency* dan strategi penempatan node kamera yang **mayoritas berada di bawah naungan atap, teras, atau dinding bangunan**, sehingga paparan radiasi matahari langsung dapat diminimalkan. Sebagai mitigasi termal, *casing* akan dilapisi cat reflektif anti-UV serta diberi celah ventilasi pasif di bagian bawah untuk mencegah akumulasi panas internal.
 
 <table style="width:96%;">
 <colgroup>
@@ -1130,10 +962,6 @@ komponen perangkat keras berikut:
 </tbody>
 </table>
 
-**Desain Enclosure Tahan Cuaca (Outdoor Enclosure)**
-
-Selubung pelindung luar (*enclosure*) dirancang menggunakan perangkat lunak 3D FreeCAD dan dicetak dari material plastik PLA (*Polylactic Acid*) yang ekonomis namun kokoh untuk lingkungan luar ruangan. Desain mekanis ini mengutamakan kepraktisan dan ketahanan melalui rel penyangga internal (*guide rail*) untuk pemasangan modul ESP32-CAM secara *plug-and-play* tanpa sekrup, serta integrasi kaca pelindung lensa 4cm di ruang depan yang menjaga pantauan sensor OV2640 bebas distorsi sekaligus kedap air (*waterproof*) dari cuaca ekstrem. Selain itu, untuk meredam stres mekanis dinamis akibat rotasi pelacakan cepat, bagian bawah *enclosure* dilengkapi bantalan lahar (*bearing* tipe 6805) yang menyerap gaya radial maupun aksial secara merata; konfigurasi ini memastikan beban berat pelindung tidak langsung bertumpu pada as kecil motor servo MG90S, menjadikan konstruksi sendi dudukan sangat kokoh dan stabil menahan goyangan hembusan angin.
-
 <table style="width:96%;">
 <colgroup>
 <col style="width: 95%" />
@@ -1147,8 +975,6 @@ Selubung pelindung luar (*enclosure*) dirancang menggunakan perangkat lunak 3D F
 <tbody>
 </tbody>
 </table>
-
-
 
 ```mermaid
 ---
@@ -1185,13 +1011,8 @@ flowchart TD
     CheckServo -- Tidak --> EndLoop
 ```
 
-Flowchart di atas menggambarkan alur kerja *firmware* ESP32-CAM yang dimulai dari inisialisasi perangkat keras hingga proses pencarian alamat server secara dinamis melalui metode UDP. Setelah terhubung dengan mulus ke WebSocket, sistem secara berkesinambungan mengevaluasi flag interupsi untuk memicu pengiriman peringatan dini ke server, kemudian selalu dilanjutkan dengan pengiriman aliran frame gambar dan penyesuaian posisi servo.
-
 ### 3.3.5 Node Kawat Pagar (Wire-break)
-
-Untuk memaksimalkan perimeter keamanan, sistem menerapkan Node Wire Break independen berbasis mikrokontroler hemat daya ESP32-C3 SuperMini (RISC-V 32-bit). Pemilihan ESP32-C3 didasarkan pada efisiensi daya dan biaya untuk beban kerja ringan (*edge device*) namun tetap dilengkapi konektivitas Wi-Fi untuk transmisi telemetri ke *gateway*.
-
-Penginderaan dilakukan menggunakan prinsip pembagi tegangan (*voltage divider*) murni (resistor 10kΩ dan 2kΩ) yang dihubungkan ke ADC ESP32-C3 dan diseri dengan kawat pagar. Saat kawat utuh, tegangan terbaca stabil; saat kawat putus (sabotase), tegangan ADC berfluktuasi drastis. Deteksi anomali ambang batas (*threshold*) ini memicu ESP32-C3 untuk segera mentransmisikan sinyal peringatan secara nirkabel ke Node Gateway. Mekanisme ini dilengkapi fitur pengulangan pengiriman (*retry*) otomatis hingga mendapat konfirmasi penerimaan yang sukses dari *gateway*, menjadikan sistem sangat efisien, andal, dan minim risiko kerusakan perangkat keras eksternal.
+Sistem menerapkan Node Wire Break independen berbasis mikrokontroler ESP32-C3 SuperMini. Penginderaan dilakukan menggunakan prinsip pembagi tegangan (*voltage divider*) murni yang dihubungkan ke ADC ESP32-C3 dan diseri dengan kawat pagar. Saat kawat putus (sabotase), tegangan ADC berfluktuasi drastis dan memicu *alert* HTTP ke Gateway.
 
 <table style="width:96%;">
 <colgroup>
@@ -1206,12 +1027,6 @@ Penginderaan dilakukan menggunakan prinsip pembagi tegangan (*voltage divider*) 
 <tbody>
 </tbody>
 </table>
-
-
-
-
-
-Berikut adalah alur logika (*flowchart*) dari mekanisme pembacaan sensor kawat pengaman pada ESP32-C3:
 
 ```mermaid
 flowchart TD
@@ -1236,34 +1051,7 @@ flowchart TD
 ```
 
 ### 3.3.6 Server Gateway Utama (Local Backend Server)
-
-Server Gateway diimplementasikan menggunakan perangkat komputer mini
-(Mini PC/PC Server) yang menjalankan aplikasi backend berbasis Node.js.
-Server ini ditempatkan secara aman di area rumah pemilik peternakan dan
-berfungsi sebagai pusat koordinasi sistem:
-
-- **Manajemen Koneksi Kamera via WebSocket:** Gateway menyediakan server
-  WebSocket lokal untuk menerima aliran data gambar secara asinkron dari
-  Node Kamera dengan latensi rendah di bawah 500 milidetik.
-
-- **Pengendali Aliran Citra dan Inferensi AI:** Mengatur alur pengiriman
-  gambar dari antrean lokal menuju Server AI melalui koneksi TCP Socket
-  lokal berkecepatan tinggi.
-
-- **Integrasi Bot Telegram & Cloud Alert:** Bertindak sebagai jembatan
-  komunikasi internet. Ketika menerima sinyal deteksi terverifikasi
-  manusia dari Server AI, Gateway memicu pengiriman pesan peringatan
-  beserta foto hasil deteksi (snapshot dengan bounding box) secara
-  instan ke bot Telegram pemilik peternakan.
-
-- **Perekaman Video & Render Asinkron FFmpeg:** Gateway melakukan
-  penyimpanan sementara frame gambar selama sesi intrusi aktif. Begitu
-  pergerakan objek berhenti, pustaka FFmpeg dipicu secara asinkron untuk
-  merender kumpulan frame tersebut menjadi file video rekaman digital
-  berformat MP4 (.mp4), yang selanjutnya dikirim ke Telegram pengguna
-  sebagai bukti dokumentasi kejadian.
-
-
+Server Gateway diimplementasikan menggunakan Mini PC yang menjalankan aplikasi backend berbasis Node.js. Gateway menyediakan server WebSocket lokal, mengelola antrean *frame* untuk dirender secara asinkron oleh FFmpeg menjadi file MP4, dan menjembatani komunikasi ke Telegram Bot API.
 
 ```mermaid
 ---
@@ -1287,8 +1075,6 @@ flowchart TD
     SendServoCmd --> End([Selesai Penyesuaian Sudut])
     KeepAngle --> End
 ```
-
-Diagram ini menggambarkan logika pengendalian umpan balik untuk mempertahankan subjek manusia di tengah area tangkapan kamera. Sistem menghitung seberapa jauh deviasi posisi subjek, lalu mengalkulasi koreksi sudut proporsional apabila pergerakan melewati batas toleransi (*deadzone*).
 
 ```mermaid
 ---
@@ -1320,31 +1106,10 @@ flowchart TD
     ShowAction --> Finish
 ```
 
-Bagan di atas merangkum proses delegasi tugas pengiriman notifikasi ke platform Telegram berdasarkan tipe peristiwa yang terjadi. Pengguna akan menerima jenis pesan yang relevan secara kontekstual beserta penyediaan tombol aksi cepat (*inline keyboard*) guna mempermudah pemberian respons darurat.
-
 ### 3.3.7 Server Deteksi Kecerdasan Buatan (Local AI Detector Server)
-
-Server AI lokal dibangun menggunakan modul pemrograman Python yang
-berjalan langsung pada PC Server lokal, mengintegrasikan framework
-OpenCV dan interpreter TensorFlow Lite (TFLite) untuk melakukan
-pengolahan citra pintar secara mandiri tanpa ketergantungan pada server
-eksternal:
-
-- **Proses Inferensi Model TFLite:** Server AI menerima data gambar
-  mentah dari Server Gateway melalui koneksi TCP socket lokal. Gambar
-  tersebut langsung diolah menggunakan model deteksi objek teroptimasi
-  (yolo11n_float32.tflite) yang berjalan secara efisien memanfaatkan
-  core processing power PC Server yang melimpah.
-
-- **Klasifikasi & Lokalisasi Target:** Model melakukan klasifikasi citra
-  secara real-time untuk membedakan tipe objek manusia dari gangguan
-  non-manusia. Jika terdeteksi manusia dengan nilai probabilitas di atas
-  ambang batas (\>50%), Server AI akan menghitung koordinat berupa kotak
-  pembatas (bounding box) manusia (x, y, w, h) dan mengirimkannya
-  kembali ke Server Gateway untuk kebutuhan pelacakan aktif (Object
-  Tracking).
-
-
+Server AI lokal dibangun menggunakan modul pemrograman Python yang berjalan langsung pada PC Server lokal, mengintegrasikan framework OpenCV dan **OpenVINO Toolkit** untuk melakukan pengolahan citra pintar:
+- **Proses Inferensi Model OpenVINO:** Server AI menerima data gambar mentah dari Server Gateway. Gambar tersebut langsung diolah menggunakan model deteksi objek teroptimasi (**`YOLO v26 Nanon_openvino_model`** format Float32) yang dikompilasi khusus untuk memanfaatkan akselerasi instruksi set **Intel AVX2/VNNI** pada prosesor i7-8550U. Pendekatan ini menjamin inferensi berjalan secara *real-time* dengan FPS tinggi tanpa memerlukan GPU diskrit.
+- **Klasifikasi & Lokalisasi Target:** Jika terdeteksi manusia dengan nilai probabilitas di atas ambang batas (>50%), Server AI akan menghitung koordinat *bounding box* dan mengirimkannya kembali ke Server Gateway untuk kebutuhan *Deadzone Tracking*.
 
 ```mermaid
 ---
@@ -1371,84 +1136,36 @@ flowchart TD
     SendResp --> Finish([Selesai Proses Inferensi])
 ```
 
-Flowchart ini merincikan langkah-langkah pemrosesan gambar oleh model YOLO mulai dari prapemrosesan hingga ekstraksi fitur spasial. Jika objek manusia ditemukan dengan tingkat kepercayaan di atas ambang batas, koordinat letak objek tersebut akan dikalkulasi dan diserahkan kembali kepada *backend* untuk tindak lanjut.
-
 ### 3.3.8 Dasbor Pemantau Lokal (Local Vue Kiosk Dashboard)
-
-Dasbor pemantau lokal dirancang menggunakan framework Vue.js sebagai
-antarmuka visual utama bagi petugas keamanan di pos penjagaan
-peternakan. Dasbor ini disajikan pada monitor layar besar yang terhubung
-langsung ke Mini PC lokal:
-
-- **Streaming Video MJPEG Real-time:** Menampilkan siaran langsung dari
-  kamera peternakan secara kontinu dengan latensi rendah tanpa
-  menggunakan kuota data internet publik karena lalu lintas data
-  diisolasi penuh di dalam jaringan intranet Wi-Fi lokal.
-
-- **Kontrol Parameter & Gerak Manual:** Dasbor menyediakan antarmuka
-  interaktif yang memungkinkan petugas mengontrol posisi sudut kamera
-  secara manual melalui slider, serta menyesuaikan parameter sensor
-  kamera (kecerahan, kontras, saturasi, dll.).
+Dasbor pemantau lokal dirancang menggunakan framework Vue.js, menyajikan *streaming* video MJPEG *real-time* dan kontrol parameter kamera melalui antarmuka web di monitor pos penjagaan.
 
 ### 3.3.9 Denah Pantauan Kamera
-
-Dalam tahap perencanaan awal, penempatan setiap unit kamera dipetakan secara strategis berdasarkan analisis topologi lahan peternakan. Tujuannya adalah untuk mendistribusikan sudut pengawasan agar dapat mencakup seluruh area kritis (seperti jalur masuk utama, area kandang, dan batas terluar di belakang rumah) secara efisien dan meminimalkan area titik buta (*blindspot*). Berikut adalah hasil pemetaan denah tata letak pantauan kamera di lokasi:
-
 |                                                    |
 |:--------------------------------------------------:|
 | ![](3.jpeg){width=“5.5in” height=“5.5in”}          |
 | Gambar 3.10 Denah Pantauan Kamera                  |
-
-Berdasarkan Gambar 3.10, berikut adalah penjabaran detail dari representasi warna pada denah pengawasan:
-- **Titik Merah (Node Kamera)**: Menandakan letak fisik pemasangan unit kamera. Panah kecil berwarna hitam menunjukkan sudut pandang utama (arah hadap) dari setiap kamera.
-- **Area Hijau Muda (Area Belakang Rumah)**: Menunjukkan wilayah bagian belakang rumah mitra. Kamera di area ini difokuskan untuk mengawasi akses masuk dari arah belakang.
-- **Area Kuning (Area Teras dan Kolam Depan)**: Mewakili zona transisi yang mencakup teras rumah dan area sekitar kolam. Kamera pada area ini ditempatkan menyudut untuk memantau pergerakan di dekat bangunan.
-- **Area Biru Muda (Area Kandang Ayam)**: Menandakan lokasi aset biologis utama, yaitu kandang ayam. Kamera ditempatkan secara khusus untuk memantau keamanan di sekeliling area kandang.
-- **Area Biru Tua (Area Jalan Masuk dan Kolam Depan Gerbang)**: Menunjukkan jalur akses utama menuju lahan peternakan. Area ini diawasi oleh kamera yang menghadap langsung ke arah jalan masuk.
-- **Area Hitam (Blindspot / Halangan Objek)**: Mengindikasikan titik buta (*blindspot*) yang tidak terjangkau oleh pandangan kamera akibat terhalang rintangan fisik.
-- **Area Ungu (Gerbang Masuk)**: Menandakan letak fisik dari pintu gerbang utama lahan peternakan.
+Penempatan unit kamera dipetakan secara strategis berdasarkan analisis topologi lahan peternakan untuk mencakup seluruh area kritis dan meminimalkan area titik buta (*blindspot*).
 
 ### 3.3.10 Alat dan Bahan Implementasi
-
 1. **Perangkat Keras (*Hardware*):**
-   - Modul ESP32-CAM (OV2640)
-   - Mikrokontroler ESP32-C3
-   - Modul Sensor PIR (Passive Infrared) 3 Buah
-   - Motor Servo Pan-Tilt (MG90S)
+   - Modul ESP32-CAM (OV2640) & Mikrokontroler ESP32-C3
+   - Modul Sensor PIR (Passive Infrared) 3 Buah per Node
+   - Motor Servo Pan-Tilt (MG90S Metal Gear) & Bearing 6805
    - Kawat Konduktor (Tripwire) dan Resistor (10kΩ & 2kΩ)
-   - Mini-PC / Server Lokal
-   - Catu Daya (Adaptor 12V dan Step-down)
-   - Komponen Elektronika Pendukung (Kabel jumper, PCB Baseboard)
+   - Mini-PC Asus Chromebox (i7-8550U) / Server Lokal
 2. **Perangkat Lunak (*Software* & Lingkungan Pengembangan):**
    - Sistem Operasi Linux (Ubuntu/Debian) pada Gateway Server
    - Arduino IDE (C++) untuk Firmware ESP32
    - Node.js & Express.js untuk Server Backend
    - Vue.js untuk Dasbor Kiosk Frontend
-   - Python 3 & OpenCV untuk Server AI
-   - Model Kecerdasan Buatan YOLOv11-Tiny (TFLite)
+   - Python 3, OpenCV, dan **OpenVINO Toolkit** untuk Server AI
+   - Model Kecerdasan Buatan: **YOLO v26 Nano (Nano) Float32 (OpenVINO IR)**
    - Database SQLite (better-sqlite3)
    - NGINX Reverse Proxy dan Tailscale VPN
-   - API Bot Telegram
-
-------------------------------------------------------------------------
 
 ## 3.4 Jadwal Dan Anggaran
 
-Berikut adalah rencana jadwal pelaksanaan, anggaran, serta pembagian
-porsi tugas yang dirancang untuk mendukung jalannya proses pengembangan
-solusi terpilih. Jadwal yang disertakan berdasarkan tahapan kegiatan
-yang telah disusun secara sistematis dan anggaran disusun dengan
-mempertimbangkan kebutuan setiap aktivitas untuk memastikan efisiensi
-waktu serta optimalisasi penggunaan sumber daya yang terbatas. Berikut
-adalah rincian jadwal dan anggaran dalam tabel.
-
-Keterangan:
-
-- **Hijau** **:** Sudah Terlaksana
-
-- **Kuning** **:** Sedang Dikerjakan
-
-- **Biru** **:** Akan Dikerjakan
+*Catatan Akademik: Mengingat proyek ini merupakan kelanjutan dari studi kelayakan pada semester sebelumnya (CD-1 & CD-2), jadwal implementasi dan pengujian murni (Prototyping hingga Deployment) dipadatkan menjadi 6 bulan efektif (November 2025 - April 2026), sesuai dengan batasan template CD-3.*
 
 <table style="width:96%;">
 <caption>Tabel 3. 3 Rancangan Jadwal Tahun 2025</caption>
@@ -2038,6 +1755,7 @@ style="text-align: center;"><strong>Pengujian</strong></td>
 </tbody>
 </table>
 
+**Tabel 3.5 Rancangan Anggaran (RAB)**
 <table style="width:100%;">
 <caption>Tabel 3. 5 Rancangan Anggaran</caption>
 <colgroup>
@@ -2059,28 +1777,28 @@ style="text-align: center;"><strong>Pengujian</strong></td>
 <tbody>
 <tr>
 <td>1</td>
-<td>esp32 cam</td>
+<td>ESP32-CAM</td>
 <td>4</td>
 <td>Rp 109.900</td>
 <td>Rp 439.600</td>
 </tr>
 <tr>
 <td>2</td>
-<td>esp32 c3</td>
+<td>ESP32-C3</td>
 <td>1</td>
 <td>Rp 38.900</td>
 <td>Rp 38.900</td>
 </tr>
 <tr>
 <td>3</td>
-<td>motor servo mg90s full metal</td>
+<td>Motor Servo MG90S full metal</td>
 <td>1</td>
 <td>Rp 41.900</td>
 <td>Rp 41.900</td>
 </tr>
 <tr>
 <td>4</td>
-<td>motor servo mg90s half metal</td>
+<td>Motor Servo MG90S half metal</td>
 <td>3</td>
 <td>Rp 29.500</td>
 <td>Rp 88.500</td>
@@ -2225,6 +1943,10 @@ style="text-align: center;"><strong>Pengujian</strong></td>
 </tbody>
 </table>
 
+> **Catatan RAB:** 
+> *Anggaran di atas hanya mencakup pengadaan komponen perangkat keras node kamera dan sensor. Perangkat pendukung jaringan dan penyimpanan seperti **Router Access Point, kabel Ethernet (dimanfaatkan sebagai media tripwire), dan media penyimpanan SSD/HDD** tidak dimasukkan dalam RAB karena telah tersedia sebagai bagian dari infrastruktur jaringan existing mitra dan paket pengadaan Mini PC Server.*
+
+**Tabel 3.6 Rancangan Pembagian Tugas**
 <table style="width:98%;">
 <caption>Tabel 3. 6 Rancangan Pembagian Tugas</caption>
 <colgroup>
@@ -2352,10 +2074,15 @@ deteksi dan pelaporan.</p></li>
 </tr>
 </tbody>
 </table>
+- **Muhammad Harits (Hardware & Physical Security):** Rekayasa Perangkat Keras (PCB, Wiring), Desain Enclosure (3D Print, Bearing Relief Joint), Proteksi Mekanikal (*Tamper-proof mounting*), dan Instalasi Fisik Lapangan.
+- **Bayu Setyo Prajuritno (Backend, API & Network Security):** Arsitektur Komunikasi (Node.js, WebSocket), Integrasi API Telegram & Tailscale VPN, Manajemen Database (SQLite), dan Implementasi Protokol Enkripsi SSL/TLS pada jalur data.
 
 ## 3.5 Kesimpulan
 
-Perancangan sistem keamanan terdistribusi ini menghadirkan solusi
+Perancangan sistem keamanan terdistribusi ini menghadirkan solusi komprehensif yang menjawab seluruh spesifikasi dan batasan yang ditetapkan pada CD-2. Melalui pendekatan *Stateless Edge Node* (ESP32-CAM) yang dikendalikan oleh *Centralized Server* (Mini PC i7), sistem ini berhasil mengeliminasi biaya operasional VPS (OPEX Rp 0,00) sekaligus mempertahankan akurasi deteksi AI menggunakan optimasi OpenVINO. 
+
+Pemilihan alternatif solusi A terbukti paling unggul secara *engineering trade-off*, mengorbankan sedikit durabilitas fisik (yang diatasi dengan *enclosure* PLA bermotif teduh dan *bearing relief joint*) demi mendapatkan fleksibilitas AI, kemandirian jaringan intranet (Tailscale VPN), dan skalabilitas sensor (PIR & Tripwire). Rancangan anggaran (RAB) yang berada di angka Rp 3,2 Juta (di luar perangkat PC *existing*) membuktikan bahwa sistem ini sangat layak dan ekonomis untuk diadopsi oleh pelaku UMKM agraris, memberikan rasa aman tanpa membebani finansial mereka.
+
 
 # BAB IV IMPLEMENTASI SISTEM
 
@@ -2733,7 +2460,7 @@ app.post('/upload', express.raw({ limit: '10mb', type: 'image/jpeg' }), (req, re
 ```
 #### 4.2.6.2 AI Human Detection
 
-Implementasi modul kecerdasan buatan (*AI Human Detection*) difokuskan pada deteksi keberadaan manusia di sekitar perimeter peternakan. Modul ini dikembangkan menggunakan bahasa Python dengan memanfaatkan pustaka OpenCV untuk manipulasi citra dan pustaka TensorFlow Lite (TFLite) Interpreter untuk menjalankan model pembelajaran mesin secara efisien. Model arsitektur kecerdasan buatan yang digunakan adalah YOLOv26-Nano [SUMBER: Dokumentasi Ultralytics YOLOv11] yang dieksekusi dalam format presisi *floating point* 32-bit (*Float32*) dengan nama berkas `yolo26n_float32.tflite`. Penggunaan arsitektur berukuran *nano* ini krusial untuk menurunkan konsumsi memori dan mempercepat waktu eksekusi inferensi pada *server gateway* berbiaya rendah dengan spesifikasi terbatas, tanpa mengorbankan akurasi deteksi secara berlebihan akibat hilangnya presisi angka di proses kuantisasi.
+Implementasi modul kecerdasan buatan (*AI Human Detection*) difokuskan pada deteksi keberadaan manusia di sekitar perimeter peternakan. Modul ini dikembangkan menggunakan bahasa Python dengan memanfaatkan pustaka OpenCV untuk manipulasi citra dan pustaka TensorFlow Lite (TFLite) Interpreter untuk menjalankan model pembelajaran mesin secara efisien. Model arsitektur kecerdasan buatan yang digunakan adalah YOLO v26 Nano [SUMBER: Dokumentasi Ultralytics YOLO v26 Nano] yang dieksekusi dalam format presisi *floating point* 32-bit (*Float32*) dengan nama berkas `yolo26n_float32.tflite`. Penggunaan arsitektur berukuran *nano* ini krusial untuk menurunkan konsumsi memori dan mempercepat waktu eksekusi inferensi pada *server gateway* berbiaya rendah dengan spesifikasi terbatas, tanpa mengorbankan akurasi deteksi secara berlebihan akibat hilangnya presisi angka di proses kuantisasi.
 
 Alur inferensi dimulai ketika server Python menerima jalur berkas gambar (*image path*) atau data citra mentah dari backend Node.js melalui koneksi soket TCP lokal pada porta 5000. Data citra tersebut kemudian melewati tahapan prapemrosesan (*preprocessing*) sebelum dimasukkan ke dalam input tensor model. Prapemrosesan meliputi pembacaan gambar menggunakan OpenCV, pengubahan resolusi gambar dari resolusi asli menjadi resolusi input matriks model YOLO, dan konversi rentang piksel warna dari 0-255 menjadi representasi nilai rasional *float32* yang ternormalisasi.
 
@@ -2757,7 +2484,7 @@ import cv2
 import tensorflow as tf
 
 class YOLOInterpreter:
-    def __init__(self, model_path="yolo11n_int8.tflite"):
+    def __init__(self, model_path="YOLO v26 Nanon_int8.tflite"):
         self.interpreter = tf.lite.Interpreter(model_path=model_path)
         self.interpreter.allocate_tensors()
         
@@ -3150,7 +2877,7 @@ Analisis hasil implementasi merupakan tahap penilaian akhir terhadap sistem keam
 
 Kelebihan utama dari hasil implementasi sistem ini terletak pada efisiensi biaya operasional dan kecepatan respon lokal. Dengan menerapkan komputasi tepi (*edge computing*) di mana seluruh proses inferensi AI dan database log berjalan lokal pada server gateway, latency pengiriman frame gambar dari kamera ke AI berkurang drastis jika dibandingkan dengan mengirimkan data ke API cloud luar. Penerapan algoritma *Dynamic Resolution Scaling* berbasis indikator kekuatan sinyal (RSSI) juga terbukti efektif mempertahankan kelancaran transmisi streaming video nirkabel meskipun terhambat jarak bangunan kandang ayam yang luas. Selain itu, pemanfaatan database lokal berbasis SQLite yang andal dan ringan menjaga kebutuhan spesifikasi perangkat keras server tetap rendah, sehingga sistem ini dapat dijalankan pada mini-PC berbiaya murah tanpa mengorbankan integritas data saat diakses secara konkuren.
 
-Namun demikian, terdapat beberapa keterbatasan teknis dalam implementasi sistem saat ini. Penggunaan model deteksi objek YOLO11-Tiny yang dikuantisasi menjadi 8-bit (int8) di satu sisi mempercepat inferensi, tetapi di sisi lain sedikit menurunkan sensitivitas deteksi pada kondisi pencahayaan yang sangat redup (malam hari tanpa lampu bantuan). Keterbatasan fisik motor servo MG90S (full metal gear) yang memiliki kecepatan putar terbatas juga menyebabkan kamera kadang terlambat mengikuti pergerakan objek jika target manusia berlari dengan cepat di dekat jangkauan kamera. Selain itu, ketergantungan sistem pada jaringan intranet nirkabel (Wi-Fi lokal) rentan terhadap interferensi frekuensi jika di peternakan terdapat banyak perangkat elektronik lain yang beroperasi pada frekuensi 2.4 GHz.
+Namun demikian, terdapat beberapa keterbatasan teknis dalam implementasi sistem saat ini. Penggunaan model deteksi objek YOLO v26 Nano yang dikuantisasi menjadi 8-bit (int8) di satu sisi mempercepat inferensi, tetapi di sisi lain sedikit menurunkan sensitivitas deteksi pada kondisi pencahayaan yang sangat redup (malam hari tanpa lampu bantuan). Keterbatasan fisik motor servo MG90S (full metal gear) yang memiliki kecepatan putar terbatas juga menyebabkan kamera kadang terlambat mengikuti pergerakan objek jika target manusia berlari dengan cepat di dekat jangkauan kamera. Selain itu, ketergantungan sistem pada jaringan intranet nirkabel (Wi-Fi lokal) rentan terhadap interferensi frekuensi jika di peternakan terdapat banyak perangkat elektronik lain yang beroperasi pada frekuensi 2.4 GHz.
 
 Untuk pengembangan sistem di masa mendatang, direkomendasikan beberapa poin peningkatan fitur demi meningkatkan keandalan sistem keamanan ini:
 - **Penambahan Fitur Night Vision:** Mengganti modul kamera OV2640 standar dengan versi OV2640 yang mendukung inframerah (IR-cut camera) beserta lampu iluminator IR eksternal agar akurasi deteksi manusia di malam hari tetap optimal tanpa mengganggu kenyamanan tidur ayam ternak.
@@ -3167,7 +2894,7 @@ Untuk panduan lengkap mengenai langkah-langkah instalasi, konfigurasi perangkat 
 
 # DAFTAR PUSTAKA
 
-[1] Ultralytics, "YOLOv11 Documentation," Ultralytics Docs, 2026. [Online]. Available: https://docs.ultralytics.com. [Accessed: 07-Jul-2026].
+[1] Ultralytics, "YOLO v26 Nano Documentation," Ultralytics Docs, 2026. [Online]. Available: https://docs.ultralytics.com. [Accessed: 07-Jul-2026].
 [2] Telegraf, "Telegraf.js Modern Telegram Bot Framework for Node.js," npmjs, 2026. [Online]. Available: https://telegraf.js.org. [Accessed: 07-Jul-2026].
 [3] Vue.js Core Team, "Vue.js: The Progressive JavaScript Framework," Vue.js, 2026. [Online]. Available: https://vuejs.org. [Accessed: 07-Jul-2026].
 [4] Espressif Systems, "ESP32-CAM Documentation," Espressif, 2026. [Online]. Available: https://docs.espressif.com. [Accessed: 07-Jul-2026].

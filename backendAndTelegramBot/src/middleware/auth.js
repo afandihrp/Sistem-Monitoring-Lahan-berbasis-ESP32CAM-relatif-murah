@@ -35,9 +35,10 @@ function loginHandler(req, res) {
     // Set HttpOnly cookie
     res.cookie('kiosk_token', token, {
       httpOnly: true,
-      secure: false, // Set to true if using HTTPS
+      secure: true, // Set to true if using HTTPS
       sameSite: 'lax',
-      maxAge: 1 * 24 * 60 * 60 * 1000 // 7 days
+      // maxAge: 1 * 24 * 60 * 60 * 1000 // 1 days
+      maxAge: 4 * 60 * 60 * 1000 // 1 days
     });
     
     return res.json({ success: true, message: 'Logged in successfully' });

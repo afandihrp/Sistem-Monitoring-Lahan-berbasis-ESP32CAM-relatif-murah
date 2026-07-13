@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import SystemScheduler from './SystemScheduler.vue'
 
 const { locale } = useI18n()
 
@@ -126,6 +127,10 @@ const telegramInterval = ref(props.initialConfig.telegramInterval !== undefined 
 const maxDuration = ref(props.initialConfig.maxDuration !== undefined ? props.initialConfig.maxDuration : 30)
 const udpStreamEnabled = ref(props.initialConfig.udpStreamEnabled !== undefined ? props.initialConfig.udpStreamEnabled : false)
 
+// Schedules settings state
+const schedules = ref(props.initialConfig.schedules ? JSON.parse(JSON.stringify(props.initialConfig.schedules)) : [])
+const activeScheduleId = computed(() => props.initialConfig.activeScheduleId || null)
+
 // Watchers copied from legacy AiConfiguratorModal to preserve cascading settings
 watch(pirAiDetection, (newVal) => {
   if (!newVal) {
@@ -246,7 +251,8 @@ const saveConfig = () => {
     streamAiCaptureEnabled: streamAiCaptureEnabled.value,
     streamAiTelegram: streamAiTelegram.value,
     telegramInterval: telegramInterval.value,
-    maxDuration: maxDuration.value
+    maxDuration: maxDuration.value,
+    schedules: schedules.value
   })
 }
 </script>
@@ -282,6 +288,12 @@ const saveConfig = () => {
           :class="['tab-btn pb-2 fw-bold text-uppercase', activeTab === 'camera_detection' ? 'active text-info' : 'text-slate-400']"
         >
           <i class="bi bi-camera-video me-1"></i>{{ $t('settings.tabs.camera') }}
+        </button>
+        <button 
+          @click="activeTab = 'schedule'"
+          :class="['tab-btn pb-2 fw-bold text-uppercase', activeTab === 'schedule' ? 'active text-info' : 'text-slate-400']"
+        >
+          <i class="bi bi-calendar-range me-1"></i>{{ $t('settings.tabs.schedule') }}
         </button>
         <button 
           @click="activeTab = 'other'"
@@ -810,6 +822,13 @@ const saveConfig = () => {
           </div>
 
         </div>
+
+        <!-- =================== TAB 5: SCHEDULER =================== -->
+        <SystemScheduler 
+          v-else-if="activeTab === 'schedule'" 
+          v-model="schedules" 
+          :activeScheduleId="activeScheduleId" 
+        />
 
       </div>
 
