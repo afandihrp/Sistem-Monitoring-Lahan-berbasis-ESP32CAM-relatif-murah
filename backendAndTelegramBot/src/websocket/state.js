@@ -5,7 +5,6 @@ const state = {
   globalActiveDeviceId: null,
   wssInstance: null,
   globalAiEnabled: true,
-  globalViewMode: 'single',
   globalPirAiDetection: true,
   globalPirAiRecording: true,
   globalStreamAiDetection: true,

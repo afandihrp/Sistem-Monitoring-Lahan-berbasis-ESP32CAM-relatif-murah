@@ -59,6 +59,7 @@ function updateDeviceSweepState(deviceId, sweepActive, skipCameraSend = false) {
 function broadcastDeviceList() {
   const deviceList = Array.from(state.devices.values()).map(device => ({
     id: device.id,
+    type: device.type,
     status: device.status,
     ip: device.ip,
     mac: device.mac,

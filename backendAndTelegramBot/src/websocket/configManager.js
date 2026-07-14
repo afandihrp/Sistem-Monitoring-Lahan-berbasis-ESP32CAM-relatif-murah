@@ -12,7 +12,6 @@ function loadSystemSettings() {
       const data = fs.readFileSync(SYSTEM_SETTINGS_FILE, 'utf8');
       const settings = JSON.parse(data);
       state.globalAiEnabled = settings.globalAiEnabled !== undefined ? settings.globalAiEnabled : true;
-      state.globalViewMode = settings.globalViewMode || 'single';
       state.globalPirAiDetection = settings.pirAiDetection !== undefined ? settings.pirAiDetection : true;
       state.globalPirAiRecording = settings.pirAiRecording !== undefined ? settings.pirAiRecording : true;
       state.globalStreamAiDetection = settings.streamAiDetection !== undefined ? settings.streamAiDetection : true;
@@ -27,7 +26,7 @@ function loadSystemSettings() {
       if (settings.systemConfig) {
         state.globalSystemConfig = { ...state.globalSystemConfig, ...settings.systemConfig };
       }
-      console.log(`[Settings] Loaded system settings: ViewMode = ${state.globalViewMode}, AI = ${state.globalAiEnabled ? 'ENABLED' : 'DISABLED'}, PIR AI Det = ${state.globalPirAiDetection}, PIR AI Rec = ${state.globalPirAiRecording}, Stream AI Det = ${state.globalStreamAiDetection}, Stream AI Rec = ${state.globalStreamAiRecording}, Stream Telegram = ${state.globalStreamAiTelegram}, Telegram Interval = ${state.globalTelegramInterval}s, Tracking = ${state.globalObjectTracking}, MaxDur = ${state.globalMaxDuration}s`);
+      console.log(`[Settings] Loaded system settings: AI = ${state.globalAiEnabled ? 'ENABLED' : 'DISABLED'}, PIR AI Det = ${state.globalPirAiDetection}, PIR AI Rec = ${state.globalPirAiRecording}, Stream AI Det = ${state.globalStreamAiDetection}, Stream AI Rec = ${state.globalStreamAiRecording}, Stream Telegram = ${state.globalStreamAiTelegram}, Telegram Interval = ${state.globalTelegramInterval}s, Tracking = ${state.globalObjectTracking}, MaxDur = ${state.globalMaxDuration}s`);
     } else {
       console.log('[Settings] No system settings file found, using defaults.');
     }
@@ -44,7 +43,6 @@ function saveSystemSettings() {
     }
     const settings = {
       globalAiEnabled: state.globalAiEnabled,
-      globalViewMode: state.globalViewMode,
       pirAiDetection: state.globalPirAiDetection,
       pirAiRecording: state.globalPirAiRecording,
       streamAiDetection: state.globalStreamAiDetection,

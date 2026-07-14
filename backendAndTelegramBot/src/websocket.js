@@ -297,8 +297,6 @@ function initWebSocket(servers) {
       }
     } else {
       console.log('Kiosk connected.');
-      // Send current view mode immediately to synchronize
-      ws.send(JSON.stringify({ type: 'view_mode_updated', mode: state.globalViewMode }));
 
       // Send current device list to the new Kiosk immediately
       broadcastDeviceList();
@@ -475,21 +473,6 @@ function initWebSocket(servers) {
 
             state.broadcastToKiosks(payload);
             state.broadcastToKiosks(payloadLogs);
-          } else if (data.type === 'set_view_mode' && !isCamera) {
-            state.globalViewMode = data.mode;
-            console.log(`[ViewMode] Global view mode updated to: ${state.globalViewMode}`);
-            saveSystemSettings();
-            const viewModePayload = JSON.stringify({ type: 'view_mode_updated', mode: state.globalViewMode });
-            state.broadcastToKiosks(viewModePayload);
-            if (state.globalViewMode === 'single') {
-              const activeDevice = state.devices.get(state.globalActiveDeviceId);
-              const boxPayload = JSON.stringify({
-                type: 'stream_boxes',
-                deviceId: state.globalActiveDeviceId,
-                boxes: (activeDevice && activeDevice.latestBoxes) ? activeDevice.latestBoxes : []
-              });
-              state.broadcastToKiosks(boxPayload);
-            }
           } else if (data.type === 'set_ai_enabled' && !isCamera) {
             state.globalAiEnabled = data.enabled;
             console.log(`[AI Status] Global AI state updated to: ${state.globalAiEnabled ? 'ENABLED' : 'DISABLED'}`);

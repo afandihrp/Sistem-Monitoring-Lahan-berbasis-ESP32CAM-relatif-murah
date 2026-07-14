@@ -495,9 +495,7 @@ function triggerAiWorker() {
 
       state.wssInstance.clients.forEach(client => {
         if (client.readyState === 1 && (!client.path || !client.path.startsWith('/camera'))) {
-          if (state.globalViewMode === 'multiple' || deviceId === state.globalActiveDeviceId) {
-            client.send(boxPayload);
-          }
+          client.send(boxPayload);
         }
       });
     }
@@ -566,10 +564,8 @@ function handleIncomingCameraFrame(deviceId, remoteIp, message) {
   if (state.wssInstance) {
     state.wssInstance.clients.forEach((client) => {
       if (client.readyState === 1 && client.path && !client.path.startsWith('/camera')) {
-        if (state.globalViewMode === 'multiple' || deviceId === state.globalActiveDeviceId) {
-          const prefixedMessage = serializeFrame(deviceId, message);
-          client.send(prefixedMessage, { binary: true });
-        }
+        const prefixedMessage = serializeFrame(deviceId, message);
+        client.send(prefixedMessage, { binary: true });
       }
     });
   }

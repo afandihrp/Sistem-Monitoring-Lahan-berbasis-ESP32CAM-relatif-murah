@@ -84,7 +84,7 @@ const liveImageSrc = ref('')
 const liveBoxes = ref([])
 const cameraImages = ref({})
 const cameraBoxes = ref({})
-const viewMode = ref('single')
+const viewMode = ref(localStorage.getItem('viewMode') || 'multiple')
 const showSystemConfig = ref(false)
 let lastObjectUrl = null
 
@@ -227,8 +227,6 @@ const connectWS = () => {
         localStorage.setItem('systemConfig', JSON.stringify(data.config))
       } else if (data.type === 'save_system_config_success') {
         alert('System Settings Saved Successfully!')
-      } else if (data.type === 'view_mode_updated') {
-        viewMode.value = data.mode
       } else if (data.type === 'servo_angle_update') {
         const device = devices.value.find(d => d.id === data.deviceId)
         if (device) {
@@ -385,9 +383,7 @@ const triggerSweepAction = (value) => {
 
 const handleSetViewMode = (mode) => {
   viewMode.value = mode
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'set_view_mode', mode }))
-  }
+  localStorage.setItem('viewMode', mode)
 }
 
 const handleSetAiEnabled = (enabled) => {
