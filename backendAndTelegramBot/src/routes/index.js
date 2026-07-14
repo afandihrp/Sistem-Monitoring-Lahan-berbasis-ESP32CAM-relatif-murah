@@ -1,6 +1,7 @@
 const express = require('express');
 const handleTripwire = require('./tripwire');
 const handleUpload = require('./upload');
+const handlePing = require('./ping');
 
 const { loginHandler, logoutHandler, authenticateHttp, isLocalIP } = require('../middleware/auth');
 
@@ -33,6 +34,7 @@ function createRouter(wss) {
   // We'll leave action and upload unprotected for now unless needed, 
   // because ESP32 might call them directly without Kiosk cookies.
   router.get('/api/tripwire', handleTripwire(wss));
+  router.get('/api/ping', handlePing);
   router.post('/upload', express.raw({ limit: '10mb', type: 'image/jpeg' }), handleUpload(wss));
 
   return router;

@@ -89,7 +89,11 @@ const showSystemConfig = ref(false)
 let lastObjectUrl = null
 
 const currentStreamIndex = ref(0)
-const currentStream = computed(() => devices.value[currentStreamIndex.value] || { name: 'No Active Stream', ip: 'N/A', status: 'Offline' })
+const currentStream = computed(() => {
+  const d = devices.value[currentStreamIndex.value];
+  if (d && d.type === 'Camera') return d;
+  return { name: 'No Active Stream', ip: 'N/A', status: 'Offline', type: 'Camera' };
+})
 const aiDetecting = computed(() => liveBoxes.value.length > 0 || Object.values(cameraBoxes.value).some(boxes => boxes && boxes.length > 0))
 const visibleBoxes = computed(() => (aiConnected.value && aiEnabled.value) ? liveBoxes.value : [])
 

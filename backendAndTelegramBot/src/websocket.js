@@ -779,6 +779,20 @@ function initWebSocket(servers) {
 
   // Heartbeat interval check every 5 seconds
   const interval = setInterval(async function ping() {
+    const nowMs = Date.now();
+    let deviceListChanged = false;
+    for (const [deviceId, device] of state.devices.entries()) {
+      if (device.type === 'Other' && device.status === 'Online') {
+        const timeSinceLastPing = nowMs - (device.lastPingTimeMs || 0);
+        if (timeSinceLastPing > 15000) { // 15 seconds timeout
+           console.log(`[Heartbeat] Other device ${deviceId} ping timeout. Marking offline.`);
+           device.status = 'Offline';
+           deviceListChanged = true;
+        }
+      }
+    }
+    if (deviceListChanged) broadcastDeviceList();
+
     const promises = Array.from(wss.clients).map(async (ws) => {
       if (ws.path && ws.path.startsWith('/camera')) {
         const now = Date.now();
@@ -869,6 +883,46 @@ function initWebSocket(servers) {
   return wss;
 }
 
+function handleDevicePing(deviceId, mac, rssi, ip) {
+  const existingDevice = state.devices.get(deviceId);
+  const nowMs = Date.now();
+  let changed = false;
+
+  const getBars = (r) => {
+    if (r >= -60) return 5;
+    if (r >= -70) return 4;
+    if (r >= -80) return 3;
+    if (r >= -90) return 2;
+    return 1;
+  };
+  
+  if (existingDevice) {
+    if (existingDevice.status !== 'Online' || existingDevice.signalRssi !== rssi) changed = true;
+    existingDevice.status = 'Online';
+    existingDevice.lastSeen = new Date().toLocaleTimeString();
+    existingDevice.lastPingTimeMs = nowMs;
+    existingDevice.signalRssi = rssi;
+    existingDevice.signalBars = getBars(rssi);
+  } else {
+    state.devices.set(deviceId, {
+      id: deviceId,
+      status: 'Online',
+      ip: ip,
+      mac: mac,
+      type: 'Other',
+      signalBars: getBars(rssi),
+      signalRssi: rssi,
+      lastSeen: new Date().toLocaleTimeString(),
+      lastPingTimeMs: nowMs
+    });
+    changed = true;
+  }
+  
+  if (changed) {
+    broadcastDeviceList();
+  }
+}
+
 // Load settings immediately on server start
 loadSystemSettings();
 schedulerManager.initScheduler();
@@ -879,5 +933,6 @@ module.exports = {
   sendCaptureRequest,
   switchActiveStream,
   updateFlashIntensity,
-  handlePirTrigger
+  handlePirTrigger,
+  handleDevicePing
 };

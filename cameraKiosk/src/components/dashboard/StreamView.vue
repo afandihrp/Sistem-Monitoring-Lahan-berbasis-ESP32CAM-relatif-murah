@@ -156,7 +156,7 @@ const showConfig = ref(false)
 const showCameraConfig = ref(false)
 const configDeviceMac = ref('')
 
-const onlineDevices = computed(() => props.devices.filter(d => d.status === 'Online'))
+const onlineDevices = computed(() => props.devices.filter(d => d.status === 'Online' && d.type === 'Camera'))
 
 const gridClass = computed(() => {
   const count = onlineDevices.value.length;
