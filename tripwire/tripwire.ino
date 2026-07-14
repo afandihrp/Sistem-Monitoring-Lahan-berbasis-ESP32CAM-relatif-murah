@@ -2,7 +2,7 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 
-#define ADC_PIN 0 // Menggunakan pin 0
+#define PIR_PIN 0 // Menggunakan pin 0
 
 #define DEBUG_LED_PIN 8 // Pin 8 is the standard built-in LED for ESP32-C3 SuperMini.
 
@@ -13,16 +13,15 @@ enum LedNotificationState {
   LED_STATE_FINDING_SERVER = 2
 };
 volatile int ledNotificationState = LED_STATE_OFF;
-volatile float currentAdcVoltage = 0.0;
 
 void setDebugLed(bool on) {
-  if (DEBUG_LED_PIN == ADC_PIN) return; // Prevent breaking ADC if pins conflict
+  if (DEBUG_LED_PIN == PIR_PIN) return; // Prevent breaking pin config if pins conflict
   // C3 SuperMini LED is active LOW (0 = ON, 255 = OFF)
   analogWrite(DEBUG_LED_PIN, on ? 0 : 255);
 }
 
 void ledTask(void * pvParameters) {
-  if (DEBUG_LED_PIN != ADC_PIN) {
+  if (DEBUG_LED_PIN != PIR_PIN) {
     pinMode(DEBUG_LED_PIN, OUTPUT);
     digitalWrite(DEBUG_LED_PIN, HIGH); // Start OFF
   }
@@ -75,26 +74,17 @@ void ledTask(void * pvParameters) {
       }
     } else {
       lastWrittenState = 0;
-      if (DEBUG_LED_PIN != ADC_PIN) {
-        float v = currentAdcVoltage;
-        if (v < 1.0) {
-          analogWrite(DEBUG_LED_PIN, 255); // OFF (Active Low)
-        } else if (v >= 2.0) {
-          analogWrite(DEBUG_LED_PIN, 0);   // BRIGHTEST (Active Low)
-        } else {
-          // Map 1.0V to 2.0V -> 255 to 0 (Active Low PWM)
-          int pwm = map(v * 100, 100, 200, 255, 0);
-          analogWrite(DEBUG_LED_PIN, pwm);
-        }
+      if (DEBUG_LED_PIN != PIR_PIN) {
+        setDebugLed(false);
       }
-      vTaskDelay(pdMS_TO_TICKS(100)); // Update PWM brightness at 10Hz
+      vTaskDelay(pdMS_TO_TICKS(100)); // Update at 10Hz
     }
   }
 }
 
 // ================= WIFI =================
-const char *ssid = "Tenda03";
-const char *password = "BRHtenda68";
+const char *ssid = "BatuKhan";
+const char *password = "momoygemoy";
 
 // ================= GATEWAY (UDP DISCOVERY) =================
 String globalCustomSubnet = "192.168.1";
@@ -104,15 +94,6 @@ const int backendPort = 3000; // GANTI dengan port backend Node.js Anda
 // ================= IDENTITAS NODE =================
 const String nodeLocation = "Pagar_Utara";
 const String sensorName = "Node_01";
-
-// ================= ADC =================
-const float VREF = 3.3;
-const int ADC_MAX = 4095;
-
-// ================= THRESHOLD =================
-// Sesuaikan jika hasil pengujian berubah
-const float CUT_THRESHOLD =
-    1.5; // Ambang batas 1.5V (alarm dipicu jika tegangan melebihi ini)
 
 // ================= DEBOUNCE =================
 const int REQUIRED_CONSECUTIVE_READS =
@@ -273,7 +254,7 @@ bool resolveGatewayIP() {
 }
 
 // ================= SEND ALERT =================
-void sendAlert(float voltage) {
+void sendAlert() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi not connected");
     return;
@@ -311,6 +292,36 @@ void sendAlert(float voltage) {
   http.end();
 }
 
+// ================= SEND PING =================
+unsigned long lastPingTime = 0;
+
+void sendPing() {
+  if (WiFi.status() != WL_CONNECTED || resolvedGatewayIP == "") {
+    return;
+  }
+
+  WiFiClient clientHttp;
+  HTTPClient http;
+  
+  String mac = WiFi.macAddress();
+  long rssi = WiFi.RSSI();
+  
+  String urlHttp = "http://" + resolvedGatewayIP + ":" + String(backendPort) +
+                   "/api/ping?deviceId=" + sensorName +
+                   "&mac=" + mac +
+                   "&rssi=" + String(rssi);
+
+  http.begin(clientHttp, urlHttp);
+  int httpCode = http.GET();
+  
+  // We can ignore the response to save time/memory, just checking if it sent successfully
+  if (httpCode <= 0) {
+    Serial.println("Ping HTTP Gagal.");
+  }
+  
+  http.end();
+}
+
 // ================= SETUP =================
 void setup() {
   Serial.begin(115200);
@@ -323,8 +334,7 @@ void setup() {
   xTaskCreate(ledTask, "LED Task", 2048, NULL, 1, NULL);
   __atomic_store_n(&ledNotificationState, LED_STATE_CONNECTING_WIFI, __ATOMIC_SEQ_CST);
 
-  analogReadResolution(12);
-  analogSetPinAttenuation(ADC_PIN, ADC_11db);
+  pinMode(PIR_PIN, INPUT);
 
   connectWiFi();
 
@@ -340,15 +350,16 @@ void setup() {
 
 // ================= LOOP =================
 void loop() {
-  // Teknik membacanya pake yang di voltage_divider_sensing (pin 0)
-  int adc0 = analogRead(ADC_PIN);
-  float voltage = ((float)adc0 / ADC_MAX) * VREF;
-  currentAdcVoltage = voltage; // Update global for PWM LED task
+  if (millis() - lastPingTime >= 5000) {
+    lastPingTime = millis();
+    sendPing();
+  }
 
-  Serial.printf("P0=%4d | Voltage=%.3f\n", adc0, voltage);
+  int pirState = digitalRead(PIR_PIN);
 
-  if (voltage >
-      CUT_THRESHOLD) { // Diubah ke > karena alarm dipicu saat tegangan > 1.5V
+  Serial.printf("PIR State=%d\n", pirState);
+
+  if (pirState == HIGH) { // Alarm dipicu saat PIR HIGH
     cutCounter++;
     normalCounter = 0; // Reset counter normal karena tegangan di atas threshold
 
@@ -358,7 +369,7 @@ void loop() {
     if (cutCounter >= REQUIRED_CONSECUTIVE_READS && !alertSent) {
       Serial.println("ANOMALY DETECTED - ALARM TRIGGERED");
 
-      sendAlert(voltage);
+      sendAlert();
 
       alertSent = true;
     }

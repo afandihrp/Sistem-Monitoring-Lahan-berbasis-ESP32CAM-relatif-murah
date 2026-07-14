@@ -2460,7 +2460,7 @@ app.post('/upload', express.raw({ limit: '10mb', type: 'image/jpeg' }), (req, re
 ```
 #### 4.2.6.2 AI Human Detection
 
-Implementasi modul kecerdasan buatan (*AI Human Detection*) difokuskan pada deteksi keberadaan manusia di sekitar perimeter peternakan. Modul ini dikembangkan menggunakan bahasa Python dengan memanfaatkan pustaka OpenCV untuk manipulasi citra dan pustaka TensorFlow Lite (TFLite) Interpreter untuk menjalankan model pembelajaran mesin secara efisien. Model arsitektur kecerdasan buatan yang digunakan adalah YOLO v26 Nano [SUMBER: Dokumentasi Ultralytics YOLO v26 Nano] yang dieksekusi dalam format presisi *floating point* 32-bit (*Float32*) dengan nama berkas `yolo26n_float32.tflite`. Penggunaan arsitektur berukuran *nano* ini krusial untuk menurunkan konsumsi memori dan mempercepat waktu eksekusi inferensi pada *server gateway* berbiaya rendah dengan spesifikasi terbatas, tanpa mengorbankan akurasi deteksi secara berlebihan akibat hilangnya presisi angka di proses kuantisasi.
+Implementasi modul kecerdasan buatan (*AI Human Detection*) difokuskan pada deteksi keberadaan manusia di sekitar perimeter peternakan. Modul ini dikembangkan menggunakan bahasa Python dengan memanfaatkan pustaka OpenCV untuk manipulasi citra dan pustaka TensorFlow Lite (TFLite) Interpreter untuk menjalankan model pembelajaran mesin secara efisien. Model arsitektur kecerdasan buatan yang digunakan adalah YOLO v26 Nano [1] yang dieksekusi dalam format presisi *floating point* 32-bit (*Float32*) dengan nama berkas `yolo26n_float32.tflite`. Penggunaan arsitektur berukuran *nano* ini krusial untuk menurunkan konsumsi memori dan mempercepat waktu eksekusi inferensi pada *server gateway* berbiaya rendah dengan spesifikasi terbatas, tanpa mengorbankan akurasi deteksi secara berlebihan akibat hilangnya presisi angka di proses kuantisasi.
 
 Alur inferensi dimulai ketika server Python menerima jalur berkas gambar (*image path*) atau data citra mentah dari backend Node.js melalui koneksi soket TCP lokal pada porta 5000. Data citra tersebut kemudian melewati tahapan prapemrosesan (*preprocessing*) sebelum dimasukkan ke dalam input tensor model. Prapemrosesan meliputi pembacaan gambar menggunakan OpenCV, pengubahan resolusi gambar dari resolusi asli menjadi resolusi input matriks model YOLO, dan konversi rentang piksel warna dari 0-255 menjadi representasi nilai rasional *float32* yang ternormalisasi.
 
@@ -2625,7 +2625,7 @@ Mekanisme ini dirancang secara cerdas (*Smart Sweep*) untuk menunda jadwal patro
 
 #### 4.2.6.4 Telegram Bot
 
-Implementasi Telegram Bot berperan sebagai gerbang utama pengiriman notifikasi bahaya jarak jauh secara instan ke ponsel pemilik peternakan. Bot dikembangkan menggunakan API Telegram resmi dengan memanfaatkan pustaka Telegraf.js pada Node.js. Pustaka pendukung bot ini diimplementasikan menggunakan Telegraf.js [SUMBER: Dokumentasi Telegraf.js]. Pustaka ini mempermudah proses penanganan *routing* perintah teks, pembuatan tombol interaktif (*inline keyboards*), dan manajemen antrean pesan media. Karena server gateway beroperasi di dalam jaringan lokal (intranet), bot dikonfigurasikan agar memaksa penggunaan alamat IPv4 saat berkomunikasi dengan server Telegram global untuk mencegah terjadinya gangguan resolusi DNS pada koneksi lokal.
+Implementasi Telegram Bot berperan sebagai gerbang utama pengiriman notifikasi bahaya jarak jauh secara instan ke ponsel pemilik peternakan. Bot dikembangkan menggunakan API Telegram resmi dengan memanfaatkan pustaka Telegraf.js [2] pada Node.js. Pustaka ini mempermudah proses penanganan *routing* perintah teks, pembuatan tombol interaktif (*inline keyboards*), dan manajemen antrean pesan media. Karena server gateway beroperasi di dalam jaringan lokal (intranet), bot dikonfigurasikan agar memaksa penggunaan alamat IPv4 saat berkomunikasi dengan server Telegram global untuk mencegah terjadinya gangguan resolusi DNS pada koneksi lokal.
 
 Alur notifikasi bot Telegram dirancang secara berlapis berdasarkan tingkat keparahan kejadian. Ketika sensor PIR mendeteksi pergerakan, sistem akan mengirimkan notifikasi teks awal secara cepat untuk memberitahu sektor kandang yang terpicu. Secara pararel, setelah modul AI memverifikasi target berupa manusia, server backend akan memicu fungsi pengiriman foto cuplikan (*photo snapshot*) beresolusi tinggi (FHD) yang telah dilengkapi dengan *bounding box* hasil analisis model YOLO. Apabila kejadian gerakan tersebut selesai (sensor tidak lagi aktif), sistem akan merender rekaman video berformat MP4 menggunakan FFmpeg dan mengirimkannya sebagai rangkuman bukti visual kejadian keamanan yang lengkap.
 
@@ -2895,6 +2895,33 @@ Untuk panduan lengkap mengenai langkah-langkah instalasi, konfigurasi perangkat 
 # DAFTAR PUSTAKA
 
 [1] Ultralytics, "YOLO v26 Nano Documentation," Ultralytics Docs, 2026. [Online]. Available: https://docs.ultralytics.com. [Accessed: 07-Jul-2026].
-[2] Telegraf, "Telegraf.js Modern Telegram Bot Framework for Node.js," npmjs, 2026. [Online]. Available: https://telegraf.js.org. [Accessed: 07-Jul-2026].
-[3] Vue.js Core Team, "Vue.js: The Progressive JavaScript Framework," Vue.js, 2026. [Online]. Available: https://vuejs.org. [Accessed: 07-Jul-2026].
-[4] Espressif Systems, "ESP32-CAM Documentation," Espressif, 2026. [Online]. Available: https://docs.espressif.com. [Accessed: 07-Jul-2026].
+
+[2] FedorIndutny, "Telegraf.js — Modern Telegram Bot Framework for Node.js," Telegraf.js, 2026. [Online]. Available: https://telegraf.js.org. [Accessed: 07-Jul-2026].
+
+[3] Vue.js Core Team, "Vue.js — The Progressive JavaScript Framework," Vue.js, 2026. [Online]. Available: https://vuejs.org. [Accessed: 07-Jul-2026].
+
+[4] Espressif Systems, "ESP32-CAM Getting Started Guide," Espressif Systems Docs, 2026. [Online]. Available: https://docs.espressif.com/projects/esp-idf/en/stable/esp32/. [Accessed: 07-Jul-2026].
+
+[5] Intel Corporation, "OpenVINO Toolkit Overview," Intel OpenVINO Documentation, 2026. [Online]. Available: https://docs.openvino.ai. [Accessed: 07-Jul-2026].
+
+[6] Node.js Foundation, "Node.js Documentation," Node.js, 2026. [Online]. Available: https://nodejs.org/en/docs. [Accessed: 07-Jul-2026].
+
+[7] Google LLC, "TensorFlow Lite Guide," TensorFlow, 2026. [Online]. Available: https://www.tensorflow.org/lite/guide. [Accessed: 07-Jul-2026].
+
+[8] OpenCV Team, "OpenCV Documentation," OpenCV, 2026. [Online]. Available: https://docs.opencv.org. [Accessed: 07-Jul-2026].
+
+[9] FFmpeg Developers, "FFmpeg Documentation," FFmpeg, 2026. [Online]. Available: https://ffmpeg.org/documentation.html. [Accessed: 07-Jul-2026].
+
+[10] Nginx Inc., "Nginx Documentation," Nginx, 2026. [Online]. Available: https://nginx.org/en/docs/. [Accessed: 07-Jul-2026].
+
+[11] Tailscale Inc., "Tailscale Funnel Documentation," Tailscale, 2026. [Online]. Available: https://tailscale.com/kb/1223/funnel. [Accessed: 07-Jul-2026].
+
+[12] SQLite Consortium, "SQLite Documentation," SQLite, 2026. [Online]. Available: https://www.sqlite.org/docs.html. [Accessed: 07-Jul-2026].
+
+[13] JSON Web Tokens (JWT), "Introduction to JSON Web Tokens," jwt.io, 2026. [Online]. Available: https://jwt.io/introduction. [Accessed: 07-Jul-2026].
+
+[14] DFRobot, "HC-SR501 PIR Motion Sensor Wiki," DFRobot Wiki, 2026. [Online]. Available: https://wiki.dfrobot.com/PIR_Motion_Sensor. [Accessed: 07-Jul-2026].
+
+[15] Tower Pro, "MG90S Micro Metal Servo Datasheet," Tower Pro, 2026. [Online]. Available: http://www.towerpro.com.tw/product/mg90s-3/. [Accessed: 07-Jul-2026].
+
+[16] IEC, "IEC 60529 — Degrees of Protection Provided by Enclosures (IP Code)," International Electrotechnical Commission, Ed. 2.1, 2013.
