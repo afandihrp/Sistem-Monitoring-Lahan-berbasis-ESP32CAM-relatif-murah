@@ -96,6 +96,7 @@ function applyScheduleConfig(schedule) {
   if (overrides.streamAiCaptureEnabled !== undefined) config.streamAiCaptureEnabled = overrides.streamAiCaptureEnabled;
   if (overrides.streamAiTelegram !== undefined) config.streamAiTelegram = overrides.streamAiTelegram;
   if (overrides.udpStreamEnabled !== undefined) config.udpStreamEnabled = overrides.udpStreamEnabled;
+  if (overrides.webSoundEnabled !== undefined) config.webSoundEnabled = overrides.webSoundEnabled;
 
   if (overrides.cameraDetectionEnabled !== undefined && overrides.cameraDetectionEnabled !== state.globalAiEnabled) {
     state.globalAiEnabled = overrides.cameraDetectionEnabled;

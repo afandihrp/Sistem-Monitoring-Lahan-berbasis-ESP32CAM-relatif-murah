@@ -23,7 +23,9 @@ const presets = [
   { key: 'telegramAlertMotion', value: true, labelKey: 'telegramAlertMotion_true', icon: 'bi-telegram', color: 'indigo' },
   { key: 'telegramAlertMotion', value: false, labelKey: 'telegramAlertMotion_false', icon: 'bi-telegram', color: 'danger' },
   { key: 'udpStreamEnabled', value: true, labelKey: 'udpStreamEnabled_true', icon: 'bi-speedometer2', color: 'warning' },
-  { key: 'udpStreamEnabled', value: false, labelKey: 'udpStreamEnabled_false', icon: 'bi-speedometer', color: 'danger' }
+  { key: 'udpStreamEnabled', value: false, labelKey: 'udpStreamEnabled_false', icon: 'bi-speedometer', color: 'danger' },
+  { key: 'webSoundEnabled', value: true, labelKey: 'webSoundEnabled_true', icon: 'bi-volume-up', color: 'success' },
+  { key: 'webSoundEnabled', value: false, labelKey: 'webSoundEnabled_false', icon: 'bi-volume-mute', color: 'danger' }
 ]
 
 const localSchedules = ref([])

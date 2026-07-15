@@ -170,7 +170,9 @@ const messages = {
           telegramAlertMotion_true: 'Telegram Motion: ON',
           telegramAlertMotion_false: 'Telegram Motion: OFF',
           udpStreamEnabled_true: 'UDP Stream: ON',
-          udpStreamEnabled_false: 'UDP Stream: OFF'
+          udpStreamEnabled_false: 'UDP Stream: OFF',
+          webSoundEnabled_true: 'Web Alert Sound: ON',
+          webSoundEnabled_false: 'Web Alert Sound: OFF'
         }
       }
     },
@@ -393,7 +395,9 @@ const messages = {
           telegramAlertMotion_true: 'Telegram Gerak: AKTIF',
           telegramAlertMotion_false: 'Telegram Gerak: NONAKTIF',
           udpStreamEnabled_true: 'Streaming UDP: AKTIF',
-          udpStreamEnabled_false: 'Streaming UDP: NONAKTIF'
+          udpStreamEnabled_false: 'Streaming UDP: NONAKTIF',
+          webSoundEnabled_true: 'Suara Web: AKTIF',
+          webSoundEnabled_false: 'Suara Web: NONAKTIF'
         }
       }
     },
