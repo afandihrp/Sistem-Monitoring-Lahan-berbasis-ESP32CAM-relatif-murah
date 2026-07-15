@@ -84,8 +84,8 @@ void ledTask(void * pvParameters) {
 }
 
 // ================= WIFI =================
-const char *ssid = "Tenda03";
-const char *password = "BRHtenda68";
+const char *ssid = "BatuKhan";
+const char *password = "momoygemoy";
 
 // ================= GATEWAY (UDP DISCOVERY) =================
 String globalCustomSubnet = "192.168.1";

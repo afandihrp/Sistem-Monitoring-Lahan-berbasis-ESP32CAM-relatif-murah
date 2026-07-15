@@ -121,33 +121,6 @@ function registerActions(bot) {
       console.error('Error cancelling capture:', err);
     }
   });
-
-  bot.action(/^dismiss_tw:(.+)$/, async (ctx) => {
-    try {
-      const sensorId = ctx.match[1];
-
-      if (state.activeTripwireSpams.has(sensorId)) {
-        const spState = state.activeTripwireSpams.get(sensorId);
-        spState.active = false;
-        clearTimeout(spState.timer);
-        state.activeTripwireSpams.delete(sensorId);
-
-        await ctx.answerCbQuery('✅ Alert berhasil dimatikan.', { show_alert: true });
-
-        const newText = ctx.callbackQuery.message.text + `\n\n✅ *DIMATIKAN* oleh user/ID: ${ctx.from.id}`;
-        await ctx.editMessageText(newText, {
-          parse_mode: 'Markdown',
-          reply_markup: { inline_keyboard: [] }
-        }).catch(() => { });
-      } else {
-        await ctx.answerCbQuery('ℹ️ Alert ini sudah dimatikan sebelumnya.');
-        await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => { });
-      }
-    } catch (err) {
-      console.error('Error in dismiss_tw callback:', err);
-      await ctx.answerCbQuery('❌ Gagal memproses.');
-    }
-  });
 }
 
 module.exports = {

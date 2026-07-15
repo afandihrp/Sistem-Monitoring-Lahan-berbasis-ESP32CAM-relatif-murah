@@ -145,14 +145,9 @@ const openVideo = (event) => {
       <div v-if="events.length > 0" class="events-grid" :class="{ 'is-forced-mobile': windowWidth === 999 }">
         <div v-for="event in (windowWidth <= 1000 ? paginatedEvents : events.slice(0, 5))" :key="event.id" class="event-card transition-all hover-bg">
           
-          <div class="event-image-wrapper">
-            <img v-if="event.imageUrl" :src="getImageUrl(event.imageUrl)" @error="handleImageError" @click="openViewer(event)" class="event-image" alt="Snapshot" loading="lazy" />
-            <div v-else class="event-image-placeholder d-flex align-items-center justify-content-center">
-              <i class="bi bi-camera-video-off text-secondary fs-4"></i>
-            </div>
-            
+          <div v-if="event.imageUrl" class="event-image-wrapper">
+            <img :src="getImageUrl(event.imageUrl)" @error="handleImageError" @click="openViewer(event)" class="event-image" alt="Snapshot" loading="lazy" />
 
-            
             <div class="event-badges">
               <span v-if="event.humanPresence" class="badge bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center py-0 px-1 overlay-badge">
                 <i class="bi bi-person-fill"></i>
@@ -160,6 +155,13 @@ const openVideo = (event) => {
             </div>
             
             <button @click="emit('deleteSingle', event.timestamp)" class="btn btn-dark btn-sm text-danger delete-btn" title="Hapus rekaman ini">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+
+          <!-- Actions for non-image logs -->
+          <div v-else class="d-flex justify-content-end p-2 pb-0">
+            <button @click="emit('deleteSingle', event.timestamp)" class="btn btn-dark btn-sm text-danger" title="Hapus rekaman ini">
               <i class="bi bi-trash"></i>
             </button>
           </div>
@@ -262,6 +264,7 @@ const openVideo = (event) => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  height: fit-content;
 }
 
 .event-image-wrapper {
@@ -281,12 +284,6 @@ const openVideo = (event) => {
 
 .event-image:hover {
   transform: scale(1.05);
-}
-
-.event-image-placeholder {
-  width: 100%;
-  height: 100%;
-  background-color: #0f172a;
 }
 
 .event-badges {

@@ -117,49 +117,14 @@ async function sendMotionVideoAlert(location, sensor, videoFilePath) {
 }
 
 function triggerTripwireAlert(location, sensor) {
-  if (state.activeTripwireSpams.has(sensor)) return;
+  if (state.registeredChatIds.length > 0) {
+    const message = `🚨 *GETARAN DI PAGAR DI DETEKSI!* 🚨\n\n📍 *Lokasi:* ${location}\n🛡️ *Sensor:* ${sensor}\n⏰ *Waktu:* ${new Date().toLocaleTimeString('id-ID')} (WIB)`;
 
-  console.log(`[Telegram] Memulai spam tripwire alert untuk ${sensor} di ${location}`);
-
-  const intervalMs = 2000;
-  const { Markup } = require('telegraf');
-
-  const spState = { active: true, timer: null };
-  state.activeTripwireSpams.set(sensor, spState);
-
-  const loop = async () => {
-    if (!spState.active) return;
-
-    if (state.registeredChatIds.length > 0) {
-      const message = `🚨 *PERINGATAN KRITIS: TRIPWIRE TERPUTUS!* 🚨\n\n📍 *Lokasi:* ${location}\n🛡️ *Sensor:* ${sensor}\n⚠️ *Indikasi:* Kabel terputus (Tegangan Drop <= 1.0V)\n⏰ *Waktu:* ${new Date().toLocaleTimeString('id-ID')} (WIB)`;
-
-      const keyboard = Markup.inlineKeyboard([
-        Markup.button.callback('🔕 Matikan Alert (Dismiss)', `dismiss_tw:${sensor}`)
-      ]);
-
-      for (const chatId of state.registeredChatIds) {
-        if (!spState.active) {
-          console.log(`[Telegram] Pengiriman dibatalkan di tengah antrian (dismissed).`);
-          break;
-        }
-
-        try {
-          await bot.telegram.sendMessage(chatId, message, {
-            parse_mode: 'Markdown',
-            ...keyboard
-          });
-        } catch (err) {
-          console.error(`[Telegram] Gagal mengirim spam alert ke ${chatId}:`, err.message);
-        }
-      }
+    for (const chatId of state.registeredChatIds) {
+      bot.telegram.sendMessage(chatId, message, { parse_mode: 'Markdown' })
+        .catch(e => console.error('[Telegram] Gagal mengirim alert getaran:', e));
     }
-
-    if (spState.active) {
-      spState.timer = setTimeout(loop, intervalMs);
-    }
-  };
-
-  loop();
+  }
 }
 
 module.exports = {

@@ -6,7 +6,6 @@ const DATA_DIR = path.join(__dirname, '../../../data');
 
 let registeredChatIds = [];
 const activePhotoUploads = new Map();
-const activeTripwireSpams = new Map();
 const pendingCaptures = [];
 const photoResolvers = new Map();
 
@@ -39,7 +38,6 @@ module.exports = {
   DATA_DIR,
   registeredChatIds,
   activePhotoUploads,
-  activeTripwireSpams,
   pendingCaptures,
   photoResolvers,
   saveConfig
