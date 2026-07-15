@@ -146,7 +146,8 @@ async function handlePirTrigger(ip, sensor, wss) {
         // Always use YOLO (forVerification = true) for single snapshots to detect persons reliably
         const activeClient = getActiveAiClient(true);
         const extraHeader = getDeviceHeader(deviceId);
-        result = await activeClient.sendRequest(imageBuffer, { annotate: true, forceYolo: true }, 10000, extraHeader);
+        const shouldAnnotate = state.globalSystemConfig.burnBoundingBoxes !== false;
+        result = await activeClient.sendRequest(imageBuffer, { annotate: shouldAnnotate, forceYolo: true }, 10000, extraHeader);
 
         if (result) {
           aiDetails = {

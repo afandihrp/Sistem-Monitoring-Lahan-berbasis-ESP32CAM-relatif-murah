@@ -381,7 +381,8 @@ function triggerAiWorker() {
                     // For Hybrid snapshot annotation, use YOLO active client with forceYolo true.
                     const activeClient = isHybridMode ? getActiveAiClient(true) : getActiveAiClient();
                     const extraHeader = getDeviceHeader(deviceId);
-                    const reqOptions = isHybridMode ? { annotate: true, forceYolo: true } : true;
+                    const shouldAnnotate = state.globalSystemConfig.burnBoundingBoxes !== false;
+                    const reqOptions = isHybridMode ? { annotate: shouldAnnotate, forceYolo: true } : { annotate: shouldAnnotate };
                     aiResult = await activeClient.sendRequest(targetFrame, reqOptions, 10000, extraHeader);
                     if (aiResult && aiResult.annotated_image) {
                       imageToSave = Buffer.from(aiResult.annotated_image, 'base64');

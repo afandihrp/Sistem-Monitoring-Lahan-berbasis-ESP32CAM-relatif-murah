@@ -16,6 +16,7 @@ const props = defineProps({
       telegramAlertPir: true,
       telegramAlertAi: true,
       telegramAlertMotion: false,
+      burnBoundingBoxes: true,
       cameraDetectionEnabled: true,
       cameraDetectionMode: 'AI', // 'AI' | 'Pixel'
       streamAiDetection: true,
@@ -60,6 +61,7 @@ const telegramAlertAi = ref(props.initialConfig.telegramAlertAi !== undefined ? 
 const telegramAlertMotion = ref(props.initialConfig.telegramAlertMotion !== undefined ? props.initialConfig.telegramAlertMotion : false)
 
 // Camera Detection Settings state
+const burnBoundingBoxes = ref(props.initialConfig.burnBoundingBoxes !== undefined ? props.initialConfig.burnBoundingBoxes : true)
 const cameraDetectionEnabled = ref(props.initialConfig.cameraDetectionEnabled !== undefined ? props.initialConfig.cameraDetectionEnabled : true)
 const cameraDetectionMode = ref(props.initialConfig.cameraDetectionMode || 'AI')
 const streamAiDetection = ref(props.initialConfig.streamAiDetection !== undefined ? props.initialConfig.streamAiDetection : true)
@@ -225,8 +227,9 @@ const saveConfig = () => {
     pirRecordVideo: pirRecordVideo.value,
     pirRecordDuration: pirRecordDuration.value,
     telegramAlertPir: telegramAlertPir.value,
-    telegramAlertAi: streamAiTelegram.value,
+    telegramAlertAi: telegramAlertAi.value,
     telegramAlertMotion: telegramAlertMotion.value,
+    burnBoundingBoxes: burnBoundingBoxes.value,
     cameraDetectionEnabled: cameraDetectionEnabled.value,
     cameraDetectionMode: cameraDetectionMode.value,
     streamAiDetection: streamAiDetection.value,
@@ -569,6 +572,19 @@ const saveConfig = () => {
                     <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.camera.aiTrackingDesc') }}</span>
                   </div>
                   <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="aiTrackingSwitch" v-model="objectTracking" :disabled="!cameraDetectionEnabled">
+                </div>
+              </div>
+
+              <!-- AI Burn Bounding Boxes Switch -->
+              <div v-if="cameraDetectionMode === 'AI' || cameraDetectionMode === 'Hybrid'" class="p-3 bg-slate-800 rounded border border-slate-700 mt-3">
+                <div class="form-check form-switch d-flex justify-content-between align-items-center p-0">
+                  <div>
+                    <label class="form-check-label text-slate-300 small fw-bold text-uppercase d-block" for="aiBurnBoxesSwitch">
+                      Burn Bounding Boxes on Snapshots
+                    </label>
+                    <span class="text-slate-500" style="font-size: 0.7rem;">Draws AI bounding boxes onto saved images in Event Logs & Telegram alerts. Disable this to collect clean images for training.</span>
+                  </div>
+                  <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="aiBurnBoxesSwitch" v-model="burnBoundingBoxes" :disabled="!cameraDetectionEnabled">
                 </div>
               </div>
 

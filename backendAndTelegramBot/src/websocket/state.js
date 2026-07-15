@@ -21,6 +21,7 @@ const state = {
     telegramAlertPir: true,
     telegramAlertAi: true,
     telegramAlertMotion: false,
+    burnBoundingBoxes: true,
     cameraDetectionMode: 'AI',
     streamAiDetection: true,
     streamAiCaptureEnabled: true,
