@@ -1,7 +1,19 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
+import { computed } from 'vue'
 
 const { locale } = useI18n()
+
+const isLocalIp = computed(() => {
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname;
+  return hostname === 'localhost' || 
+         hostname === '127.0.0.1' || 
+         hostname.startsWith('192.168.') || 
+         hostname.startsWith('10.') || 
+         (hostname.startsWith('172.') && parseInt(hostname.split('.')[1]) >= 16 && parseInt(hostname.split('.')[1]) <= 31) ||
+         hostname.endsWith('.local');
+});
 
 function toggleLanguage() {
   locale.value = locale.value === 'id' ? 'en' : 'id'
@@ -135,10 +147,10 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMod
           </button>
 
           <!-- Separator between settings and logout -->
-          <div class="vr bg-slate-600 opacity-40 mx-1" style="height: 1rem; align-self: center; width: 1.5px;"></div>
+          <div v-if="!isLocalIp" class="vr bg-slate-600 opacity-40 mx-1" style="height: 1rem; align-self: center; width: 1.5px;"></div>
 
           <!-- Logout Button -->
-          <button @click="emit('logout')" 
+          <button v-if="!isLocalIp" @click="emit('logout')" 
                   class="btn btn-sm btn-link p-1 text-danger hover-danger d-flex align-items-center justify-content-center" 
                   title="Logout"
                   style="min-width: 32px; min-height: 32px;">
