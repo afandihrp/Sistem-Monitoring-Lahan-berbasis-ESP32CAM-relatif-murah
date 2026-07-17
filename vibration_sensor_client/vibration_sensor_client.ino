@@ -84,8 +84,8 @@ void ledTask(void * pvParameters) {
 }
 
 // ================= WIFI =================
-const char *ssid = "BatuKhan";
-const char *password = "momoygemoy";
+const char *ssid = "Tenda03";
+const char *password = "BRHtenda68";
 
 // ================= GATEWAY (UDP DISCOVERY) =================
 String globalCustomSubnet = "192.168.1";
@@ -98,9 +98,9 @@ const String sensorName = "Node_01";
 
 // ================= DEBOUNCE =================
 const int REQUIRED_CONSECUTIVE_READS =
-    4; // Harus 4x berturut-turut putus (1 detik) untuk mengirim alert
+    1; // Harus 4x berturut-turut putus (1 detik) untuk mengirim alert
 const int REQUIRED_CONSECUTIVE_NORMAL =
-    4; // Harus 4x berturut-turut normal (1 detik) untuk me-reset status
+    1; // Harus 4x berturut-turut normal (1 detik) untuk me-reset status
 
 int cutCounter = 0;
 int normalCounter = 0;
@@ -271,7 +271,7 @@ void sendAlert() {
   HTTPClient http;
   
   String urlHttp = "http://" + resolvedGatewayIP + ":" + String(backendPort) +
-                   "/api/tripwire" + "?location=" + nodeLocation +
+                   "/api/vibration" + "?location=" + nodeLocation +
                    "&sensor=" + sensorName;
 
   Serial.print("Mencoba HTTP -> ");

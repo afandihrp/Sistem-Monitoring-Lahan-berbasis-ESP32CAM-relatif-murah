@@ -851,7 +851,7 @@ Sistem ini secara cerdas mengisolasi lalu lintas data nirkabel ke dalam dua wila
 graph TD
     %% External Entities
     E1[Node Kamera ESP32]
-    E2[Node Tripwire ESP32-C3]
+    E2[Node Sensor getaran ESP32-C3]
     E3[Sistem Telegram]
     E4[Klien Dasbor Lokal]
 
@@ -867,7 +867,7 @@ graph TD
 
     %% Data Flows
     E1 -->|Data Frame dan PIR| P1
-    E2 -->|Data Sinyal Tripwire| P1
+    E2 -->|Data Sinyal node sensor Getaran| P1
     
     P1 -->|Data Frame Mentah| P2
     P2 -->|Data Bounding Box| P3
@@ -887,7 +887,7 @@ graph TD
 sequenceDiagram
     autonumber
     participant ESP32 as ESP32-CAM Client
-    participant Tripwire as Tripwire Node
+    participant sensorgetar as node sensor getar
     participant PIR as PIR Sensor
     participant Node as Node.js Gateway
     participant AI as Python AI Server
@@ -895,7 +895,7 @@ sequenceDiagram
     participant Kiosk as Vue Kiosk Dashboard
 
     Note over PIR,Node: ESP32-CAM & Tripwire Node Mengirim Event
-    Tripwire->>Node: HTTP GET /api/tripwire (Alarm Sabotase Pagar)
+    sensorgetar->>Node: HTTP GET /api/vibration (Alarm Sabotase Pagar)
     PIR->>ESP32: Interupsi Gerakan Manusia
     ESP32->>ESP32: Baca Status Sensor PIR
     ESP32->>Node: WebSocket {"type":"motion","sensor":"left"}
