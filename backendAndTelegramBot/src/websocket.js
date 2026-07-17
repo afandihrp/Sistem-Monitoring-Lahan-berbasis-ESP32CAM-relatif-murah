@@ -652,6 +652,11 @@ function initWebSocket(servers) {
                 device.trackingReturnTimer = null;
                 console.log(`[Object Follower] Cancelled return-to-center due to manual control for ${data.deviceId}`);
               }
+              // Cancel any active auto sweep
+              updateDeviceSweepState(data.deviceId, 'off');
+              // Restart the sweep interval timer (cooldown) based on its set interval
+              resetDeviceSweepTimer(data.deviceId);
+              console.log(`[Manual PTZ] Cancelled auto sweep and applied cooldown interval for ${data.deviceId}`);
             }
           } else if (data.type === 'sweep_control' && !isCamera) {
             const device = state.devices.get(data.deviceId);

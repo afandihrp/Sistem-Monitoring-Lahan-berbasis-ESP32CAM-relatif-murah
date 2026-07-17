@@ -46,6 +46,10 @@ function updateDeviceAutoSweep(deviceId) {
     const timer = setInterval(() => {
       const dev = state.devices.get(deviceId);
       if (dev && dev.status === 'Online' && dev.ws && dev.ws.readyState === 1) {
+        if (dev.sweepActive !== 'off') {
+           console.log(`[Auto Sweep] Skipped - device ${deviceId} is currently already sweeping`);
+           return;
+        }
         // For Smart Sweep, ensure the device is truly idle before triggering
         if (sweepMode === '5m') {
           if (dev.isRecordingAi || dev.isPirActive || dev.trackingReturnTimer) {
@@ -80,6 +84,10 @@ function resetIdleTimer(deviceId) {
   const timer = setInterval(() => {
     const dev = state.devices.get(deviceId);
     if (dev && dev.status === 'Online' && dev.ws && dev.ws.readyState === 1) {
+      if (dev.sweepActive !== 'off') {
+         console.log(`[Auto Sweep] Skipped - device ${deviceId} is currently already sweeping`);
+         return;
+      }
       if (activeTimer.sweepMode === '5m') {
         if (dev.isRecordingAi || dev.isPirActive || dev.trackingReturnTimer) {
            console.log(`[Auto Sweep] Skipped 5m smart sweep for ${deviceId} (Device is currently busy/tracking)`);
