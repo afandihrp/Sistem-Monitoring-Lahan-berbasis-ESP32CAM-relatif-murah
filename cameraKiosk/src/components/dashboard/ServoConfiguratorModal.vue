@@ -122,16 +122,8 @@ const handleThumbEnd = () => {
 </script>
 
 <template>
-  <div class="modal-overlay d-flex align-items-center justify-content-center p-3">
-    <div class="modal-content-custom bg-slate-900 border border-slate-700 rounded-3 shadow-lg p-4" style="max-width: 450px; width: 100%;">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h6 class="text-white mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">
-          <i class="bi bi-gear-wide-connected me-2 text-info"></i>{{ t('servo.title') }}
-        </h6>
-        <button @click="emit('close')" class="btn-close btn-close-white shadow-none"></button>
-      </div>
-
-      <div class="modal-body-custom pe-1">
+  <div class="d-flex flex-column h-100">
+    <div class="flex-grow-1 overflow-auto pe-1 custom-scrollbar">
         <!-- Default Angle -->
         <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
           <div class="d-flex justify-content-between align-items-center mb-2">
@@ -329,17 +321,15 @@ const handleThumbEnd = () => {
             {{ opt.tickLabel }}
           </span>
         </div>
+        </div>
       </div>
       
-      </div>
-
       <div class="d-flex gap-2 mt-2">
         <button @click="saveConfig" class="btn btn-primary flex-grow-1 py-2 fw-bold text-uppercase" style="font-size: 0.75rem;">
           {{ t('servo.save') }}
         </button>
       </div>
     </div>
-  </div>
 </template>
 
 <style scoped>
@@ -397,50 +387,23 @@ const handleThumbEnd = () => {
 
 .text-slate-500 { color: #64748b; }
 
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(4px);
-  z-index: 2000;
-}
-
-.modal-content-custom {
-  animation: modalScale 0.2s ease-out;
-}
-
-@keyframes modalScale {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-.bg-slate-800 { background-color: #1e292b; }
-.bg-slate-900 { background-color: #0f172a; }
-.text-slate-300 { color: #cbd5e1; }
-.text-slate-600 { color: #475569; }
-
-/* Scrollable config body list */
-.modal-body-custom {
-  max-height: 400px;
+.custom-scrollbar {
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 6px;
 }
 
-.modal-body-custom::-webkit-scrollbar {
+.custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
-.modal-body-custom::-webkit-scrollbar-track {
+.custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
-.modal-body-custom::-webkit-scrollbar-thumb {
+.custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: #334155;
   border-radius: 4px;
 }
-.modal-body-custom::-webkit-scrollbar-thumb:hover {
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: #475569;
 }
 

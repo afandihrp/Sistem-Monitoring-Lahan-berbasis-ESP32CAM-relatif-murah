@@ -138,14 +138,8 @@ const resetDials = () => {
 </script>
 
 <template>
-  <div class="modal-overlay d-flex align-items-center justify-content-center p-3">
-    <div class="modal-content-custom bg-slate-900 border border-slate-700 rounded-3 shadow-lg p-4" style="max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto;">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h6 class="text-white mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">
-          <i class="bi bi-sliders me-2 text-info"></i>{{ $t('cameraConfig.title') }}
-        </h6>
-        <button @click="emit('close')" class="btn-close btn-close-white shadow-none"></button>
-      </div>
+  <div class="d-flex flex-column h-100">
+    <div class="flex-grow-1 overflow-auto pe-1 custom-scrollbar">
 
       <div class="d-flex flex-column gap-3">
         <!-- Sensor Type Banner -->
@@ -386,24 +380,18 @@ const resetDials = () => {
   box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
 }
 
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(4px);
-  z-index: 2000;
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
 }
-
-.modal-content-custom {
-  animation: modalScale 0.2s ease-out;
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
-
-@keyframes modalScale {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #334155;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #475569;
 }
 
 .bg-slate-800 { background-color: #1e293b; }

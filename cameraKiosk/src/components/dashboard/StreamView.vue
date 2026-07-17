@@ -1,7 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
-import ServoConfiguratorModal from './ServoConfiguratorModal.vue'
-import CameraConfiguratorModal from './CameraConfiguratorModal.vue'
+import CameraSettingsModal from './CameraSettingsModal.vue'
 import CameraFeed from './CameraFeed.vue'
 
 const props = defineProps({
@@ -152,8 +151,7 @@ onUnmounted(() => {
   stopSimulation()
 })
 
-const showConfig = ref(false)
-const showCameraConfig = ref(false)
+const showCameraSettings = ref(false)
 const configDeviceMac = ref('')
 
 const onlineDevices = computed(() => props.devices.filter(d => d.status === 'Online' && d.type === 'Camera'))
@@ -168,17 +166,16 @@ const gridClass = computed(() => {
   return 'grid-container devices-more';
 })
 
-const handleSaveConfig = (config) => {
+const handleSaveServoConfig = (config) => {
   emit('saveServoConfig', {
-    mac: props.currentStream.mac,
+    mac: configDeviceMac.value,
     config
   })
-  showConfig.value = false
 }
 
-const openCameraConfig = (mac) => {
+const openCameraSettings = (mac) => {
   configDeviceMac.value = mac
-  showCameraConfig.value = true
+  showCameraSettings.value = true
 }
 
 const handleSaveCameraConfig = (config) => {
@@ -186,7 +183,6 @@ const handleSaveCameraConfig = (config) => {
     mac: configDeviceMac.value,
     config
   })
-  showCameraConfig.value = false
 }
 
 const getNominalDbm = (bars) => {
@@ -232,8 +228,8 @@ const getNominalDbm = (bars) => {
             </div>
           </div>
           <!-- Camera Settings Configurator Button next to IP -->
-          <button v-if="currentStream.status === 'Online' && currentStream.mac && currentStream.mac !== 'Unknown MAC'"
-                  @click.stop="openCameraConfig(currentStream.mac)" 
+          <button v-if="currentStream.mac && currentStream.mac !== 'Unknown MAC'"
+                  @click.stop="openCameraSettings(currentStream.mac)" 
                   class="btn btn-sm btn-link p-0 text-slate-400 hover-info"
                   title="Configure Camera Settings">
             <i class="bi bi-sliders text-white" style="font-size: 0.85rem; text-shadow: 1px 1px 2px black;"></i>
@@ -311,7 +307,7 @@ const getNominalDbm = (bars) => {
                   </div>
                   <!-- Camera Settings Configurator Button next to IP -->
                   <button v-if="device.mac && device.mac !== 'Unknown MAC'"
-                          @click.stop="openCameraConfig(device.mac)" 
+                          @click.stop="openCameraSettings(device.mac)" 
                           class="btn btn-sm btn-link p-0 text-slate-400 hover-info"
                           title="Configure Camera Settings">
                     <i class="bi bi-sliders text-white" style="font-size: 0.85rem; text-shadow: 1px 1px 2px black;"></i>
@@ -350,9 +346,6 @@ const getNominalDbm = (bars) => {
           <div class="d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
               <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">{{ $t('stream.servoPtz') }}</label>
-              <button @click="showConfig = true" class="btn btn-sm btn-link p-0 text-slate-500 hover-info" :title="$t('stream.servoPtz')">
-                <i class="bi bi-gear-fill" style="font-size: 0.75rem;"></i>
-              </button>
             </div>
             <div class="d-flex align-items-center gap-2">
               <button @click="triggerSingleSweep" 
@@ -412,20 +405,13 @@ const getNominalDbm = (bars) => {
       </div>
     </div>
 
-    <!-- Servo Configuration Modal -->
-    <ServoConfiguratorModal 
-      v-if="showConfig" 
-      :mac="currentStream.mac" 
-      @close="showConfig = false" 
-      @save="handleSaveConfig" 
-    />
-
-    <!-- Camera Configuration Modal -->
-    <CameraConfiguratorModal 
-      v-if="showCameraConfig" 
-      :mac="configDeviceMac" 
-      @close="showCameraConfig = false" 
-      @save="handleSaveCameraConfig" 
+    <!-- Unified Camera Settings Modal -->
+    <CameraSettingsModal
+      v-if="showCameraSettings"
+      :mac="configDeviceMac"
+      @close="showCameraSettings = false"
+      @saveCameraConfig="handleSaveCameraConfig"
+      @saveServoConfig="handleSaveServoConfig"
     />
   </div>
 </template>
