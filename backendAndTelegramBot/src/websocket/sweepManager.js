@@ -34,13 +34,16 @@ function updateDeviceAutoSweep(deviceId) {
   if (sweepMode === 'continuous') {
     // Continuous sweep is handled directly on ESP32CAM firmware
     updateDeviceSweepState(deviceId, 'continuous');
-  } else if (sweepMode === '15s' || sweepMode === '30s' || sweepMode === '1m' || sweepMode === '5m') {
+  } else if (['15s', '30s', '1m', '2m', '3m', '4m', '5m'].includes(sweepMode)) {
     // If continuous sweep was previously running, stop it first
     updateDeviceSweepState(deviceId, 'off');
 
     let intervalMs = 15000;
     if (sweepMode === '30s') intervalMs = 30000;
     else if (sweepMode === '1m') intervalMs = 60000;
+    else if (sweepMode === '2m') intervalMs = 120000;
+    else if (sweepMode === '3m') intervalMs = 180000;
+    else if (sweepMode === '4m') intervalMs = 240000;
     else if (sweepMode === '5m') intervalMs = 300000;
 
     const timer = setInterval(() => {
@@ -51,9 +54,9 @@ function updateDeviceAutoSweep(deviceId) {
            return;
         }
         // For Smart Sweep, ensure the device is truly idle before triggering
-        if (sweepMode === '5m') {
+        if (['2m', '3m', '4m', '5m'].includes(sweepMode)) {
           if (dev.isRecordingAi || dev.isPirActive || dev.trackingReturnTimer) {
-             console.log(`[Auto Sweep] Skipped 5m smart sweep for ${deviceId} (Device is currently busy/tracking)`);
+             console.log(`[Auto Sweep] Skipped ${sweepMode} smart sweep for ${deviceId} (Device is currently busy/tracking)`);
              return;
           }
         }
@@ -88,9 +91,9 @@ function resetIdleTimer(deviceId) {
          console.log(`[Auto Sweep] Skipped - device ${deviceId} is currently already sweeping`);
          return;
       }
-      if (activeTimer.sweepMode === '5m') {
+      if (['2m', '3m', '4m', '5m'].includes(activeTimer.sweepMode)) {
         if (dev.isRecordingAi || dev.isPirActive || dev.trackingReturnTimer) {
-           console.log(`[Auto Sweep] Skipped 5m smart sweep for ${deviceId} (Device is currently busy/tracking)`);
+           console.log(`[Auto Sweep] Skipped ${activeTimer.sweepMode} smart sweep for ${deviceId} (Device is currently busy/tracking)`);
            return;
         }
       }

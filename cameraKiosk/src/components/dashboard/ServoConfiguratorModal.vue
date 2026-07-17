@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -20,6 +20,28 @@ const servoConfig = ref({
   rightPirAngle: 135,
   returnToDefaultDuration: 15,
   sweepMode: 'disabled'
+})
+
+const sweepOptions = [
+  { value: 'disabled', labelKey: 'servo.disabled', isKey: true, tickLabel: 'Off' },
+  { value: '15s', val: '15', suffixKey: 'servo.sec', tickLabel: '15s' },
+  { value: '30s', val: '30', suffixKey: 'servo.sec', tickLabel: '30s' },
+  { value: '1m', val: '1', suffixKey: 'servo.min', tickLabel: '1m' },
+  { value: '2m', val: '2', suffixKey: 'servo.min', tickLabel: '2m' },
+  { value: '3m', val: '3', suffixKey: 'servo.min', tickLabel: '3m' },
+  { value: '4m', val: '4', suffixKey: 'servo.min', tickLabel: '4m' },
+  { value: '5m', val: '5', suffixKey: 'servo.min', tickLabel: '5m' },
+  { value: 'continuous', labelKey: 'servo.continuous', isKey: true, tickLabel: 'Cont' }
+]
+
+const sweepSliderIndex = computed({
+  get: () => {
+    const idx = sweepOptions.findIndex(o => o.value === servoConfig.value.sweepMode);
+    return idx >= 0 ? idx : 0;
+  },
+  set: (val) => {
+    servoConfig.value.sweepMode = sweepOptions[val].value;
+  }
 })
 
 const fetchServoConfig = () => {
@@ -274,54 +296,38 @@ const handleThumbEnd = () => {
         </div>
       </div>
 
-      <!-- Servo Sweep Option Selectors -->
+      <!-- Servo Sweep Option Selectors (Snapping Slider) -->
       <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
-        <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">{{ t('servo.servoSweep') }}</label>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <label class="text-slate-300 small fw-bold text-uppercase">{{ t('servo.servoSweep') }}</label>
+          <span class="text-info font-monospace small fw-bold">
+            <template v-if="sweepOptions[sweepSliderIndex].isKey">
+              {{ t(sweepOptions[sweepSliderIndex].labelKey) }}
+            </template>
+            <template v-else>
+              {{ sweepOptions[sweepSliderIndex].val }}{{ t(sweepOptions[sweepSliderIndex].suffixKey) }}
+            </template>
+          </span>
+        </div>
         <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">{{ t('servo.sweepDesc') }}</span>
         
-        <div class="d-flex gap-2 justify-content-between flex-wrap">
-          <button 
-            type="button"
-            @click="servoConfig.sweepMode = 'disabled'" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.sweepMode === 'disabled' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem; min-width: 65px;">
-            {{ t('servo.disabled') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.sweepMode = 'continuous'" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.sweepMode === 'continuous' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            {{ t('servo.continuous') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.sweepMode = '15s'" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.sweepMode === '15s' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            15{{ t('servo.sec') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.sweepMode = '30s'" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.sweepMode === '30s' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            30{{ t('servo.sec') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.sweepMode = '1m'" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.sweepMode === '1m' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            1{{ t('servo.min') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.sweepMode = '5m'" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.sweepMode === '5m' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            5{{ t('servo.min') }}
-          </button>
+        <input type="range" class="form-range custom-slider" min="0" :max="sweepOptions.length - 1" step="1" v-model.number="sweepSliderIndex">
+        
+        <!-- Tick marks -->
+        <div class="position-relative mt-2" style="height: 20px;">
+          <span v-for="(opt, index) in sweepOptions" :key="opt.value" 
+                class="position-absolute text-center"
+                :style="{ 
+                  left: `calc(${(index / (sweepOptions.length - 1)) * 100}% - 15px)`, 
+                  width: '30px',
+                  fontSize: '0.6rem',
+                  color: sweepSliderIndex === index ? '#0dcaf0' : '#ffffff',
+                  fontWeight: sweepSliderIndex === index ? 'bold' : 'normal',
+                  textShadow: sweepSliderIndex === index ? '0 0 5px rgba(13, 202, 240, 0.6)' : 'none',
+                  transition: 'all 0.2s ease'
+                }">
+            {{ opt.tickLabel }}
+          </span>
         </div>
       </div>
       
