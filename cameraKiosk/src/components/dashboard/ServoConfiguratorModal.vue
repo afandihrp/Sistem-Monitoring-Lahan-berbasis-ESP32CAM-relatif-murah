@@ -11,18 +11,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'save'])
-
-const servoConfig = ref({
-  defaultAngle: 90,
-  leftPirAngle: 45,
-  middlePirAngle: 90,
-  rightPirAngle: 135,
-  returnToDefaultDuration: 15,
-  sweepMode: 'disabled'
-})
-
-const originalServoConfig = ref(null)
+const servoConfig = defineModel({ required: true })
 
 const sweepOptions = [
   { value: 'disabled', labelKey: 'servo.disabled', isKey: true, tickLabel: 'Off' },
@@ -45,63 +34,6 @@ const sweepSliderIndex = computed({
     servoConfig.value.sweepMode = sweepOptions[val].value;
   }
 })
-
-const fetchServoConfig = () => {
-  if (!props.mac || props.mac === 'Unknown MAC') return
-  window.dispatchEvent(new CustomEvent('request_servo_config', { 
-    detail: { mac: props.mac } 
-  }));
-}
-
-const handleConfigReceived = (event) => {
-  const { mac, config } = event.detail;
-  if (mac === props.mac && config) {
-    servoConfig.value = {
-      defaultAngle: config.defaultAngle ?? 90,
-      leftPirAngle: config.leftPirAngle ?? 45,
-      middlePirAngle: config.middlePirAngle ?? 90,
-      rightPirAngle: config.rightPirAngle ?? 135,
-      returnToDefaultDuration: config.returnToDefaultDuration ?? 15,
-      sweepMode: config.sweepMode ?? 'disabled'
-    };
-    originalServoConfig.value = JSON.parse(JSON.stringify(servoConfig.value));
-    console.log('Loaded saved servo config via WS for:', mac);
-  }
-};
-
-onMounted(() => {
-  window.addEventListener('servo_config_received', handleConfigReceived);
-  fetchServoConfig();
-})
-
-onUnmounted(() => {
-  window.removeEventListener('servo_config_received', handleConfigReceived);
-})
-
-const saveConfig = () => {
-  if (!originalServoConfig.value) {
-    emit('save', servoConfig.value)
-    return
-  }
-  
-  const changedConfig = {}
-  let hasChanges = false
-  for (const key in servoConfig.value) {
-    if (servoConfig.value[key] !== originalServoConfig.value[key]) {
-      changedConfig[key] = servoConfig.value[key]
-      hasChanges = true
-    }
-  }
-
-  if (hasChanges) {
-    emit('save', changedConfig)
-    originalServoConfig.value = JSON.parse(JSON.stringify(servoConfig.value))
-    console.log('Emitting partial servo config:', changedConfig)
-  } else {
-    alert('No settings were changed.')
-    console.log('No servo configuration changes detected, skipping save.')
-  }
-}
 
 // Multi-Thumb Slider Logic
 const activeThumb = ref(null)
@@ -346,12 +278,6 @@ const handleThumbEnd = () => {
           </span>
         </div>
         </div>
-      </div>
-      
-      <div class="d-flex gap-2 mt-2">
-        <button @click="saveConfig" class="btn btn-primary flex-grow-1 py-2 fw-bold text-uppercase" style="font-size: 0.75rem;">
-          {{ t('servo.save') }}
-        </button>
       </div>
     </div>
 </template>

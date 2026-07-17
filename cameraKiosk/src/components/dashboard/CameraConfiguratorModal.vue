@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 
 const props = defineProps({
   mac: {
@@ -8,92 +8,13 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'save'])
-
-const camConfig = ref({
-  resolution: 'HVGA',
-  quality: 22,
-  scaleMode: 'static',
-  dynRes5: 'HVGA',
-  dynQual5: 22,
-  dynRes4: 'HVGA',
-  dynQual4: 22,
-  dynRes3: 'HVGA',
-  dynQual3: 22,
-  dynRes2: 'HVGA',
-  dynQual2: 22,
-  dynRes1: 'HVGA',
-  dynQual1: 22,
-  brightness: 0,
-  contrast: 0,
-  saturation: 0,
-  awb: true,
-  aec: true,
-  agc: true,
-  hmirror: false,
-  vflip: false,
-  specialEffect: 'None',
-  xclk: 8000000,
-  flashOnCapture: true
-})
-
-const originalCamConfig = ref(null)
+const camConfig = defineModel({ required: true })
 
 const xclkMHz = computed({
   get: () => Math.round(camConfig.value.xclk / 1000000),
   set: (val) => {
     camConfig.value.xclk = val * 1000000
   }
-})
-
-const fetchCameraConfig = () => {
-  if (!props.mac || props.mac === 'Unknown MAC') return
-  window.dispatchEvent(new CustomEvent('request_camera_config', { 
-    detail: { mac: props.mac } 
-  }));
-}
-
-const handleConfigReceived = (event) => {
-  const { mac, config } = event.detail;
-  if (mac === props.mac && config) {
-    camConfig.value = {
-      resolution: config.resolution ?? 'HVGA',
-      quality: config.quality ?? 22,
-      scaleMode: config.scaleMode ?? 'static',
-      dynRes5: config.dynRes5 ?? 'HVGA',
-      dynQual5: config.dynQual5 ?? 22,
-      dynRes4: config.dynRes4 ?? 'HVGA',
-      dynQual4: config.dynQual4 ?? 22,
-      dynRes3: config.dynRes3 ?? 'HVGA',
-      dynQual3: config.dynQual3 ?? 22,
-      dynRes2: config.dynRes2 ?? 'HVGA',
-      dynQual2: config.dynQual2 ?? 22,
-      dynRes1: config.dynRes1 ?? 'HVGA',
-      dynQual1: config.dynQual1 ?? 22,
-      brightness: config.brightness ?? 0,
-      contrast: config.contrast ?? 0,
-      saturation: config.saturation ?? 0,
-      awb: config.awb ?? true,
-      aec: config.aec ?? true,
-      agc: config.agc ?? true,
-      hmirror: config.hmirror ?? false,
-      vflip: config.vflip ?? false,
-      specialEffect: config.specialEffect ?? 'None',
-      xclk: config.xclk ?? 8000000,
-      flashOnCapture: config.flashOnCapture ?? true
-    };
-    originalCamConfig.value = JSON.parse(JSON.stringify(camConfig.value));
-    console.log('Loaded saved camera config via WS for:', mac);
-  }
-};
-
-onMounted(() => {
-  window.addEventListener('camera_config_received', handleConfigReceived);
-  fetchCameraConfig();
-})
-
-onUnmounted(() => {
-  window.removeEventListener('camera_config_received', handleConfigReceived);
 })
 
 const getSignalDbText = (bar) => {
@@ -119,31 +40,6 @@ const resolutionOptions = [
   { value: 'QQVGA', label: 'QQVGA (160x120)' },
   { value: '96X96', label: '96x96 (96x96)' }
 ]
-
-const saveConfig = () => {
-  if (!originalCamConfig.value) {
-    emit('save', camConfig.value)
-    return
-  }
-  
-  const changedConfig = {}
-  let hasChanges = false
-  for (const key in camConfig.value) {
-    if (camConfig.value[key] !== originalCamConfig.value[key]) {
-      changedConfig[key] = camConfig.value[key]
-      hasChanges = true
-    }
-  }
-
-  if (hasChanges) {
-    emit('save', changedConfig)
-    originalCamConfig.value = JSON.parse(JSON.stringify(camConfig.value))
-    console.log('Emitting partial camera config:', changedConfig)
-  } else {
-    alert('No settings were changed.')
-    console.log('No camera configuration changes detected, skipping save.')
-  }
-}
 
 const resetDials = () => {
   camConfig.value.resolution = 'HVGA'
@@ -346,13 +242,8 @@ const resetDials = () => {
         </div>
       </div>
 
-      <div class="d-flex gap-2 mt-4">
-        <button @click="saveConfig" class="btn btn-primary flex-grow-1 py-2 fw-bold text-uppercase" style="font-size: 0.75rem;">
-          {{ $t('cameraConfig.save') }}
-        </button>
       </div>
     </div>
-  </div>
 </template>
 
 <style scoped>

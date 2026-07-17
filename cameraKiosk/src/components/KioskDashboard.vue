@@ -327,6 +327,8 @@ onMounted(async () => {
   connectWS()
   window.addEventListener('request_servo_config', handleRequestServoConfig);
   window.addEventListener('request_camera_config', handleRequestCameraConfig);
+  window.addEventListener('save_camera_config', handleSaveCameraConfig);
+  window.addEventListener('save_servo_config', handleSaveServoConfig);
   
   // Check every minute for midnight rollover
   setInterval(() => {
@@ -344,6 +346,8 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('request_servo_config', handleRequestServoConfig);
   window.removeEventListener('request_camera_config', handleRequestCameraConfig);
+  window.removeEventListener('save_camera_config', handleSaveCameraConfig);
+  window.removeEventListener('save_servo_config', handleSaveServoConfig);
 })
 
 const events = ref([])
@@ -425,24 +429,26 @@ const handleDeleteBatchEvents = (dateStr) => {
 }
 // -------------------------------------
 
-const handleSaveServoConfig = (data) => {
+const handleSaveServoConfig = (eventOrData) => {
+  const payload = eventOrData.detail || eventOrData;
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ 
       type: 'save_servo_config', 
-      mac: data.mac, 
-      config: data.config 
+      mac: payload.mac, 
+      config: payload.config 
     }));
   } else {
     console.error('WebSocket not connected. Cannot save config.')
   }
 }
 
-const handleSaveCameraConfig = (data) => {
+const handleSaveCameraConfig = (eventOrData) => {
+  const payload = eventOrData.detail || eventOrData;
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ 
       type: 'save_camera_config', 
-      mac: data.mac, 
-      config: data.config 
+      mac: payload.mac, 
+      config: payload.config 
     }));
   } else {
     console.error('WebSocket not connected. Cannot save camera config.')
@@ -543,8 +549,6 @@ const effectiveWindowWidth = computed(() => {
         :systemConfig="systemConfig"
         @triggerCameraAction="triggerCameraAction"
         @triggerServoAction="triggerServoAction"
-        @saveServoConfig="handleSaveServoConfig"
-        @saveCameraConfig="handleSaveCameraConfig"
         @setViewMode="handleSetViewMode"
         @setAiEnabled="handleSetAiEnabled"
         @saveSystemConfig="handleSaveSystemConfig"

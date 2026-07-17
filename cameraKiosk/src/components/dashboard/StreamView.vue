@@ -77,7 +77,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'saveServoConfig', 'saveCameraConfig', 'setViewMode', 'setAiEnabled', 'saveSystemConfig', 'triggerSweepAction', 'setActiveStream'])
+const emit = defineEmits(['triggerCameraAction', 'triggerServoAction', 'setViewMode', 'setAiEnabled', 'saveSystemConfig', 'triggerSweepAction', 'setActiveStream'])
 const servoValue = ref(90)
 const localSweepMode = ref('off')
 
@@ -166,23 +166,9 @@ const gridClass = computed(() => {
   return 'grid-container devices-more';
 })
 
-const handleSaveServoConfig = (config) => {
-  emit('saveServoConfig', {
-    mac: configDeviceMac.value,
-    config
-  })
-}
-
 const openCameraSettings = (mac) => {
   configDeviceMac.value = mac
   showCameraSettings.value = true
-}
-
-const handleSaveCameraConfig = (config) => {
-  emit('saveCameraConfig', {
-    mac: configDeviceMac.value,
-    config
-  })
 }
 
 const getNominalDbm = (bars) => {
@@ -405,13 +391,10 @@ const getNominalDbm = (bars) => {
       </div>
     </div>
 
-    <!-- Unified Camera Settings Modal -->
     <CameraSettingsModal
       v-if="showCameraSettings"
       :mac="configDeviceMac"
       @close="showCameraSettings = false"
-      @saveCameraConfig="handleSaveCameraConfig"
-      @saveServoConfig="handleSaveServoConfig"
     />
   </div>
 </template>
