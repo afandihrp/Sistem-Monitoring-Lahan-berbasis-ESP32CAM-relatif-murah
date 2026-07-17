@@ -60,7 +60,7 @@ defineProps({
   }
 })
 
-const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMode', 'logout'])
+const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMode', 'logout', 'openDeviceList'])
 </script>
 
 <template>
@@ -113,16 +113,20 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMod
         </button>
         
         <div class="d-flex align-items-center text-secondary" style="font-size: 1rem; gap: 0.5rem;">
-          <!-- WebSocket Status Icon -->
-          <i :class="wsStatus === 'Online' ? 'bi-broadcast text-success' : 'bi-broadcast-pin text-danger'"
-             :title="'WebSocket: ' + (wsStatus === 'Online' ? $t('nav.wsOnline') : $t('nav.wsOffline'))">
-          </i>
-          
-          <!-- AI Status Icon -->
-          <i v-if="!aiEnabled" class="bi bi-eye-slash-fill text-slate-400" :title="'AI: ' + $t('nav.aiDisabled')"></i>
-          <i v-else-if="!aiConnected" class="bi bi-cloud-slash text-danger" :title="'AI: ' + $t('nav.aiOffline')"></i>
-          <i v-else-if="aiDetecting" class="bi bi-eye-fill text-warning animate-pulse" :title="'AI: ' + $t('nav.aiDetecting')"></i>
-          <i v-else class="bi bi-eye text-success" :title="'AI: ' + $t('nav.aiScanning')"></i>
+          <!-- Combined WebSocket & AI Status Button to toggle Device List -->
+          <button @click="emit('openDeviceList')" 
+                  class="btn btn-sm btn-link p-1 px-2 d-flex align-items-center justify-content-center gap-2 hover-info" 
+                  title="View Connected Devices"
+                  style="min-height: 32px; background: rgba(255,255,255,0.05); border-radius: 6px; text-decoration: none;">
+            <!-- WebSocket Status Icon -->
+            <i :class="wsStatus === 'Online' ? 'bi-broadcast text-success' : 'bi-broadcast-pin text-danger'"></i>
+            
+            <!-- AI Status Icon -->
+            <i v-if="!aiEnabled" class="bi bi-eye-slash-fill text-slate-400"></i>
+            <i v-else-if="!aiConnected" class="bi bi-cloud-slash text-danger"></i>
+            <i v-else-if="aiDetecting" class="bi bi-eye-fill text-warning animate-pulse"></i>
+            <i v-else class="bi bi-eye text-success"></i>
+          </button>
 
           <!-- Separator between status and display mode -->
           <div class="vr bg-slate-600 opacity-40 mx-1" style="height: 1rem; align-self: center; width: 1.5px;"></div>

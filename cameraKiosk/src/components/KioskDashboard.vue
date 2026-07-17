@@ -86,6 +86,7 @@ const cameraImages = ref({})
 const cameraBoxes = ref({})
 const viewMode = ref(localStorage.getItem('viewMode') || 'multiple')
 const showSystemConfig = ref(false)
+const showDeviceListModal = ref(false)
 let lastObjectUrl = null
 
 const currentStreamIndex = ref(0)
@@ -509,6 +510,7 @@ const effectiveWindowWidth = computed(() => {
       :viewMode="viewMode"
       @toggle-force-mobile="isForceMobile = !isForceMobile" 
       @openSystemConfig="showSystemConfig = true"
+      @openDeviceList="showDeviceListModal = true"
       @setViewMode="handleSetViewMode"
       @logout="handleLogout"
     />
@@ -538,7 +540,6 @@ const effectiveWindowWidth = computed(() => {
       />
 
       <aside class="col-lg-2 sidebar-section d-flex flex-column bg-slate-900 border-start border-slate-700">
-        <DeviceList :devices="devices" />
         <EventLogs 
           :events="filteredEvents" 
           :selectedDate="selectedDate"
@@ -554,6 +555,21 @@ const effectiveWindowWidth = computed(() => {
         />
       </aside>
     </main>
+
+    <!-- Device List Modal -->
+    <div v-if="showDeviceListModal" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-3" style="background-color: rgba(0,0,0,0.6); z-index: 1050;" @click.self="showDeviceListModal = false">
+      <div class="bg-slate-900 border border-slate-700 rounded-3 shadow-lg p-0 overflow-hidden d-flex flex-column" style="max-width: 480px; width: 100%; max-height: 80vh;">
+        <div class="d-flex justify-content-between align-items-center p-3 border-bottom border-slate-700 bg-slate-800">
+          <h6 class="text-white mb-0 fw-bold">
+            <i class="bi bi-router text-info me-2"></i>Connected Devices
+          </h6>
+          <button @click="showDeviceListModal = false" class="btn-close btn-close-white shadow-none"></button>
+        </div>
+        <div class="flex-grow-1 overflow-auto">
+          <DeviceList :devices="devices" />
+        </div>
+      </div>
+    </div>
 
     <!-- System Settings Configuration Modal -->
     <SystemSettingsModal 

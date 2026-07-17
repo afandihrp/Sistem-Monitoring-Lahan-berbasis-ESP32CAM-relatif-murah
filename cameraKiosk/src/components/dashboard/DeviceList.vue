@@ -1,10 +1,17 @@
 <script setup>
-defineProps({
+const props = defineProps({
   devices: {
     type: Array,
     required: true
   }
 })
+
+const getCameraNumber = (device) => {
+  if (device.type !== 'Camera') return null;
+  const cameras = props.devices.filter(d => d.type === 'Camera');
+  const idx = cameras.findIndex(c => c.id === device.id);
+  return idx !== -1 ? idx + 1 : null;
+}
 
 const getNominalDbm = (bars) => {
   const mapping = {
@@ -30,8 +37,11 @@ const getNominalDbm = (bars) => {
         <div v-for="device in devices" :key="device.id" 
              class="list-group-item bg-transparent border-slate-700 px-3 py-2 transition-all hover-bg">
           <div class="d-flex justify-content-between align-items-center">
-            <div class="overflow-hidden">
-              <div class="fw-bold text-truncate" style="font-size: 0.85rem;">{{ device.mac || 'Unknown MAC' }}</div>
+            <div class="overflow-hidden d-flex flex-column gap-1">
+              <div v-if="getCameraNumber(device)" class="badge bg-primary text-white align-self-start" style="font-size: 0.65rem; letter-spacing: 0.5px;">
+                Cam {{ getCameraNumber(device) }}
+              </div>
+              <div class="fw-bold text-truncate" style="font-size: 0.85rem; line-height: 1.2;">{{ device.mac || 'Unknown MAC' }}</div>
               <code class="text-info d-block text-truncate" style="font-size: 0.75rem;">{{ device.ip }}</code>
             </div>
             <!-- Dynamic signal status indicator (replaces Online/Offline text badge) -->
@@ -86,22 +96,11 @@ const getNominalDbm = (bars) => {
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
 
-@media (min-width: 1001px) {
-  .device-panel {
-    max-height: 40%;
-  }
+.device-panel {
+  height: 100%;
 }
-
-@media (max-width: 1000px) {
-  .device-panel {
-    max-height: none !important;
-    height: auto !important;
-    overflow: visible !important;
-  }
-  .device-panel .list-group-item {
-    padding-left: 1.25rem !important;
-    padding-right: 1.25rem !important;
-  }
-  .custom-scrollbar { overflow-y: visible !important; }
+.device-panel .list-group-item {
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
 }
 </style>

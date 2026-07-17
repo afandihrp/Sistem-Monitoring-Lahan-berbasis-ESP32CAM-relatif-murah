@@ -188,6 +188,17 @@ const handleSaveCameraConfig = (config) => {
   })
   showCameraConfig.value = false
 }
+
+const getNominalDbm = (bars) => {
+  const mapping = {
+    5: -25,
+    4: -35,
+    3: -45,
+    2: -55,
+    1: -65
+  };
+  return mapping[bars] || 'N/A';
+}
 </script>
 
 <template>
@@ -202,9 +213,24 @@ const handleSaveCameraConfig = (config) => {
         </span>
         
         <div v-if="viewMode !== 'multiple'" class="d-flex align-items-center gap-2 gap-sm-3 ms-auto">
-          <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black; font-size: 0.8rem;">
-            [{{ currentStream.ip }}]
-          </span>
+          <div class="d-flex align-items-center gap-2">
+            <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black; font-size: 0.8rem;">
+              Cam {{ props.devices.filter(d => d.type === 'Camera').findIndex(c => c.id === currentStream.id) + 1 }}
+            </span>
+            <div v-if="currentStream.status === 'Online'" class="d-flex align-items-center gap-2" style="height: 16px; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px;">
+              <div class="d-flex align-items-end gap-1" style="height: 12px;" :title="`Signal Strength: ${currentStream.signalBars || 0}/5`">
+                <div v-for="bar in 5" :key="bar" 
+                     :style="{ 
+                       width: '2px', 
+                       height: (bar * 20) + '%', 
+                       backgroundColor: (currentStream.signalBars || 0) >= bar ? '#22c55e' : '#64748b',
+                       boxShadow: (currentStream.signalBars || 0) >= bar ? '0 0 6px rgba(34, 197, 94, 0.6)' : 'none',
+                       borderRadius: '1px'
+                     }">
+                </div>
+              </div>
+            </div>
+          </div>
           <!-- Camera Settings Configurator Button next to IP -->
           <button v-if="currentStream.status === 'Online' && currentStream.mac && currentStream.mac !== 'Unknown MAC'"
                   @click.stop="openCameraConfig(currentStream.mac)" 
@@ -265,9 +291,24 @@ const handleSaveCameraConfig = (config) => {
               <!-- Grid Header -->
               <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-end align-items-center z-2">
                 <div class="d-flex align-items-center gap-2 gap-sm-3">
-                  <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black; font-size: 0.8rem;">
-                    [{{ device.ip }}]
-                  </span>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black; font-size: 0.8rem;">
+                      Cam {{ props.devices.filter(d => d.type === 'Camera').findIndex(c => c.id === device.id) + 1 }}
+                    </span>
+                    <div v-if="device.status === 'Online'" class="d-flex align-items-center gap-2" style="height: 16px; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px;">
+                      <div class="d-flex align-items-end gap-1" style="height: 12px;" :title="`Signal Strength: ${device.signalBars || 0}/5`">
+                        <div v-for="bar in 5" :key="bar" 
+                             :style="{ 
+                               width: '2px', 
+                               height: (bar * 20) + '%', 
+                               backgroundColor: (device.signalBars || 0) >= bar ? '#22c55e' : '#64748b',
+                               boxShadow: (device.signalBars || 0) >= bar ? '0 0 6px rgba(34, 197, 94, 0.6)' : 'none',
+                               borderRadius: '1px'
+                             }">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <!-- Camera Settings Configurator Button next to IP -->
                   <button v-if="device.mac && device.mac !== 'Unknown MAC'"
                           @click.stop="openCameraConfig(device.mac)" 
