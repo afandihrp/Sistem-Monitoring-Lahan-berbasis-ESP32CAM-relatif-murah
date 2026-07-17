@@ -327,6 +327,18 @@ onMounted(async () => {
   connectWS()
   window.addEventListener('request_servo_config', handleRequestServoConfig);
   window.addEventListener('request_camera_config', handleRequestCameraConfig);
+  
+  // Check every minute for midnight rollover
+  setInterval(() => {
+    const actualToday = new Date().toDateString();
+    if (actualToday !== todayString.value) {
+      // If the dashboard was previously showing the old "today", auto-advance it to the new "today"
+      if (selectedDate.value.toDateString() === todayString.value) {
+        selectedDate.value = new Date();
+      }
+      todayString.value = actualToday;
+    }
+  }, 60000);
 })
 
 onUnmounted(() => {
@@ -336,6 +348,7 @@ onUnmounted(() => {
 
 const events = ref([])
 const selectedDate = ref(new Date())
+const todayString = ref(new Date().toDateString())
 
 const filteredEvents = computed(() => {
   return events.value.filter(event => {

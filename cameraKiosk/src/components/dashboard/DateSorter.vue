@@ -95,6 +95,18 @@ onMounted(() => {
   nextTick(() => {
     scrollToActive()
   })
+  
+  // Check every minute if the day has rolled over
+  setInterval(() => {
+    if (dates.value.length > 15 && dates.value[15].toDateString() !== new Date().toDateString()) {
+      generateDates()
+      const index = dates.value.findIndex(d => d.toDateString() === props.selectedDate.toDateString())
+      if (index !== -1 && index !== activeIndex.value) {
+        activeIndex.value = index
+        scrollToActive()
+      }
+    }
+  }, 60000)
 })
 
 // Update internal index if prop changes from outside
