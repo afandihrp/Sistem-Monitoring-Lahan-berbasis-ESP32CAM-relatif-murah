@@ -612,8 +612,10 @@ const getNominalDbm = (bars) => {
   
   .stream-section {
     width: 100% !important;
-    height: 45vh;
-    min-height: 280px;
+    height: auto !important;
+    aspect-ratio: 4/3;
+    min-height: 350px;
+    max-height: 75vh;
     position: sticky;
     top: 0px;
     z-index: 1020;
@@ -629,8 +631,10 @@ const getNominalDbm = (bars) => {
 }
 .stream-view-wrapper.force-mobile .stream-section {
   width: 100% !important;
-  height: 45vh;
-  min-height: 280px;
+  height: auto !important;
+  aspect-ratio: 4/3;
+  min-height: 350px;
+  max-height: 75vh;
   position: sticky;
   top: 0px;
   z-index: 1020;
