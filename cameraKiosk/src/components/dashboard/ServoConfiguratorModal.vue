@@ -22,6 +22,8 @@ const servoConfig = ref({
   sweepMode: 'disabled'
 })
 
+const originalServoConfig = ref(null)
+
 const sweepOptions = [
   { value: 'disabled', labelKey: 'servo.disabled', isKey: true, tickLabel: 'Off' },
   { value: '15s', val: '15', suffixKey: 'servo.sec', tickLabel: '15s' },
@@ -62,6 +64,7 @@ const handleConfigReceived = (event) => {
       returnToDefaultDuration: config.returnToDefaultDuration ?? 15,
       sweepMode: config.sweepMode ?? 'disabled'
     };
+    originalServoConfig.value = JSON.parse(JSON.stringify(servoConfig.value));
     console.log('Loaded saved servo config via WS for:', mac);
   }
 };
@@ -76,7 +79,28 @@ onUnmounted(() => {
 })
 
 const saveConfig = () => {
-  emit('save', servoConfig.value)
+  if (!originalServoConfig.value) {
+    emit('save', servoConfig.value)
+    return
+  }
+  
+  const changedConfig = {}
+  let hasChanges = false
+  for (const key in servoConfig.value) {
+    if (servoConfig.value[key] !== originalServoConfig.value[key]) {
+      changedConfig[key] = servoConfig.value[key]
+      hasChanges = true
+    }
+  }
+
+  if (hasChanges) {
+    emit('save', changedConfig)
+    originalServoConfig.value = JSON.parse(JSON.stringify(servoConfig.value))
+    console.log('Emitting partial servo config:', changedConfig)
+  } else {
+    alert('No settings were changed.')
+    console.log('No servo configuration changes detected, skipping save.')
+  }
 }
 
 // Multi-Thumb Slider Logic

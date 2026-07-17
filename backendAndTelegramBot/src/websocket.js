@@ -685,7 +685,8 @@ function initWebSocket(servers) {
                 allConfigs = JSON.parse(rawData);
               } catch (e) { }
             }
-            allConfigs[data.mac] = { ...data.config, lastUpdated: new Date().toISOString() };
+            const existingConfig = allConfigs[data.mac] || {};
+            allConfigs[data.mac] = { ...existingConfig, ...data.config, lastUpdated: new Date().toISOString() };
             fs.writeFileSync(CONFIG_FILE, JSON.stringify(allConfigs, null, 2));
             console.log(`Servo config saved via WS for MAC: ${data.mac}`);
             ws.send(JSON.stringify({ type: 'save_servo_config_success', mac: data.mac }));
@@ -722,7 +723,8 @@ function initWebSocket(servers) {
                 allConfigs = JSON.parse(rawData);
               } catch (e) { }
             }
-            allConfigs[data.mac] = { ...data.config, lastUpdated: new Date().toISOString() };
+            const existingConfig = allConfigs[data.mac] || {};
+            allConfigs[data.mac] = { ...existingConfig, ...data.config, lastUpdated: new Date().toISOString() };
             fs.writeFileSync(CAMERA_CONFIG_FILE, JSON.stringify(allConfigs, null, 2));
             console.log(`Camera config saved via WS for MAC: ${data.mac}`);
             ws.send(JSON.stringify({ type: 'save_camera_config_success', mac: data.mac }));
@@ -731,11 +733,19 @@ function initWebSocket(servers) {
             const deviceArray = Array.from(state.devices.values());
             const cameraDevice = deviceArray.find(d => d.mac === data.mac);
             if (cameraDevice && cameraDevice.ws && cameraDevice.ws.readyState === 1) {
-              const configToSend = getEffectiveCameraConfig(data.config, cameraDevice);
-              cameraDevice.ws.send(JSON.stringify({ type: 'camera_config_update', config: configToSend }));
-              cameraDevice.currentResolution = configToSend.resolution;
-              cameraDevice.currentQuality = configToSend.quality;
-              console.log(`Pushed updated camera config to camera ${data.mac} (Res: ${configToSend.resolution}, Qual: ${configToSend.quality})`);
+              const partialConfigToSend = { ...data.config };
+              const hasDynamicTriggers = partialConfigToSend.scaleMode !== undefined || Object.keys(partialConfigToSend).some(k => k.startsWith('dynRes') || k.startsWith('dynQual') || k === 'resolution' || k === 'quality');
+              
+              if (hasDynamicTriggers) {
+                 const fullEffective = getEffectiveCameraConfig(allConfigs[data.mac], cameraDevice);
+                 if (fullEffective.resolution) partialConfigToSend.resolution = fullEffective.resolution;
+                 if (fullEffective.quality) partialConfigToSend.quality = fullEffective.quality;
+              }
+
+              cameraDevice.ws.send(JSON.stringify({ type: 'camera_config_update', config: partialConfigToSend }));
+              if (partialConfigToSend.resolution) cameraDevice.currentResolution = partialConfigToSend.resolution;
+              if (partialConfigToSend.quality) cameraDevice.currentQuality = partialConfigToSend.quality;
+              console.log(`Pushed partial updated camera config to camera ${data.mac}`);
             }
           } else if (data.type === 'delete_event_single' && !isCamera) {
             console.log(`[Storage] Request delete single event: ${data.timestamp}`);

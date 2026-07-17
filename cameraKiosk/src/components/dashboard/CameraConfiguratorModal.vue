@@ -37,6 +37,8 @@ const camConfig = ref({
   flashOnCapture: true
 })
 
+const originalCamConfig = ref(null)
+
 const xclkMHz = computed({
   get: () => Math.round(camConfig.value.xclk / 1000000),
   set: (val) => {
@@ -80,6 +82,7 @@ const handleConfigReceived = (event) => {
       xclk: config.xclk ?? 8000000,
       flashOnCapture: config.flashOnCapture ?? true
     };
+    originalCamConfig.value = JSON.parse(JSON.stringify(camConfig.value));
     console.log('Loaded saved camera config via WS for:', mac);
   }
 };
@@ -118,7 +121,28 @@ const resolutionOptions = [
 ]
 
 const saveConfig = () => {
-  emit('save', camConfig.value)
+  if (!originalCamConfig.value) {
+    emit('save', camConfig.value)
+    return
+  }
+  
+  const changedConfig = {}
+  let hasChanges = false
+  for (const key in camConfig.value) {
+    if (camConfig.value[key] !== originalCamConfig.value[key]) {
+      changedConfig[key] = camConfig.value[key]
+      hasChanges = true
+    }
+  }
+
+  if (hasChanges) {
+    emit('save', changedConfig)
+    originalCamConfig.value = JSON.parse(JSON.stringify(camConfig.value))
+    console.log('Emitting partial camera config:', changedConfig)
+  } else {
+    alert('No settings were changed.')
+    console.log('No camera configuration changes detected, skipping save.')
+  }
 }
 
 const resetDials = () => {
