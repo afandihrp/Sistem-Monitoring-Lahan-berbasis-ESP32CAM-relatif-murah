@@ -331,19 +331,19 @@ const getNominalDbm = (bars) => {
         <div class="d-flex flex-column gap-2">
           <div class="d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
-              <label class="text-secondary small fw-bold text-uppercase" style="font-size: 0.65rem;">{{ $t('stream.servoPtz') }}</label>
-            </div>
-            <div class="d-flex align-items-center gap-2">
+              <label class="text-secondary small fw-bold text-uppercase mb-0" style="font-size: 0.65rem;">{{ $t('stream.servoPtz') }}</label>
               <button @click="triggerSingleSweep" 
                       :disabled="localSweepMode !== 'off'"
-                      :class="['btn py-0 px-2 fw-bold text-uppercase font-monospace d-flex align-items-center gap-1', localSweepMode === 'once' ? 'btn-danger shadow-danger-btn' : 'btn-outline-info text-info']"
-                      style="font-size: 0.6rem; line-height: 1.5; border-radius: 4px; border: 1px solid rgba(148, 163, 184, 0.3);">
-                <i class="bi bi-play-fill" style="font-size: 0.65rem;"></i>
+                      :class="['btn py-1 px-3 fw-bold text-uppercase font-monospace d-flex align-items-center gap-1', localSweepMode === 'once' ? 'btn-danger shadow-danger-btn' : 'btn-outline-info text-info']"
+                      style="font-size: 0.75rem; border-radius: 6px; border: 1px solid rgba(148, 163, 184, 0.3);">
+                <i class="bi bi-play-fill" style="font-size: 0.8rem;"></i>
                 {{ $t('stream.sweepOnce') }}
               </button>
-              <span class="badge bg-slate-900 border border-slate-700 text-info font-monospace animate-pulse-custom" v-if="localSweepMode !== 'off'" style="font-size: 0.65rem; border-radius: 4px; border: 1px solid rgba(220, 53, 69, 0.3);">
+              <span class="badge bg-slate-900 border border-slate-700 text-info font-monospace animate-pulse-custom animate-pulse" v-if="localSweepMode !== 'off'" style="font-size: 0.65rem; border-radius: 4px; border: 1px solid rgba(220, 53, 69, 0.3);">
                 {{ $t('stream.sweeping') }}
               </span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
               <span class="badge bg-slate-900 border border-slate-700 text-info font-monospace" style="font-size: 0.8rem; min-width: 50px;">
                 {{ servoValue }}°
               </span>
@@ -678,5 +678,32 @@ const getNominalDbm = (bars) => {
 
 .signal-bars-wrapper {
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.95)) !important;
+}
+
+/* Custom Blue PTZ & Sweep button styling overrides */
+.btn-outline-info {
+  color: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+}
+.btn-outline-info:hover, 
+.btn-outline-info:active, 
+.btn-outline-info:focus {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+  border-color: #3b82f6 !important;
+}
+
+.btn-info {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+  border-color: #3b82f6 !important;
+}
+.btn-info:hover {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+.text-info {
+  color: #3b82f6 !important;
 }
 </style>

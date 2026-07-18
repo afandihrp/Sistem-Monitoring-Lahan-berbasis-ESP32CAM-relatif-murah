@@ -17,6 +17,15 @@ async function handlePirTrigger(ip, sensor, wss) {
     console.warn(`[PIR Trigger] No device found for IP: ${ip}. Skipping.`);
     return;
   }
+
+  let locationName = ip;
+  if (device.mac) {
+    const { getDeviceConfig } = require('../services/sqllite_config');
+    const conf = getDeviceConfig(device.mac);
+    if (conf && conf.name) {
+      locationName = conf.name;
+    }
+  }
   
   resetIdleTimer(deviceId); // Reset Idle Sweep Timer on PIR detection
 
@@ -131,7 +140,7 @@ async function handlePirTrigger(ip, sensor, wss) {
     // Send Telegram alert instantly with the raw photo
     let telegramPromise = Promise.resolve();
     if (!device.telegramAlertsMuted && state.globalSystemConfig.telegramAlertPir) {
-      telegramPromise = sendMotionAlert(`IP: ${ip}`, sensor, filename);
+      telegramPromise = sendMotionAlert(`Location: ${locationName} (IP: ${ip})`, sensor, filename);
     } else {
       console.log(`[Telegram] PIR snapshot alert skipped/throttled for device ${deviceId} (Muted: ${device.telegramAlertsMuted}, Enabled: ${state.globalSystemConfig.telegramAlertPir})`);
     }
@@ -195,7 +204,7 @@ async function handlePirTrigger(ip, sensor, wss) {
     }
 
     // Update log.json
-    await updateLatestLogWithAI(sensor, ip, imageUrl, humanPresence, aiDetails);
+    await updateLatestLogWithAI(sensor, ip, imageUrl, humanPresence, aiDetails, locationName);
 
     // Notify kiosk clients
     const motionPayload = JSON.stringify({

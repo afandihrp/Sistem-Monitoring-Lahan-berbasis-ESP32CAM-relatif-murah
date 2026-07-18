@@ -3,6 +3,7 @@ const path = require('path');
 const state = require('./state');
 const { getDefaultAngle, getReturnDuration } = require('./configManager');
 const { updateDeviceServoAngle, serializeFrame } = require('./deviceManager');
+const { getDeviceConfig } = require('../services/sqllite_config');
 
 const { yoloClient, pixelClient, aiClient } = require('../services/aiClient');
 const { logEvent, getLogs, updateLatestLogVideo } = require('../services/sqllite_logger');
@@ -128,11 +129,18 @@ function stopAiRecording(deviceId, reason) {
           (isStreamPixelOrHybrid ? state.globalSystemConfig.telegramAlertMotion : (!isStreamAi || state.globalStreamAiTelegram));
 
         if (shouldNotifyTelegram) {
+          let location = remoteIp;
+          if (device && device.mac) {
+            const conf = getDeviceConfig(device.mac);
+            if (conf && conf.name) {
+              location = conf.name;
+            }
+          }
           if (device.latestSnapshotFilename) {
-            sendMotionAlert(`IP: ${remoteIp}`, sensorName, device.latestSnapshotFilename);
+            sendMotionAlert(`Location: ${location} (IP: ${remoteIp})`, sensorName, device.latestSnapshotFilename);
             device.latestSnapshotFilename = null;
           }
-          sendMotionVideoAlert(`IP: ${remoteIp}`, sensorName, videoPath);
+          sendMotionVideoAlert(`Location: ${location} (IP: ${remoteIp})`, sensorName, videoPath);
         } else {
           console.log(`[Telegram] Telegram alert skipped/throttled for device ${deviceId}.`);
           device.latestSnapshotFilename = null;
@@ -405,9 +413,18 @@ function triggerAiWorker() {
      
                   // Send motion alert to Telegram immediately on detect
                   const shouldTelegramAlert = isPixelOrHybrid ? state.globalSystemConfig.telegramAlertMotion : state.globalStreamAiTelegram;
-                  if (!device.telegramAlertsMuted && shouldTelegramAlert) {
+                  const shouldNotifyTelegram = !device.telegramAlertsMuted && shouldTelegramAlert;
+                  let location = remoteIp;
+                  if (device && device.mac) {
+                    const conf = getDeviceConfig(device.mac);
+                    if (conf && conf.name) {
+                      location = conf.name;
+                    }
+                  }
+
+                  if (shouldNotifyTelegram) {
                     console.log(`[Telegram] Sending stream snapshot alert immediately on detect for ${deviceId}`);
-                    sendMotionAlert(`IP: ${remoteIp}`, sensor, filename);
+                    sendMotionAlert(`Location: ${location} (IP: ${remoteIp})`, sensor, filename);
                   } else {
                     console.log(`[Telegram] Stream snapshot alert skipped/muted for ${deviceId} (Muted: ${device.telegramAlertsMuted})`);
                   }
@@ -416,7 +433,7 @@ function triggerAiWorker() {
                   logEvent({
                     type: 'motion_event',
                     sensor: sensor,
-                    location: remoteIp,
+                    location: location,
                     deviceId: deviceId,
                     imageUrl: imageUrl,
                     humanPresence: humanPresence,

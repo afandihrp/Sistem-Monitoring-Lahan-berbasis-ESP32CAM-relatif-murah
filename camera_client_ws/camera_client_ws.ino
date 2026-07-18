@@ -228,7 +228,7 @@ void servoTask(void * pvParameters) {
         __atomic_store_n(&targetServoAngle, nextAngle, __ATOMIC_SEQ_CST);
       }
 
-      vTaskDelay(pdMS_TO_TICKS(50));
+      vTaskDelay(pdMS_TO_TICKS(500));
     } else if (current != target) {
       int diff = target - current;
       int nextAngle = current;

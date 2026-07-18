@@ -104,7 +104,7 @@ function getLogs() {
   }
 }
 
-async function updateLatestLogWithAI(sensor, deviceIp, imageUrl, humanPresence, aiDetails) {
+async function updateLatestLogWithAI(sensor, deviceIp, imageUrl, humanPresence, aiDetails, locationName) {
   const deviceId = `cam_${deviceIp.replace(/\./g, '_')}`;
   
   try {
@@ -125,7 +125,7 @@ async function updateLatestLogWithAI(sensor, deviceIp, imageUrl, humanPresence, 
       logEvent({
         type: 'motion_event',
         sensor: sensor,
-        location: deviceIp,
+        location: locationName || deviceIp,
         deviceId: deviceId,
         imageUrl: imageUrl,
         humanPresence: humanPresence,

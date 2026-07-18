@@ -417,10 +417,17 @@ function initWebSocket(servers) {
           } else if (data.type === 'motion' && isCamera) {
             const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
             const device = state.devices.get(deviceId);
-            const location = device ? device.ip : remoteIp;
+            let location = remoteIp;
+
+            if (device && device.mac) {
+              const conf = getDeviceConfig(device.mac);
+              if (conf && conf.name) {
+                location = conf.name;
+              }
+            }
 
             if (!state.globalSystemConfig.pirEnabled) {
-              console.log(`[PIR Sensor] Ignored motion event from camera ${remoteIp} (PIR disabled in system settings)`);
+              console.log(`[PIR Sensor] Ignored motion event from camera ${location} (PIR disabled in system settings)`);
               return;
             }
 
@@ -430,7 +437,7 @@ function initWebSocket(servers) {
               const now = Date.now();
               const cooldownMs = (state.globalSystemConfig.pirCooldown || 30) * 1000;
               if (device.lastPirTriggerTime && (now - device.lastPirTriggerTime < cooldownMs)) {
-                console.log(`[PIR Sensor] Ignored motion event from camera ${remoteIp} (Cooldown active)`);
+                console.log(`[PIR Sensor] Ignored motion event from camera ${location} (Cooldown active)`);
                 return;
               }
               device.lastPirTriggerTime = now;
