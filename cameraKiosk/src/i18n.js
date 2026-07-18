@@ -22,7 +22,8 @@ const messages = {
       servoPtz: 'Servo (PTZ)',
       waiting: 'Waiting for Stream...',
       sweeping: 'Sweeping',
-      sweepOnce: 'Sweep'
+      sweepOnce: 'Sweep',
+      cancelSweep: 'Cancel'
     },
     devices: {
       title: 'Devices'
@@ -247,7 +248,8 @@ const messages = {
       servoPtz: 'Servo (PTZ)',
       waiting: 'Menunggu Aliran Video...',
       sweeping: 'Menyapu',
-      sweepOnce: 'Sapu'
+      sweepOnce: 'Sapu',
+      cancelSweep: 'Batal'
     },
     devices: {
       title: 'Perangkat'

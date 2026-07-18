@@ -40,6 +40,7 @@ const { handlePirTrigger } = require('./websocket/pirHandler');
 const {
   updateDeviceAutoSweep,
   resetDeviceSweepTimer,
+  suspendDeviceSweepTimer,
   clearDeviceSweep
 } = require('./websocket/sweepManager');
 
@@ -413,6 +414,10 @@ function initWebSocket(servers) {
             const device = state.devices.get(deviceId);
             if (device) {
               updateDeviceSweepState(deviceId, data.value, true);
+              if (data.value === 'off') {
+                console.log(`[Auto Sweep] Sweep stop received. Activating auto sweep interval timer for ${deviceId}`);
+                resetDeviceSweepTimer(deviceId);
+              }
             }
           } else if (data.type === 'motion' && isCamera) {
             const deviceId = `cam_${remoteIp.replace(/\./g, '_')}`;
@@ -672,6 +677,8 @@ function initWebSocket(servers) {
               updateDeviceSweepState(data.deviceId, data.value);
               // Reset the auto-sweep interval timer if they manually triggered a single sweep
               if (data.value === 'once') {
+                suspendDeviceSweepTimer(data.deviceId);
+              } else if (data.value === 'off') {
                 resetDeviceSweepTimer(data.deviceId);
               }
             }

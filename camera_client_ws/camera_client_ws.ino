@@ -228,7 +228,7 @@ void servoTask(void * pvParameters) {
         __atomic_store_n(&targetServoAngle, nextAngle, __ATOMIC_SEQ_CST);
       }
 
-      vTaskDelay(pdMS_TO_TICKS(500));
+      vTaskDelay(pdMS_TO_TICKS(250));
     } else if (current != target) {
       int diff = target - current;
       int nextAngle = current;
@@ -1225,18 +1225,37 @@ void loop() {
   }
 
   // Proses pending motion reports secara thread-safe dari pirTask
-  bool left = __atomic_exchange_n(&pendingLeftMotion, false, __ATOMIC_SEQ_CST);
-  bool middle = __atomic_exchange_n(&pendingMiddleMotion, false, __ATOMIC_SEQ_CST);
-  bool right = __atomic_exchange_n(&pendingRightMotion, false, __ATOMIC_SEQ_CST);
+  // Hanya broadcast setelah servo mencapai posisi target sensor PIR tersebut
+  int currentAngleVal = __atomic_load_n(&currentServoAngle, __ATOMIC_SEQ_CST);
 
-  if (left || middle || right) {
-    String detectedSensor = left ? "left" : (middle ? "middle" : "right");
-    Serial.printf("Motion detected: %s\n", detectedSensor.c_str());
+  bool leftTriggered = __atomic_load_n(&pendingLeftMotion, __ATOMIC_SEQ_CST);
+  bool middleTriggered = __atomic_load_n(&pendingMiddleMotion, __ATOMIC_SEQ_CST);
+  bool rightTriggered = __atomic_load_n(&pendingRightMotion, __ATOMIC_SEQ_CST);
+
+  bool reportLeft = false;
+  bool reportMiddle = false;
+  bool reportRight = false;
+
+  if (leftTriggered && currentAngleVal == SERVO_POS_LEFT) {
+    __atomic_store_n(&pendingLeftMotion, false, __ATOMIC_SEQ_CST);
+    reportLeft = true;
+  }
+  if (middleTriggered && currentAngleVal == SERVO_POS_MIDDLE) {
+    __atomic_store_n(&pendingMiddleMotion, false, __ATOMIC_SEQ_CST);
+    reportMiddle = true;
+  }
+  if (rightTriggered && currentAngleVal == SERVO_POS_RIGHT) {
+    __atomic_store_n(&pendingRightMotion, false, __ATOMIC_SEQ_CST);
+    reportRight = true;
+  }
+
+  if (reportLeft || reportMiddle || reportRight) {
+    String detectedSensor = reportLeft ? "left" : (reportMiddle ? "middle" : "right");
+    Serial.printf("Servo reached target angle for PIR: %s. Broadcasting motion trigger.\n", detectedSensor.c_str());
     if (WiFi.status() == WL_CONNECTED) {
       String msg = "{\"type\":\"motion\",\"sensor\":\"" + detectedSensor + "\"}";
       sendWsText(msg, "motion event");
     }
-    // Backend will capture the latest stream frame as the PIR snapshot
   }
 
   // Debug: Print pin states every 2 seconds

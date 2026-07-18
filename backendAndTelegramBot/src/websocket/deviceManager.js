@@ -71,7 +71,8 @@ function broadcastDeviceList() {
       signalRssi: device.signalRssi || null,
       lastSeen: device.lastSeen,
       currentAngle: device.currentAngle,
-      sweepActive: device.sweepActive || 'off'
+      sweepActive: device.sweepActive || 'off',
+      nextSweepTime: device.nextSweepTime || null
     };
   });
 

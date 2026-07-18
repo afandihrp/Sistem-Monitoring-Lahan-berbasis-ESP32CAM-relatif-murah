@@ -97,6 +97,39 @@ watch(() => props.currentStream?.sweepActive, (newVal) => {
   localSweepMode.value = newVal || 'off'
 }, { immediate: true })
 
+const secondsRemaining = ref(null)
+let countdownInterval = null
+
+const startCountdown = (targetTime) => {
+  if (countdownInterval) clearInterval(countdownInterval)
+  if (!targetTime) {
+    secondsRemaining.value = null
+    return
+  }
+
+  const update = () => {
+    const diff = targetTime - Date.now()
+    if (diff <= 0) {
+      secondsRemaining.value = 0
+      clearInterval(countdownInterval)
+      countdownInterval = null
+    } else {
+      secondsRemaining.value = Math.round(diff / 1000)
+    }
+  }
+
+  update()
+  countdownInterval = setInterval(update, 1000)
+}
+
+watch(() => props.currentStream?.nextSweepTime, (newVal) => {
+  startCountdown(newVal)
+}, { immediate: true })
+
+onUnmounted(() => {
+  if (countdownInterval) clearInterval(countdownInterval)
+})
+
 const startContinuousSweep = () => {
   const nextMode = localSweepMode.value === 'continuous' ? 'off' : 'continuous'
   localSweepMode.value = nextMode
@@ -104,8 +137,13 @@ const startContinuousSweep = () => {
 }
 
 const triggerSingleSweep = () => {
-  localSweepMode.value = 'once'
-  emit('triggerSweepAction', 'once')
+  if (localSweepMode.value !== 'off') {
+    localSweepMode.value = 'off'
+    emit('triggerSweepAction', 'off')
+  } else {
+    localSweepMode.value = 'once'
+    emit('triggerSweepAction', 'once')
+  }
 }
 
 const isSimulating = ref(null) // null, 'left', 'right'
@@ -333,14 +371,20 @@ const getNominalDbm = (bars) => {
             <div class="d-flex align-items-center gap-2">
               <label class="text-secondary small fw-bold text-uppercase mb-0" style="font-size: 0.65rem;">{{ $t('stream.servoPtz') }}</label>
               <button @click="triggerSingleSweep" 
-                      :disabled="localSweepMode !== 'off'"
-                      :class="['btn py-1 px-3 fw-bold text-uppercase font-monospace d-flex align-items-center gap-1', localSweepMode === 'once' ? 'btn-danger shadow-danger-btn' : 'btn-outline-info text-info']"
+                      :class="['btn py-1 px-3 fw-bold text-uppercase font-monospace d-flex align-items-center gap-1', localSweepMode !== 'off' ? 'btn-danger shadow-danger-btn' : 'btn-outline-info text-info']"
                       style="font-size: 0.75rem; border-radius: 6px; border: 1px solid rgba(148, 163, 184, 0.3);">
-                <i class="bi bi-play-fill" style="font-size: 0.8rem;"></i>
-                {{ $t('stream.sweepOnce') }}
+                <i :class="['bi', localSweepMode !== 'off' ? 'bi-x-circle-fill' : 'bi-play-fill']" style="font-size: 0.8rem;"></i>
+                {{ localSweepMode !== 'off' ? $t('stream.cancelSweep') : $t('stream.sweepOnce') }}
               </button>
               <span class="badge bg-slate-900 border border-slate-700 text-info font-monospace animate-pulse-custom animate-pulse" v-if="localSweepMode !== 'off'" style="font-size: 0.65rem; border-radius: 4px; border: 1px solid rgba(220, 53, 69, 0.3);">
                 {{ $t('stream.sweeping') }}
+              </span>
+              <!-- Sweep Countdown Badge -->
+              <span class="badge bg-slate-900 border border-slate-700 text-info font-monospace d-flex align-items-center gap-1" 
+                    v-if="localSweepMode === 'off' && secondsRemaining !== null && secondsRemaining > 0"
+                    style="font-size: 0.75rem; border-radius: 6px; padding: 4px 8px;">
+                <i class="bi bi-hourglass-split text-info animate-pulse" style="font-size: 0.85rem;"></i>
+                {{ secondsRemaining }}s
               </span>
             </div>
             <div class="d-flex align-items-center gap-2">
