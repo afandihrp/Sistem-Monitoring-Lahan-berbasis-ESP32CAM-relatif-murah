@@ -15,6 +15,7 @@ const {
   getDefaultAngle,
   getPirAngle
 } = require('./websocket/configManager');
+const { getDeviceConfig, upsertDeviceConfig } = require('./services/sqllite_config');
 
 const {
   getSignalBars,
@@ -668,26 +669,10 @@ function initWebSocket(servers) {
               }
             }
           } else if (data.type === 'get_servo_config' && !isCamera) {
-            if (fs.existsSync(CONFIG_FILE)) {
-              try {
-                const allConfigs = JSON.parse(fs.readFileSync(CONFIG_FILE));
-                const config = allConfigs[data.mac] || null;
-                ws.send(JSON.stringify({ type: 'servo_config_response', mac: data.mac, config }));
-              } catch (e) { console.error('Error reading config:', e); }
-            } else {
-              ws.send(JSON.stringify({ type: 'servo_config_response', mac: data.mac, config: null }));
-            }
+            const config = getDeviceConfig(data.mac);
+            ws.send(JSON.stringify({ type: 'servo_config_response', mac: data.mac, config }));
           } else if (data.type === 'save_servo_config' && !isCamera) {
-            let allConfigs = {};
-            if (fs.existsSync(CONFIG_FILE)) {
-              try {
-                const rawData = fs.readFileSync(CONFIG_FILE);
-                allConfigs = JSON.parse(rawData);
-              } catch (e) { }
-            }
-            const existingConfig = allConfigs[data.mac] || {};
-            allConfigs[data.mac] = { ...existingConfig, ...data.config, lastUpdated: new Date().toISOString() };
-            fs.writeFileSync(CONFIG_FILE, JSON.stringify(allConfigs, null, 2));
+            upsertDeviceConfig(data.mac, data.config);
             console.log(`Servo config saved via WS for MAC: ${data.mac}`);
             ws.send(JSON.stringify({ type: 'save_servo_config_success', mac: data.mac }));
 
@@ -706,26 +691,10 @@ function initWebSocket(servers) {
               updateDeviceAutoSweep(cameraDevice.id);
             }
           } else if (data.type === 'get_camera_config' && !isCamera) {
-            if (fs.existsSync(CAMERA_CONFIG_FILE)) {
-              try {
-                const allConfigs = JSON.parse(fs.readFileSync(CAMERA_CONFIG_FILE));
-                const config = allConfigs[data.mac] || null;
-                ws.send(JSON.stringify({ type: 'camera_config_response', mac: data.mac, config }));
-              } catch (e) { console.error('Error reading camera config:', e); }
-            } else {
-              ws.send(JSON.stringify({ type: 'camera_config_response', mac: data.mac, config: null }));
-            }
+            const config = getDeviceConfig(data.mac);
+            ws.send(JSON.stringify({ type: 'camera_config_response', mac: data.mac, config }));
           } else if (data.type === 'save_camera_config' && !isCamera) {
-            let allConfigs = {};
-            if (fs.existsSync(CAMERA_CONFIG_FILE)) {
-              try {
-                const rawData = fs.readFileSync(CAMERA_CONFIG_FILE);
-                allConfigs = JSON.parse(rawData);
-              } catch (e) { }
-            }
-            const existingConfig = allConfigs[data.mac] || {};
-            allConfigs[data.mac] = { ...existingConfig, ...data.config, lastUpdated: new Date().toISOString() };
-            fs.writeFileSync(CAMERA_CONFIG_FILE, JSON.stringify(allConfigs, null, 2));
+            upsertDeviceConfig(data.mac, data.config);
             console.log(`Camera config saved via WS for MAC: ${data.mac}`);
             ws.send(JSON.stringify({ type: 'save_camera_config_success', mac: data.mac }));
 
@@ -737,7 +706,7 @@ function initWebSocket(servers) {
               const hasDynamicTriggers = partialConfigToSend.scaleMode !== undefined || Object.keys(partialConfigToSend).some(k => k.startsWith('dynRes') || k.startsWith('dynQual') || k === 'resolution' || k === 'quality');
               
               if (hasDynamicTriggers) {
-                 const fullEffective = getEffectiveCameraConfig(allConfigs[data.mac], cameraDevice);
+                 const fullEffective = getEffectiveCameraConfig(getDeviceConfig(data.mac) || {}, cameraDevice);
                  if (fullEffective.resolution) partialConfigToSend.resolution = fullEffective.resolution;
                  if (fullEffective.quality) partialConfigToSend.quality = fullEffective.quality;
               }

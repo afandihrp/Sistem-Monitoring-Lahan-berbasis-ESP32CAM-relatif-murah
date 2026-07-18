@@ -1,6 +1,7 @@
 const fs = require('fs');
 const state = require('./state');
-const { CAMERA_CONFIG_FILE, getEffectiveCameraConfig } = require('./configManager');
+const { getEffectiveCameraConfig } = require('./configManager');
+const { getDeviceConfig, getAllDeviceConfigs, upsertDeviceConfig } = require('../services/sqllite_config');
 
 function getSignalBars(rssi) {
   if (rssi === null || rssi === undefined || isNaN(rssi)) return 0;
@@ -57,18 +58,22 @@ function updateDeviceSweepState(deviceId, sweepActive, skipCameraSend = false) {
 }
 
 function broadcastDeviceList() {
-  const deviceList = Array.from(state.devices.values()).map(device => ({
-    id: device.id,
-    type: device.type,
-    status: device.status,
-    ip: device.ip,
-    mac: device.mac,
-    signalBars: device.signalBars,
-    signalRssi: device.signalRssi || null,
-    lastSeen: device.lastSeen,
-    currentAngle: device.currentAngle,
-    sweepActive: device.sweepActive || 'off'
-  }));
+  const deviceList = Array.from(state.devices.values()).map(device => {
+    const config = getDeviceConfig(device.mac);
+    return {
+      id: device.id,
+      type: device.type,
+      status: device.status,
+      ip: device.ip,
+      mac: device.mac,
+      name: config && config.name ? config.name : null,
+      signalBars: device.signalBars,
+      signalRssi: device.signalRssi || null,
+      lastSeen: device.lastSeen,
+      currentAngle: device.currentAngle,
+      sweepActive: device.sweepActive || 'off'
+    };
+  });
 
   const payload = JSON.stringify({ type: 'device_list', devices: deviceList });
   state.broadcastToKiosks(payload);
@@ -98,13 +103,7 @@ function switchActiveStream(direction) {
 }
 
 function updateFlashIntensity(intensity) {
-  let allConfigs = {};
-  if (fs.existsSync(CAMERA_CONFIG_FILE)) {
-    try {
-      const rawData = fs.readFileSync(CAMERA_CONFIG_FILE);
-      allConfigs = JSON.parse(rawData);
-    } catch (e) { }
-  }
+  let allConfigs = getAllDeviceConfigs();
 
   // Ensure currently connected cameras are in allConfigs
   const deviceArray = Array.from(state.devices.values());
@@ -118,10 +117,9 @@ function updateFlashIntensity(intensity) {
 
   // Update intensity for all known cameras
   Object.keys(allConfigs).forEach(mac => {
-    allConfigs[mac] = { ...allConfigs[mac], flashIntensity: intensity, lastUpdated: new Date().toISOString() };
+    upsertDeviceConfig(mac, { flashIntensity: intensity });
+    allConfigs[mac] = { ...allConfigs[mac], flashIntensity: intensity };
   });
-
-  fs.writeFileSync(CAMERA_CONFIG_FILE, JSON.stringify(allConfigs, null, 2));
 
   // Push updated config directly to the specific camera device via WebSocket
   deviceArray.forEach(cameraDevice => {

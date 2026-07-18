@@ -197,7 +197,7 @@ const getNominalDbm = (bars) => {
         <div v-if="viewMode !== 'multiple'" class="d-flex align-items-center gap-2 gap-sm-3 ms-auto">
           <div class="d-flex align-items-center gap-2">
             <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black; font-size: 0.8rem;">
-              Cam {{ props.devices.filter(d => d.type === 'Camera').findIndex(c => c.id === currentStream.id) + 1 }}
+              {{ currentStream.name || ('Cam ' + (props.devices.filter(d => d.type === 'Camera').findIndex(c => c.id === currentStream.id) + 1)) }}
             </span>
             <div v-if="currentStream.status === 'Online'" class="d-flex align-items-center gap-2" style="height: 16px; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px;">
               <div class="d-flex align-items-end gap-1" style="height: 12px;" :title="`Signal Strength: ${currentStream.signalBars || 0}/5`">
@@ -275,7 +275,7 @@ const getNominalDbm = (bars) => {
                 <div class="d-flex align-items-center gap-2 gap-sm-3">
                   <div class="d-flex align-items-center gap-2">
                     <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black; font-size: 0.8rem;">
-                      Cam {{ props.devices.filter(d => d.type === 'Camera').findIndex(c => c.id === device.id) + 1 }}
+                      {{ device.name || ('Cam ' + (props.devices.filter(d => d.type === 'Camera').findIndex(c => c.id === device.id) + 1)) }}
                     </span>
                     <div v-if="device.status === 'Online'" class="d-flex align-items-center gap-2" style="height: 16px; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px;">
                       <div class="d-flex align-items-end gap-1" style="height: 12px;" :title="`Signal Strength: ${device.signalBars || 0}/5`">

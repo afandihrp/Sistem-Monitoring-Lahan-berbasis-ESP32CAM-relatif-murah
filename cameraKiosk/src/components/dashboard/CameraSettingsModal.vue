@@ -19,6 +19,7 @@ const activeTab = ref('camera')
 
 // ----- State & WS Sync -----
 const camConfig = ref({
+  name: '',
   resolution: 'HVGA', quality: 22, scaleMode: 'static',
   dynRes5: 'HVGA', dynQual5: 22, dynRes4: 'HVGA', dynQual4: 22,
   dynRes3: 'HVGA', dynQual3: 22, dynRes2: 'HVGA', dynQual2: 22,
@@ -45,15 +46,21 @@ const fetchServoConfig = () => {
 
 const handleCameraConfigReceived = (event) => {
   const { mac, config } = event.detail;
-  if (mac === props.mac && config) {
-    Object.assign(camConfig.value, config)
+  if (mac === props.mac) {
+    if (config) {
+      const validConfig = Object.fromEntries(Object.entries(config).filter(([_, v]) => v !== null && v !== undefined))
+      Object.assign(camConfig.value, validConfig)
+    }
     originalCamConfig.value = JSON.parse(JSON.stringify(camConfig.value));
   }
 };
 const handleServoConfigReceived = (event) => {
   const { mac, config } = event.detail;
-  if (mac === props.mac && config) {
-    Object.assign(servoConfig.value, config)
+  if (mac === props.mac) {
+    if (config) {
+      const validConfig = Object.fromEntries(Object.entries(config).filter(([_, v]) => v !== null && v !== undefined))
+      Object.assign(servoConfig.value, validConfig)
+    }
     originalServoConfig.value = JSON.parse(JSON.stringify(servoConfig.value));
   }
 };
@@ -78,6 +85,7 @@ const handleSaveAll = () => {
     const changedCamConfig = {}
     for (const key in camConfig.value) {
       if (camConfig.value[key] !== originalCamConfig.value[key]) {
+        console.log(`[CameraSettingsModal] camConfig key changed: ${key}. Old: ${originalCamConfig.value[key]}, New: ${camConfig.value[key]}`)
         changedCamConfig[key] = camConfig.value[key]
         camSaved = true
       }
@@ -92,6 +100,7 @@ const handleSaveAll = () => {
     const changedServoConfig = {}
     for (const key in servoConfig.value) {
       if (servoConfig.value[key] !== originalServoConfig.value[key]) {
+        console.log(`[CameraSettingsModal] servoConfig key changed: ${key}. Old: ${originalServoConfig.value[key]}, New: ${servoConfig.value[key]}`)
         changedServoConfig[key] = servoConfig.value[key]
         servoSaved = true
       }

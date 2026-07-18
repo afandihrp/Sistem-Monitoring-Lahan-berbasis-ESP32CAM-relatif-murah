@@ -38,8 +38,8 @@ const getNominalDbm = (bars) => {
              class="list-group-item bg-transparent border-slate-700 px-3 py-2 transition-all hover-bg">
           <div class="d-flex justify-content-between align-items-center">
             <div class="overflow-hidden d-flex flex-column gap-1">
-              <div v-if="getCameraNumber(device)" class="badge bg-primary text-white align-self-start" style="font-size: 0.65rem; letter-spacing: 0.5px;">
-                Cam {{ getCameraNumber(device) }}
+              <div v-if="device.type === 'Camera'" class="badge bg-primary text-white align-self-start" style="font-size: 0.65rem; letter-spacing: 0.5px;">
+                {{ device.name || ('Cam ' + getCameraNumber(device)) }}
               </div>
               <div class="fw-bold text-truncate" style="font-size: 0.85rem; line-height: 1.2;">{{ device.mac || 'Unknown MAC' }}</div>
               <code class="text-info d-block text-truncate" style="font-size: 0.75rem;">{{ device.ip }}</code>

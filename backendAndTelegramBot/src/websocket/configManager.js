@@ -1,10 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const state = require('./state');
+const { getDeviceConfig } = require('../services/sqllite_config');
 
-const CONFIG_FILE = path.join(__dirname, '../../../data/servoConfig.json');
 const SYSTEM_SETTINGS_FILE = path.join(__dirname, '../../../data/systemSettings.json');
-const CAMERA_CONFIG_FILE = path.join(__dirname, '../../../data/cameraConfig.json');
 
 function loadSystemSettings() {
   try {
@@ -92,49 +91,28 @@ function getEffectiveCameraConfig(config, device) {
 }
 
 function getReturnDuration(mac) {
-  if (fs.existsSync(CONFIG_FILE)) {
-    try {
-      const allConfigs = JSON.parse(fs.readFileSync(CONFIG_FILE));
-      const config = allConfigs[mac];
-      if (config && config.returnToDefaultDuration !== undefined) {
-        return Number(config.returnToDefaultDuration) * 1000;
-      }
-    } catch (e) {
-      console.error('Error reading return duration config:', e);
-    }
+  const config = getDeviceConfig(mac);
+  if (config && config.returnToDefaultDuration !== undefined && config.returnToDefaultDuration !== null) {
+    return Number(config.returnToDefaultDuration) * 1000;
   }
   return 15000; // Default fallback
 }
 
 function getDefaultAngle(mac) {
-  if (fs.existsSync(CONFIG_FILE)) {
-    try {
-      const allConfigs = JSON.parse(fs.readFileSync(CONFIG_FILE));
-      const config = allConfigs[mac];
-      if (config && config.defaultAngle !== undefined) {
-        return Number(config.defaultAngle);
-      }
-    } catch (e) {
-      console.error('Error reading default angle config:', e);
-    }
+  const config = getDeviceConfig(mac);
+  if (config && config.defaultAngle !== undefined && config.defaultAngle !== null) {
+    return Number(config.defaultAngle);
   }
   return 90; // Default fallback
 }
 
 function getPirAngle(mac, sensor) {
-  if (fs.existsSync(CONFIG_FILE)) {
-    try {
-      const allConfigs = JSON.parse(fs.readFileSync(CONFIG_FILE));
-      const config = allConfigs[mac];
-      if (config) {
-        if (sensor === 'left' && config.leftPirAngle !== undefined) return Number(config.leftPirAngle);
-        if (sensor === 'middle' && config.middlePirAngle !== undefined) return Number(config.middlePirAngle);
-        if (sensor === 'right' && config.rightPirAngle !== undefined) return Number(config.rightPirAngle);
-        if (config.defaultAngle !== undefined) return Number(config.defaultAngle);
-      }
-    } catch (e) {
-      console.error('Error reading pir angle config:', e);
-    }
+  const config = getDeviceConfig(mac);
+  if (config) {
+    if (sensor === 'left' && config.leftPirAngle !== undefined && config.leftPirAngle !== null) return Number(config.leftPirAngle);
+    if (sensor === 'middle' && config.middlePirAngle !== undefined && config.middlePirAngle !== null) return Number(config.middlePirAngle);
+    if (sensor === 'right' && config.rightPirAngle !== undefined && config.rightPirAngle !== null) return Number(config.rightPirAngle);
+    if (config.defaultAngle !== undefined && config.defaultAngle !== null) return Number(config.defaultAngle);
   }
   if (sensor === 'left') return 155;
   if (sensor === 'middle') return 90;
@@ -143,9 +121,7 @@ function getPirAngle(mac, sensor) {
 }
 
 module.exports = {
-  CONFIG_FILE,
   SYSTEM_SETTINGS_FILE,
-  CAMERA_CONFIG_FILE,
   loadSystemSettings,
   saveSystemSettings,
   getEffectiveCameraConfig,

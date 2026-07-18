@@ -1,6 +1,6 @@
 const fs = require('fs');
 const state = require('./state');
-const { CONFIG_FILE } = require('./configManager');
+const { getDeviceConfig } = require('../services/sqllite_config');
 const { updateDeviceSweepState } = require('./deviceManager');
 
 const deviceSweepIntervals = new Map();
@@ -17,16 +17,9 @@ function updateDeviceAutoSweep(deviceId) {
 
   // Read sweepMode from config file
   let sweepMode = 'disabled';
-  if (fs.existsSync(CONFIG_FILE)) {
-    try {
-      const allConfigs = JSON.parse(fs.readFileSync(CONFIG_FILE));
-      const config = allConfigs[device.mac];
-      if (config && config.sweepMode) {
-        sweepMode = config.sweepMode;
-      }
-    } catch (e) {
-      console.error('Error reading auto sweep config:', e);
-    }
+  const config = getDeviceConfig(device.mac);
+  if (config && config.sweepMode) {
+    sweepMode = config.sweepMode;
   }
 
   console.log(`[Auto Sweep] Updating sweep state for ${deviceId} (MAC: ${device.mac}). Mode: ${sweepMode}`);

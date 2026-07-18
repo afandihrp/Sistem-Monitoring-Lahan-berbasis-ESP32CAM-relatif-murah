@@ -3,7 +3,7 @@ const path = require('path');
 const Database = require('better-sqlite3');
 
 const DATA_DIR = path.join(__dirname, '../../../data');
-const DB_FILE_PATH = path.join(DATA_DIR, 'logs.db');
+const DB_FILE_PATH = path.join(DATA_DIR, 'camera_data.db');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
