@@ -77,20 +77,28 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMod
       </div>
       <div class="d-flex align-items-center gap-3 ms-auto">
         
-        <div v-if="storageData" class="d-flex flex-column justify-content-center border-end pe-3 me-1 border-slate-700" style="width: 110px;">
-          <div class="d-flex justify-content-between mb-1" style="font-size: 0.6rem; font-weight: bold;">
+        <div v-if="storageData" class="d-flex flex-column justify-content-center border-end pe-3 me-1 border-slate-700 storage-monitor-wrapper" style="width: 110px;">
+          <!-- Minimal Storage Indicator for small mobile screens -->
+          <div class="storage-label-minimal align-items-center gap-1 font-monospace" 
+               :class="storageData.percentage >= 90 ? 'text-danger animate-pulse' : (storageData.percentage >= 70 ? 'text-warning' : 'text-success')"
+               style="font-size: 0.7rem; font-weight: bold;">
+            <i class="bi bi-hdd-fill"></i>
+            <span>{{ storageData.percentage }}%</span>
+          </div>
+
+          <div class="d-flex justify-content-between mb-1 storage-label-full" style="font-size: 0.6rem; font-weight: bold;">
             <span class="text-secondary">{{ $t('nav.storage') }}</span>
             <span :class="storageData.percentage >= 90 ? 'text-danger animate-pulse' : (storageData.percentage >= 70 ? 'text-warning' : 'text-success')">
               {{ storageData.percentage }}%
             </span>
           </div>
-          <div class="progress" style="height: 4px; background-color: #334155; border-radius: 2px;">
+          <div class="progress storage-progress-container" style="height: 4px; background-color: #334155; border-radius: 2px;">
             <div class="progress-bar" 
                  :class="storageData.percentage >= 90 ? 'bg-danger' : (storageData.percentage >= 70 ? 'bg-warning' : 'bg-success')" 
                  :style="{ width: storageData.percentage + '%' }" >
             </div>
           </div>
-          <div class="text-secondary mt-1 text-center font-monospace" style="font-size: 0.55rem;">
+          <div class="text-secondary mt-1 text-center font-monospace storage-detail-text" style="font-size: 0.55rem;">
             {{ storageData.usedGb }}GB / {{ storageData.totalGb }}GB
           </div>
         </div>
@@ -201,5 +209,31 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMod
 @media (max-width: 480px) {
   .container-fluid { padding-left: 0.4rem !important; padding-right: 0.4rem !important; }
   .gap-3 { gap: 0.5rem !important; }
+}
+
+@media (max-width: 440px) {
+  .storage-label-full {
+    display: none !important;
+  }
+  .storage-label-minimal {
+    display: inline-flex !important;
+  }
+  .storage-progress-container {
+    display: none !important;
+  }
+  .storage-detail-text {
+    display: none !important;
+  }
+  .storage-monitor-wrapper {
+    width: auto !important;
+    padding-right: 0.5rem !important;
+    margin-right: 0.25rem !important;
+  }
+}
+
+@media (min-width: 441px) {
+  .storage-label-minimal {
+    display: none !important;
+  }
 }
 </style>
