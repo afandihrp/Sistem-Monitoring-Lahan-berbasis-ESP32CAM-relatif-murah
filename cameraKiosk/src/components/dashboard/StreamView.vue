@@ -188,7 +188,7 @@ const getNominalDbm = (bars) => {
     <!-- KIRI: Primary Stream View -->
     <section class="stream-section bg-black position-relative flex-grow-1">
       <!-- Header Stream (Absolute agar video bisa full edge-to-edge) -->
-      <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-between align-items-center z-2 stream-header-overlay">
+      <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-between align-items-center z-2">
         <span v-if="currentStream.status !== 'Online' && viewMode !== 'multiple'" class="badge rounded-pill bg-secondary text-white border border-secondary border-opacity-25 d-flex align-items-center gap-2 px-2 py-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">
           <i class="bi bi-camera-video-off-fill" style="font-size: 0.7rem;"></i>
           {{ $t('stream.offline') }}
@@ -271,7 +271,7 @@ const getNominalDbm = (bars) => {
               </div>
 
               <!-- Grid Header -->
-              <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-end align-items-center z-2 stream-header-overlay">
+              <div class="position-absolute top-0 start-0 w-100 p-3 d-flex justify-content-end align-items-center z-2">
                 <div class="d-flex align-items-center gap-2 gap-sm-3">
                   <div class="d-flex align-items-center gap-2">
                     <span class="text-white fw-bold font-monospace text-uppercase ip-label" style="text-shadow: 1px 1px 2px black; font-size: 0.8rem;">
@@ -666,13 +666,6 @@ const getNominalDbm = (bars) => {
   border-top-left-radius: 10px;
   border-bottom-left-radius: 10px;
   border-right: none;
-}
-
-/* Dark gradient header overlay and shadow outlines for maximum readability */
-.stream-header-overlay {
-  background: linear-gradient(to bottom, rgba(15, 23, 42, 0.75) 0%, rgba(15, 23, 42, 0) 100%) !important;
-  border-top-left-radius: inherit;
-  border-top-right-radius: inherit;
 }
 
 .ip-label {
