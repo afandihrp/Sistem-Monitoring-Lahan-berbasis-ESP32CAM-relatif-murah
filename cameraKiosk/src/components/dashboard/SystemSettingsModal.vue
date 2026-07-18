@@ -85,7 +85,7 @@ const pixelMotionRecordingEnabled = ref(props.initialConfig.pixelMotionRecording
 const pixelMotionCaptureDelay = ref(props.initialConfig.pixelMotionCaptureDelay !== undefined ? props.initialConfig.pixelMotionCaptureDelay : 100)
 
 const webSoundEnabled = ref(props.initialConfig.webSoundEnabled !== undefined ? props.initialConfig.webSoundEnabled : true)
-const showFpsMeter = ref(props.initialConfig.showFpsMeter !== undefined ? props.initialConfig.showFpsMeter : true)
+const showFpsMeter = ref(localStorage.getItem('showFpsMeter') !== 'false')
 const simulatedSliderEnabled = ref(props.initialConfig.simulatedSliderEnabled !== undefined ? props.initialConfig.simulatedSliderEnabled : false)
 
 // AI configurator specific states
@@ -221,6 +221,9 @@ const getSecondsLabel = (sec) => {
 }
 
 const saveConfig = () => {
+  localStorage.setItem('showFpsMeter', showFpsMeter.value ? 'true' : 'false')
+  window.dispatchEvent(new Event('fpsMeterToggle'))
+
   emit('save', {
     pirEnabled: pirEnabled.value,
     pirCooldown: pirCooldown.value,
@@ -244,7 +247,6 @@ const saveConfig = () => {
     pixelMotionRecordingEnabled: pixelMotionRecordingEnabled.value,
     pixelMotionCaptureDelay: pixelMotionCaptureDelay.value,
     webSoundEnabled: webSoundEnabled.value,
-    showFpsMeter: showFpsMeter.value,
     udpStreamEnabled: udpStreamEnabled.value,
     simulatedSliderEnabled: simulatedSliderEnabled.value,
     // AI Parameters

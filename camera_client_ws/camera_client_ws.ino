@@ -1316,13 +1316,13 @@ void loop() {
         udpFrameId++;
         
         size_t totalLen = fb->len;
-        size_t maxChunkSize = 1024;
+        long rssi = WiFi.RSSI();
+        size_t maxChunkSize = (rssi < -55) ? 512 : 1024;
         uint8_t totalChunks = (totalLen + maxChunkSize - 1) / maxChunkSize;
         bool frameSentOk = true;
         unsigned long sendStart = millis();
         
         // Fetch RSSI once per frame instead of per chunk to avoid expensive driver calls
-        long rssi = WiFi.RSSI();
         int chunkDelay = 0;
         if (rssi < -65) {
           chunkDelay = 5;
@@ -1390,7 +1390,8 @@ void loop() {
       wsFrameId++;
       
       size_t totalLen = fb->len;
-      size_t maxChunkSize = 1024; // 1KB
+      long rssi = WiFi.RSSI();
+      size_t maxChunkSize = (rssi < -55) ? 512 : 1024;
       uint8_t totalChunks = (totalLen + maxChunkSize - 1) / maxChunkSize;
       
       for (uint8_t chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {

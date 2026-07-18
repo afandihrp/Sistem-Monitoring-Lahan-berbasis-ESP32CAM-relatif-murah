@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 
 const props = defineProps({
   deviceId: {
@@ -17,14 +17,9 @@ const props = defineProps({
   aiEnabled: {
     type: Boolean,
     default: true
-  },
   detectionMode: {
     type: String,
     default: 'AI'
-  },
-  showFpsMeter: {
-    type: Boolean,
-    default: true
   }
 })
 
@@ -32,10 +27,29 @@ const streamImg = ref(null)
 const overlayCanvas = ref(null)
 const containerRef = ref(null)
 
+// FPS Meter visibility — client-only, stored in localStorage
+const showFpsMeter = ref(localStorage.getItem('showFpsMeter') !== 'false')
+const onStorageChange = (e) => {
+  if (e.key === 'showFpsMeter') {
+    showFpsMeter.value = e.newValue !== 'false'
+  }
+}
+// Also listen for same-tab custom events (storage event only fires cross-tab)
+const onLocalFpsToggle = () => {
+  showFpsMeter.value = localStorage.getItem('showFpsMeter') !== 'false'
+}
+
 // FPS Counter State
 const fps = ref(0)
 let frameTimes = []
 let fpsInterval = null
+
+// Bandwidth health color: green (≥8), yellow (4-7), red (<4)
+const fpsColor = computed(() => {
+  if (fps.value >= 8) return '#10b981' // emerald-500
+  if (fps.value >= 4) return '#f59e0b' // amber-500
+  return '#ef4444' // red-500
+})
 
 // Zoom and Pan State
 const isFullscreen = ref(false)
@@ -264,6 +278,8 @@ const handleResize = () => {
 
 onMounted(() => {
   window.addEventListener('resize', handleResize)
+  window.addEventListener('storage', onStorageChange)
+  window.addEventListener('fpsMeterToggle', onLocalFpsToggle)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
   document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
   setTimeout(drawBoxes, 50)
@@ -277,6 +293,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('storage', onStorageChange)
+  window.removeEventListener('fpsMeterToggle', onLocalFpsToggle)
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
   document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
   if (fpsInterval) {
@@ -336,7 +354,7 @@ onUnmounted(() => {
     </div>
 
     <!-- FPS Meter Badge Overlay -->
-    <div v-if="imageSrc && showFpsMeter" class="fps-meter">
+    <div v-if="imageSrc && showFpsMeter" class="fps-meter" :style="{ '--fps-color': fpsColor }">
       <span class="fps-dot"></span>
       <span>{{ fps }} FPS</span>
     </div>
@@ -369,22 +387,24 @@ onUnmounted(() => {
   padding: 0.25rem 0.5rem;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 0.75rem;
-  color: #10b981;
+  color: var(--fps-color, #10b981);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   gap: 0.5rem;
   pointer-events: none;
+  transition: color 0.5s ease;
 }
 
 .fps-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #10b981;
-  box-shadow: 0 0 8px #10b981;
+  background-color: var(--fps-color, #10b981);
+  box-shadow: 0 0 8px var(--fps-color, #10b981);
   animation: pulse 1.5s infinite alternate;
+  transition: background-color 0.5s ease, box-shadow 0.5s ease;
 }
 
 @keyframes pulse {

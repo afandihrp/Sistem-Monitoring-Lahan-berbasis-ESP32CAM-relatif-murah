@@ -36,7 +36,6 @@ const state = {
     pixelMotionRecordingEnabled: true,
     pixelMotionCaptureDelay: 100,
     webSoundEnabled: true,
-    showFpsMeter: true,
     udpStreamEnabled: false
   },
 

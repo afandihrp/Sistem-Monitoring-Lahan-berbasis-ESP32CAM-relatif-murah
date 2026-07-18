@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const state = require('./state');
 const { getDefaultAngle, getReturnDuration } = require('./configManager');
-const { updateDeviceServoAngle, serializeFrame } = require('./deviceManager');
+const { updateDeviceServoAngle, serializeFrame, updateDeviceSweepState } = require('./deviceManager');
 const { getDeviceConfig } = require('../services/sqllite_config');
 
 const { yoloClient, pixelClient, aiClient } = require('../services/aiClient');
@@ -11,7 +11,7 @@ const { sendMotionAlert, sendMotionVideoAlert } = require('../telegram');
 const { renderVideo } = require('../services/videoRenderer');
 const { calculateNextFollowerAngle } = require('../services/objectFollower');
 const { shouldWorkerProcessFrame, shouldEnqueueStreamFrame } = require('../services/aiController');
-const { resetIdleTimer } = require('./sweepManager');
+const { updateDeviceAutoSweep, suspendDeviceSweepTimer } = require('./sweepManager');
 
 const aiQueue = [];
 let isAiWorkerRunning = false;
@@ -162,6 +162,7 @@ function stopAiRecording(deviceId, reason) {
         // Instruct camera to return to default position
         const defaultAngle = getDefaultAngle(device.mac);
         updateDeviceServoAngle(deviceId, defaultAngle);
+        updateDeviceAutoSweep(deviceId);
         console.log(`[AI Record] Sent return-to-center command after video rendering completed.`);
       })
       .catch(err => {
@@ -169,12 +170,14 @@ function stopAiRecording(deviceId, reason) {
         // Fallback return-to-center in case of rendering errors
         const defaultAngle = getDefaultAngle(device.mac);
         updateDeviceServoAngle(deviceId, defaultAngle);
+        updateDeviceAutoSweep(deviceId);
       });
   } else {
     console.log(`[AI Record] Stop AI Event: no frames to render for ${deviceId}. Skipping rendering.`);
     // Instruct camera to return to default position
     const defaultAngle = getDefaultAngle(device.mac);
     updateDeviceServoAngle(deviceId, defaultAngle);
+    updateDeviceAutoSweep(deviceId);
   }
 }
 
@@ -214,7 +217,12 @@ function triggerAiWorker() {
       device.personDetected = personDetected;
       // Logika Perekaman AI
       if (personDetected) {
-        resetIdleTimer(deviceId); // Reset Idle Sweep Timer on detection
+        // Pause any active sweep so the object follower can take over from the current angle
+        if (device.sweepActive !== 'off') {
+          updateDeviceSweepState(deviceId, 'off');
+          console.log(`[AI Detection] Ongoing sweep paused for ${deviceId} — object follower taking over.`);
+        }
+        suspendDeviceSweepTimer(deviceId);
         if (device.aiStopTimer) {
           clearTimeout(device.aiStopTimer);
           device.aiStopTimer = null;
@@ -270,6 +278,13 @@ function triggerAiWorker() {
             device.isRecordingAi = true;
             device.aiSensorName = isHybridMode ? 'Hybrid_Motion_Detection' : (isPixelMode ? 'Pixel_Motion_Detection' : 'AI_Person_Detection');
             device.lastTimePersonSeen = Date.now();
+
+            // Cancel/Pause any active sweep during AI trigger and suspend timer
+            if (device.sweepActive !== 'off') {
+              updateDeviceSweepState(deviceId, 'off');
+              console.log(`[AI Trigger] Ongoing sweep paused/cancelled for ${deviceId}`);
+            }
+            suspendDeviceSweepTimer(deviceId);
 
             (async () => {
               // 1. Wait for Capture Delay (Allows object to move to center)
@@ -496,7 +511,7 @@ function triggerAiWorker() {
                if (!device.isRecordingAi && !device.isPirActive) {
                     const defAngle = getDefaultAngle(device.mac);
                     updateDeviceServoAngle(deviceId, defAngle);
-                    resetIdleTimer(deviceId); // Reset Idle Sweep Timer on return to center
+                    updateDeviceAutoSweep(deviceId); // Resume configured sweep mode on return to center
                     console.log(`[Object Follower] Returned servo to default ${defAngle}° for ${deviceId} after ${returnDuration/1000}s of no detection.`);
                }
                device.trackingReturnTimer = null;

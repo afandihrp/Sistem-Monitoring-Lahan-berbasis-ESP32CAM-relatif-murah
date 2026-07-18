@@ -2,12 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const state = require('./state');
 const { getDefaultAngle } = require('./configManager');
-const { updateDeviceServoAngle } = require('./deviceManager');
+const { updateDeviceServoAngle, updateDeviceSweepState } = require('./deviceManager');
 const { getDeviceHeader, getActiveAiClient, stopAiRecording } = require('./aiWorker');
 const { aiClient } = require('../services/aiClient');
 const { updateLatestLogWithAI, getLogs } = require('../services/sqllite_logger');
 const { sendMotionAlert } = require('../telegram');
-const { resetIdleTimer } = require('./sweepManager');
+const { updateDeviceAutoSweep, suspendDeviceSweepTimer } = require('./sweepManager');
 
 async function handlePirTrigger(ip, sensor, wss) {
   const deviceId = `cam_${ip.replace(/\./g, '_')}`;
@@ -27,7 +27,12 @@ async function handlePirTrigger(ip, sensor, wss) {
     }
   }
   
-  resetIdleTimer(deviceId); // Reset Idle Sweep Timer on PIR detection
+  // Cancel/Pause any active sweep during PIR trigger and suspend timer
+  if (device.sweepActive !== 'off') {
+    updateDeviceSweepState(deviceId, 'off');
+    console.log(`[PIR Trigger] Ongoing sweep paused/cancelled for ${deviceId}`);
+  }
+  suspendDeviceSweepTimer(deviceId);
 
   // Use the latest stream frame already buffered by aiWorker.
   // If no frame is available yet (e.g. right after boot or UDP failures),
@@ -125,6 +130,7 @@ async function handlePirTrigger(ip, sensor, wss) {
       device.isPirActive = false;
       const defaultAngle = getDefaultAngle(device.mac);
       updateDeviceServoAngle(deviceId, defaultAngle);
+      updateDeviceAutoSweep(deviceId);
       device.pirActiveTimeout = null;
     }, 2000);
   }

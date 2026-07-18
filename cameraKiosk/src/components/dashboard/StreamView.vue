@@ -271,7 +271,6 @@ const getNominalDbm = (bars) => {
             :boxes="liveBoxes"
             :aiEnabled="aiEnabled"
             :detectionMode="systemConfig.cameraDetectionMode"
-            :showFpsMeter="systemConfig.showFpsMeter"
           />
           
           <!-- Overlay Left/Right Navigation Buttons (Single View) -->
@@ -347,7 +346,6 @@ const getNominalDbm = (bars) => {
                   :boxes="cameraBoxes[device.id]"
                   :aiEnabled="aiEnabled"
                   :detectionMode="systemConfig.cameraDetectionMode"
-                  :showFpsMeter="systemConfig.showFpsMeter"
                 />
               </div>
             </div>

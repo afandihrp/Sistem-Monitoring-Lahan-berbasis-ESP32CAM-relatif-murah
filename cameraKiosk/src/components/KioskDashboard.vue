@@ -58,7 +58,6 @@ const defaultConfig = {
   pixelMotionMinSize: 10,
   pixelMotionCaptureEnabled: true,
   webSoundEnabled: true,
-  showFpsMeter: true,
   simulatedSliderEnabled: false,
   // AI configurations
   pirAiDetection: true,
