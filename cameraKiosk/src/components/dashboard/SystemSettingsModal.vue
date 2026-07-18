@@ -257,15 +257,16 @@ const saveConfig = () => {
     maxDuration: maxDuration.value,
     schedules: schedules.value
   })
+  emit('close')
 }
 </script>
 
 <template>
   <div class="modal-overlay d-flex align-items-center justify-content-center p-3">
-    <div class="modal-content-custom bg-slate-900 border border-slate-700 rounded-3 shadow-lg p-4" style="max-width: 480px; width: 100%;">
+    <div class="modal-content-custom bg-slate-900 border border-slate-700 rounded-3 shadow-lg p-4">
       
       <!-- Modal Header -->
-      <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
         <h6 class="text-white mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">
           <i class="bi bi-sliders2-vertical me-2 text-info"></i>{{ $t('settings.title') }}
         </h6>
@@ -273,7 +274,7 @@ const saveConfig = () => {
       </div>
 
       <!-- Tab Navigation -->
-      <div class="d-flex border-bottom border-slate-700 mb-4 nav-tabs-custom">
+      <div class="d-flex border-bottom border-slate-700 mb-4 nav-tabs-custom flex-shrink-0">
         <button 
           @click="activeTab = 'pir'"
           :class="['tab-btn pb-2 fw-bold text-uppercase', activeTab === 'pir' ? 'active text-info' : 'text-slate-400']"
@@ -849,7 +850,7 @@ const saveConfig = () => {
       </div>
 
       <!-- Modal Footer -->
-      <div class="d-flex gap-2 mt-4">
+      <div class="d-flex gap-2 mt-4 flex-shrink-0">
         <button @click="saveConfig" class="btn btn-info text-dark flex-grow-1 py-2 fw-bold text-uppercase" style="font-size: 0.75rem;">
           {{ $t('settings.save') }}
         </button>
@@ -871,8 +872,27 @@ const saveConfig = () => {
   z-index: 2000;
 }
 
+@media (max-width: 576px) {
+  .modal-overlay {
+    align-items: flex-start !important;
+    padding-top: 60px !important;
+    padding-bottom: 30px !important;
+  }
+}
+
 .modal-content-custom {
   animation: modalScale 0.2s ease-out;
+  max-width: 480px;
+  width: 100%;
+  height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 576px) {
+  .modal-content-custom {
+    height: 75vh;
+  }
 }
 
 @keyframes modalScale {
@@ -899,8 +919,8 @@ const saveConfig = () => {
   border-color: #475569;
 }
 .custom-switch:checked {
-  background-color: #06b6d4;
-  border-color: #0891b2;
+  background-color: #3b82f6;
+  border-color: #2563eb;
 }
 
 /* Custom Slider Styling */
@@ -919,21 +939,21 @@ const saveConfig = () => {
   appearance: none;
   width: 18px;
   height: 18px;
-  background: #06b6d4;
+  background: #3b82f6;
   border: 2px solid #ffffff;
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(6, 182, 212, 0.6);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
 }
 
 .custom-slider::-moz-range-thumb {
   width: 18px;
   height: 18px;
-  background: #06b6d4;
+  background: #3b82f6;
   border: 2px solid #ffffff;
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(6, 182, 212, 0.6);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
 }
 
 /* Tab controls */
@@ -957,7 +977,7 @@ const saveConfig = () => {
   left: 0;
   width: 100%;
   height: 2px;
-  background-color: #06b6d4;
+  background-color: #3b82f6;
 }
 .tab-btn:hover {
   opacity: 0.85;
@@ -988,12 +1008,11 @@ const saveConfig = () => {
   border-radius: 6px;
 }
 .shadow-info {
-  box-shadow: 0 0 10px rgba(6, 182, 212, 0.4);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
 }
 
-/* Scrollable config body list */
 .modal-body-custom {
-  height: 380px;
+  flex-grow: 1;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 6px;
@@ -1015,5 +1034,19 @@ const saveConfig = () => {
 
 .transition-all {
   transition: opacity 0.2s ease, pointer-events 0.2s ease;
+}
+
+/* Unify info classes with the same Blue color scheme */
+.btn-info {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+  border-color: #3b82f6 !important;
+}
+.btn-info:hover {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+}
+.text-info {
+  color: #3b82f6 !important;
 }
 </style>

@@ -136,7 +136,7 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMod
                   class="btn btn-sm btn-link p-1 hover-info d-flex align-items-center justify-content-center"
                   :title="viewMode === 'single' ? $t('stream.multipleView') : $t('stream.singleView')"
                   style="min-width: 32px; min-height: 32px;">
-            <i :class="viewMode === 'single' ? 'bi bi-grid-3x3-gap-fill text-slate-400' : 'bi bi-camera-fill text-slate-400'" style="font-size: 1rem; transition: color 0.2s ease, transform 0.2s ease; display: inline-block;"></i>
+            <i :class="viewMode === 'single' ? 'bi bi-grid-3x3-gap-fill text-info' : 'bi bi-camera-fill text-info'" style="font-size: 1rem; transition: color 0.2s ease, transform 0.2s ease; display: inline-block;"></i>
           </button>
 
           <!-- Separator between display mode and settings -->
@@ -147,7 +147,7 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMod
                   class="btn btn-sm btn-link p-1 hover-info d-flex align-items-center justify-content-center" 
                   title="System Settings"
                   style="min-width: 32px; min-height: 32px;">
-            <i class="bi bi-gear-fill text-slate-400" style="font-size: 1rem; transition: color 0.2s ease, transform 0.2s ease; display: inline-block;"></i>
+            <i class="bi bi-gear-fill text-info" style="font-size: 1rem; transition: color 0.2s ease, transform 0.2s ease; display: inline-block;"></i>
           </button>
 
           <!-- Separator between settings and logout -->
@@ -177,6 +177,25 @@ const emit = defineEmits(['toggle-force-mobile', 'openSystemConfig', 'setViewMod
 }
 .animate-pulse {
   animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Custom Blue Hover and Active Colors */
+.hover-info:hover i {
+  color: #3b82f6 !important;
+}
+
+.btn-info {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+  border-color: #3b82f6 !important;
+}
+.btn-info:hover {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+.text-info {
+  color: #3b82f6 !important;
 }
 
 @media (max-width: 480px) {

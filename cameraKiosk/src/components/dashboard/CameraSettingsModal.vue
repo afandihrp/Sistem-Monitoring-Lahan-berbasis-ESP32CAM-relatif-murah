@@ -114,6 +114,7 @@ const handleSaveAll = () => {
   if (!camSaved && !servoSaved) {
     alert('No settings were changed.')
   }
+  emit('close')
 }
 
 
@@ -121,7 +122,7 @@ const handleSaveAll = () => {
 
 <template>
   <div class="modal-overlay d-flex align-items-center justify-content-center p-3">
-    <div class="modal-content-custom bg-slate-900 border border-slate-700 rounded-3 shadow-lg d-flex flex-column" style="max-width: 500px; width: 100%; height: 90vh;">
+    <div class="modal-content-custom bg-slate-900 border border-slate-700 rounded-3 shadow-lg d-flex flex-column">
       
       <!-- Modal Header & Tabs -->
       <div class="p-3 pb-0 border-bottom border-slate-700 flex-shrink-0">
@@ -198,6 +199,20 @@ const handleSaveAll = () => {
 
 .modal-content-custom {
   animation: modalScale 0.2s ease-out;
+  max-width: 500px;
+  width: 100%;
+  height: 85vh;
+}
+
+@media (max-width: 576px) {
+  .modal-overlay {
+    align-items: flex-start !important;
+    padding-top: 60px !important;
+    padding-bottom: 30px !important;
+  }
+  .modal-content-custom {
+    height: 75vh;
+  }
 }
 
 @keyframes modalScale {
@@ -224,10 +239,14 @@ const handleSaveAll = () => {
   border-bottom-color: #334155;
 }
 .custom-tabs .nav-link.active {
-  color: #0dcaf0;
-  border-bottom-color: #0dcaf0;
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
   background: transparent;
-  text-shadow: 0 0 8px rgba(13, 202, 240, 0.4);
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+
+.text-info {
+  color: #3b82f6 !important;
 }
 
 /* Fade Transition */

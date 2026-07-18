@@ -68,10 +68,7 @@ const resetDials = () => {
           <input type="text" v-model="camConfig.name" class="form-control form-control-sm bg-slate-900 text-info border-slate-600 shadow-none focus-ring-info font-monospace" placeholder="e.g. Front Gate Camera" />
         </div>
 
-        <!-- Sensor Type Banner -->
-        <div class="p-2 bg-slate-800 rounded border border-slate-700 text-center">
-          <span class="text-slate-400 small fw-bold font-monospace">{{ $t('cameraConfig.targetSensor') }}: AI-THINKER OV2640 / OV3660</span>
-        </div>
+
 
         <!-- Format & Quality -->
         <div class="p-3 bg-slate-800 rounded-2 border border-slate-700">
