@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, watch, nextTick, computed } from 'vue'
 
 const props = defineProps({
   selectedDate: {
@@ -10,20 +10,24 @@ const props = defineProps({
 
 const emit = defineEmits(['dateSelected'])
 
-// Generate 30 days of dates (15 before today, 15 after)
 const dates = ref([])
-const activeIndex = ref(15)
+const activeIndex = ref(0)
 const scrollContainer = ref(null)
 let isProgrammaticScroll = false
 let isTouching = false
 
-const generateDates = () => {
+const getDaysInMonth = (year, month) => {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+const generateDatesForMonth = (date) => {
+  const year = date.getFullYear()
+  const month = date.getMonth()
+  const daysInMonth = getDaysInMonth(year, month)
+  
   const dateList = []
-  const today = new Date()
-  for (let i = -15; i <= 15; i++) {
-    const d = new Date()
-    d.setDate(today.getDate() + i)
-    dateList.push(d)
+  for (let i = 1; i <= daysInMonth; i++) {
+    dateList.push(new Date(year, month, i))
   }
   dates.value = dateList
 }
@@ -31,11 +35,9 @@ const generateDates = () => {
 const handleScroll = () => {
   if (isProgrammaticScroll || !scrollContainer.value) return
   
-  // Each item is 50px wide. Padding is 50% - 25px, so index 0 is at scrollLeft 0.
   const scrollLeft = scrollContainer.value.scrollLeft
   const newIndex = Math.round(scrollLeft / 50)
   
-  // Update visual state immediately for responsiveness
   if (newIndex >= 0 && newIndex < dates.value.length && newIndex !== activeIndex.value) {
     activeIndex.value = newIndex
   }
@@ -44,16 +46,14 @@ const handleScroll = () => {
 const handleTouchStart = () => {
   isTouching = true
 }
+
 const handleTouchEnd = () => {
   if (!isTouching) return
   isTouching = false
 
-  // Manual snapping on release
   if (scrollContainer.value) {
     const scrollLeft = scrollContainer.value.scrollLeft
     const finalIndex = Math.round(scrollLeft / 50)
-
-    // Ensure we are within bounds
     const clampedIndex = Math.max(0, Math.min(dates.value.length - 1, finalIndex))
 
     activeIndex.value = clampedIndex
@@ -80,49 +80,90 @@ const scrollToActive = () => {
     behavior: 'smooth'
   })
 
-  // Reset flag after smooth scroll finishes
   setTimeout(() => {
     isProgrammaticScroll = false
   }, 500)
 }
 
 const shiftDate = (dir) => {
-  selectDate(activeIndex.value + dir)
+  const targetIndex = activeIndex.value + dir
+  if (targetIndex < 0) {
+    changeMonth(-1, 'last')
+  } else if (targetIndex >= dates.value.length) {
+    changeMonth(1, 'first')
+  } else {
+    selectDate(targetIndex)
+  }
 }
 
+const changeMonth = (offset, selectDay = null) => {
+  const newDate = new Date(props.selectedDate)
+  newDate.setMonth(newDate.getMonth() + offset)
+  
+  if (selectDay === 'first') {
+    newDate.setDate(1)
+  } else if (selectDay === 'last') {
+    const maxDays = getDaysInMonth(newDate.getFullYear(), newDate.getMonth())
+    newDate.setDate(maxDays)
+  } else {
+    const originalDay = props.selectedDate.getDate()
+    const maxDays = getDaysInMonth(newDate.getFullYear(), newDate.getMonth())
+    if (originalDay > maxDays) {
+      newDate.setDate(maxDays)
+    } else {
+      newDate.setDate(originalDay)
+    }
+  }
+  
+  emit('dateSelected', newDate)
+}
+
+const currentMonthYearLabel = computed(() => {
+  return props.selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+})
+
 onMounted(() => {
-  generateDates()
+  generateDatesForMonth(props.selectedDate)
   nextTick(() => {
     scrollToActive()
   })
-  
-  // Check every minute if the day has rolled over
-  setInterval(() => {
-    if (dates.value.length > 15 && dates.value[15].toDateString() !== new Date().toDateString()) {
-      generateDates()
-      const index = dates.value.findIndex(d => d.toDateString() === props.selectedDate.toDateString())
-      if (index !== -1 && index !== activeIndex.value) {
-        activeIndex.value = index
-        scrollToActive()
-      }
-    }
-  }, 60000)
 })
 
-// Update internal index if prop changes from outside
 watch(() => props.selectedDate, (newDate) => {
-  const index = dates.value.findIndex(d => d.toDateString() === newDate.toDateString())
+  const currentFirstOf = dates.value.length > 0 ? dates.value[0] : null
+  if (!currentFirstOf || 
+      currentFirstOf.getFullYear() !== newDate.getFullYear() || 
+      currentFirstOf.getMonth() !== newDate.getMonth()) {
+    generateDatesForMonth(newDate)
+  }
+  
+  const index = dates.value.findIndex(d => d.getDate() === newDate.getDate())
   if (index !== -1 && index !== activeIndex.value) {
     activeIndex.value = index
-    scrollToActive()
+    nextTick(() => {
+      scrollToActive()
+    })
   }
 }, { immediate: true })
 </script>
 
 <template>
   <div class="date-sorter bg-slate-900 border-bottom border-slate-700 py-2">
+    <!-- Month and Year Switcher Above Tape -->
+    <div class="d-flex align-items-center justify-content-center gap-3 mb-2">
+      <button @click="changeMonth(-1)" class="btn btn-link text-primary p-1 shadow-none border-0">
+        <i class="bi bi-chevron-left fs-5"></i>
+      </button>
+      <span class="text-white fw-bold text-uppercase font-monospace" style="font-size: 0.85rem; letter-spacing: 1px;">
+        {{ currentMonthYearLabel }}
+      </span>
+      <button @click="changeMonth(1)" class="btn btn-link text-primary p-1 shadow-none border-0">
+        <i class="bi bi-chevron-right fs-5"></i>
+      </button>
+    </div>
+
     <div class="d-flex align-items-center px-1">
-      <!-- Left Arrow -->
+      <!-- Left Arrow (Shifts Day / Month) -->
       <button @click="shiftDate(-1)" class="btn btn-link text-primary p-1 z-3 shadow-none border-0">
         <i class="bi bi-chevron-left fs-4"></i>
       </button>
@@ -143,13 +184,13 @@ watch(() => props.selectedDate, (newDate) => {
         >
           <div 
             v-for="(date, index) in dates" 
-            :key="date.toISOString()"
+            :key="date.getDate()"
             @click="selectDate(index)"
             :class="['date-item', { 'active': index === activeIndex }]"
             class="d-flex flex-column align-items-center justify-content-center flex-shrink-0"
           >
             <span class="month-year text-uppercase font-monospace text-secondary" style="font-size: 0.6rem;">
-              {{ date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) }}
+              {{ date.toLocaleDateString('en-US', { weekday: 'short' }) }}
             </span>
             <span class="day-text fw-bold" :class="index === activeIndex ? 'text-primary' : 'text-slate-400'">
               {{ date.getDate() }}
@@ -161,7 +202,7 @@ watch(() => props.selectedDate, (newDate) => {
         <div class="selection-box-overlay position-absolute top-50 start-50 translate-middle border border-primary border-opacity-50 border-2 rounded pe-none" style="width: 52px; height: 58px; z-index: 0; pointer-events: none;"></div>
       </div>
 
-      <!-- Right Arrow -->
+      <!-- Right Arrow (Shifts Day / Month) -->
       <button @click="shiftDate(1)" class="btn btn-link text-primary p-1 z-3 shadow-none border-0">
         <i class="bi bi-chevron-right fs-4"></i>
       </button>

@@ -494,15 +494,19 @@ const handleSetActiveStream = (deviceId) => {
 
 // Mobile Pagination Logic
 const currentEventPage = ref(1)
-const eventsPerPage = 10
-const totalPages = computed(() => Math.ceil(filteredEvents.value.length / eventsPerPage) || 1)
+const eventsPerPage = ref(10)
+const totalPages = computed(() => Math.ceil(filteredEvents.value.length / eventsPerPage.value) || 1)
 
 const paginatedEvents = computed(() => {
-  const end = currentEventPage.value * eventsPerPage
+  const end = currentEventPage.value * eventsPerPage.value
   return filteredEvents.value.slice(0, end)
 })
 
 const loadMoreEvents = () => { if (currentEventPage.value < totalPages.value) currentEventPage.value++ }
+
+watch(eventsPerPage, () => {
+  currentEventPage.value = 1
+})
 
 // Window width tracking
 const windowWidth = ref(window.innerWidth)
@@ -564,10 +568,12 @@ const effectiveWindowWidth = computed(() => {
           :totalPages="totalPages" 
           :windowWidth="effectiveWindowWidth"
           :backendUrl="backendBaseUrl"
+          :eventsPerPage="eventsPerPage"
           @loadMoreEvents="loadMoreEvents"
           @dateSelected="handleDateSelected"
           @deleteSingle="handleDeleteSingleEvent"
           @deleteBatch="handleDeleteBatchEvents"
+          @update:eventsPerPage="val => eventsPerPage = val"
         />
       </aside>
     </main>

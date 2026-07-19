@@ -7,8 +7,6 @@ const sqlliteScheduler = require('./services/sqllite_scheduler');
 
 const state = require('./websocket/state');
 const {
-  CONFIG_FILE,
-  CAMERA_CONFIG_FILE,
   loadSystemSettings,
   saveSystemSettings,
   getEffectiveCameraConfig,
@@ -390,22 +388,19 @@ function initWebSocket(servers) {
               broadcastDeviceList();
 
               // Apply dynamic scaling if configured
-              if (fs.existsSync(CAMERA_CONFIG_FILE)) {
-                try {
-                  const allCamConfigs = JSON.parse(fs.readFileSync(CAMERA_CONFIG_FILE));
-                  const camConfig = allCamConfigs[device.mac];
-                  if (camConfig && camConfig.scaleMode === 'dynamic') {
-                    const configToSend = getEffectiveCameraConfig(camConfig, device);
-                    if (device.currentResolution !== configToSend.resolution || device.currentQuality !== configToSend.quality) {
-                      device.ws.send(JSON.stringify({ type: 'camera_config_update', config: configToSend }));
-                      device.currentResolution = configToSend.resolution;
-                      device.currentQuality = configToSend.quality;
-                      console.log(`Dynamic resolution scaling updated camera ${device.mac} to Res=${configToSend.resolution}, Qual=${configToSend.quality} (RSSI: ${device.signalRssi} dBm, Bars: ${device.signalBars})`);
-                    }
+              try {
+                const camConfig = getDeviceConfig(device.mac);
+                if (camConfig && camConfig.scaleMode === 'dynamic') {
+                  const configToSend = getEffectiveCameraConfig(camConfig, device);
+                  if (device.currentResolution !== configToSend.resolution || device.currentQuality !== configToSend.quality) {
+                    device.ws.send(JSON.stringify({ type: 'camera_config_update', config: configToSend }));
+                    device.currentResolution = configToSend.resolution;
+                    device.currentQuality = configToSend.quality;
+                    console.log(`Dynamic resolution scaling updated camera ${device.mac} to Res=${configToSend.resolution}, Qual=${configToSend.quality} (RSSI: ${device.signalRssi} dBm, Bars: ${device.signalBars})`);
                   }
-                } catch (e) {
-                  console.error('Error handling dynamic resolution scaling on signal update:', e);
                 }
+              } catch (e) {
+                console.error('Error handling dynamic resolution scaling on signal update:', e);
               }
             }
           } else if (data.type === 'sweep_status' && isCamera) {

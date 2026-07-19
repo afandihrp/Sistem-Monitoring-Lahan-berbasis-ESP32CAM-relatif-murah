@@ -46,39 +46,6 @@ db.exec(`
   )
 `);
 
-function getDeviceConfig(mac) {
-  const stmt = db.prepare('SELECT * FROM device_configs WHERE mac = ?');
-  const row = stmt.get(mac);
-  
-  if (!row) return null;
-  
-  // Cast integers back to booleans
-  const booleanKeys = ['awb', 'aec', 'agc', 'hmirror', 'vflip', 'flashOnCapture'];
-  for (const key of booleanKeys) {
-    if (row[key] !== null && row[key] !== undefined) {
-      row[key] = row[key] === 1;
-    }
-  }
-  return row;
-}
-
-function getAllDeviceConfigs() {
-  const stmt = db.prepare('SELECT * FROM device_configs');
-  const rows = stmt.all();
-  const result = {};
-  
-  const booleanKeys = ['awb', 'aec', 'agc', 'hmirror', 'vflip', 'flashOnCapture'];
-  for (const row of rows) {
-    for (const key of booleanKeys) {
-      if (row[key] !== null && row[key] !== undefined) {
-        row[key] = row[key] === 1;
-      }
-    }
-    result[row.mac] = row;
-  }
-  return result;
-}
-
 const defaultDeviceConfig = {
   name: 'New Camera',
   resolution: 'HVGA',
@@ -97,7 +64,7 @@ const defaultDeviceConfig = {
   agc: true,
   hmirror: false,
   vflip: false,
-  specialEffect: 0,
+  specialEffect: 'None',
   xclk: 20000000,
   flashOnCapture: false,
   flashIntensity: 0,
@@ -108,6 +75,39 @@ const defaultDeviceConfig = {
   servoMode: 'sweep',
   servoTimer: '15s'
 };
+
+function fillDefaults(row) {
+  if (!row) return null;
+  const merged = { ...row };
+  for (const key in defaultDeviceConfig) {
+    if (merged[key] === null || merged[key] === undefined) {
+      merged[key] = defaultDeviceConfig[key];
+    }
+  }
+  const booleanKeys = ['awb', 'aec', 'agc', 'hmirror', 'vflip', 'flashOnCapture'];
+  for (const key of booleanKeys) {
+    if (merged[key] !== null && merged[key] !== undefined) {
+      merged[key] = merged[key] === 1 || merged[key] === true;
+    }
+  }
+  return merged;
+}
+
+function getDeviceConfig(mac) {
+  const stmt = db.prepare('SELECT * FROM device_configs WHERE mac = ?');
+  const row = stmt.get(mac);
+  return fillDefaults(row);
+}
+
+function getAllDeviceConfigs() {
+  const stmt = db.prepare('SELECT * FROM device_configs');
+  const rows = stmt.all();
+  const result = {};
+  for (const row of rows) {
+    result[row.mac] = fillDefaults(row);
+  }
+  return result;
+}
 
 function upsertDeviceConfig(mac, config) {
   const existing = getDeviceConfig(mac) || defaultDeviceConfig;

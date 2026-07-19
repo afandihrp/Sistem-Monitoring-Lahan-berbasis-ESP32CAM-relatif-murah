@@ -35,6 +35,10 @@ const translateTrigger = (trigger) => {
 }
 
 const activeTab = ref('events')
+const displayMode = ref(localStorage.getItem('eventDisplayMode') || 'grid')
+watch(displayMode, (newMode) => {
+  localStorage.setItem('eventDisplayMode', newMode)
+})
 
 const props = defineProps({
   events: { type: Array, required: true },
@@ -43,11 +47,12 @@ const props = defineProps({
   currentEventPage: { type: Number, required: true },
   totalPages: { type: Number, required: true },
   windowWidth: { type: Number, required: true },
-  backendUrl: { type: String, default: '' }
+  backendUrl: { type: String, default: '' },
+  eventsPerPage: { type: Number, default: 10 }
 })
 
 // Sudah ditambahkan deleteSingle dan deleteBatch
-const emit = defineEmits(['loadMoreEvents', 'dateSelected', 'deleteSingle', 'deleteBatch'])
+const emit = defineEmits(['loadMoreEvents', 'dateSelected', 'deleteSingle', 'deleteBatch', 'update:eventsPerPage'])
 
 const formatEventTime = (timestamp) => {
   if (!timestamp) return 'N/A';
@@ -133,51 +138,115 @@ const openVideo = (event) => {
           <span class="badge bg-slate-700 text-secondary border border-slate-600 extra-small mt-1" style="width: fit-content;">{{ events.length }} {{ $t('events.on') }} {{ selectedDate.toLocaleDateString(locale === 'id' ? 'id-ID' : 'en-US', { month: 'short', day: 'numeric' }) }}</span>
         </div>
         
-        <button v-if="events.length > 0" @click="emit('deleteBatch', getFormattedDateForBatch())" class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size: 0.65rem;" :title="$t('events.clearDay')">
-          <i class="bi bi-trash3-fill"></i> {{ $t('events.clearDay') }}
-        </button>
+        <div class="d-flex align-items-center gap-2">
+          <!-- View Style Toggle (Grid/List) -->
+          <div v-if="windowWidth <= 1000" class="btn-group border border-slate-700 rounded overflow-hidden" style="padding: 1px; background-color: #0f172a;">
+            <button @click="displayMode = 'grid'" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', displayMode === 'grid' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.7rem; height: 22px; width: 24px; cursor: pointer;" title="Grid View">
+              <i class="bi bi-grid-fill"></i>
+            </button>
+            <button @click="displayMode = 'list'" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', displayMode === 'list' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.7rem; height: 22px; width: 24px; cursor: pointer;" title="List View">
+              <i class="bi bi-list-ul"></i>
+            </button>
+          </div>
+
+          <!-- Per Page Select Dropdown -->
+          <div v-if="windowWidth <= 1000" class="d-flex align-items-center gap-1 bg-slate-900 border border-slate-700 rounded px-2 py-1">
+            <span class="text-slate-500 font-monospace" style="font-size: 0.6rem;">LIMIT</span>
+            <select :value="eventsPerPage" @change="emit('update:eventsPerPage', Number($event.target.value))" class="form-select form-select-sm bg-transparent border-0 text-primary py-0 ps-1 pe-4 fw-bold font-monospace" style="font-size: 0.65rem; height: 18px; outline: none; box-shadow: none; cursor: pointer; width: 62px;">
+              <option value="10" class="bg-slate-900 text-white">10</option>
+              <option value="20" class="bg-slate-900 text-white">20</option>
+              <option value="50" class="bg-slate-900 text-white">50</option>
+              <option value="100" class="bg-slate-900 text-white">100</option>
+            </select>
+          </div>
+
+          <button v-if="events.length > 0" @click="emit('deleteBatch', getFormattedDateForBatch())" class="btn btn-outline-danger btn-sm py-1 px-2 d-flex align-items-center justify-content-center" style="font-size: 0.65rem; height: 28px;" :title="$t('events.clearDay')">
+            <i class="bi bi-trash3-fill"></i>
+          </button>
+        </div>
       </div>
     </div>
 
     <DateSorter v-if="windowWidth <= 1000" :selectedDate="selectedDate" @dateSelected="(date) => emit('dateSelected', date)" />
 
     <div class="overflow-auto custom-scrollbar flex-grow-1 event-list-container" style="min-height: 300px;">
-      <div v-if="events.length > 0" class="events-grid" :class="{ 'is-forced-mobile': windowWidth === 999 }">
-        <div v-for="event in (windowWidth <= 1000 ? paginatedEvents : events.slice(0, 5))" :key="event.id" class="event-card transition-all hover-bg">
-          
-          <div v-if="event.imageUrl" class="event-image-wrapper">
-            <img :src="getImageUrl(event.imageUrl)" @error="handleImageError" @click="openViewer(event)" class="event-image" alt="Snapshot" loading="lazy" />
-
-            <div class="event-badges">
-              <span v-if="event.humanPresence" class="badge bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center py-0 px-1 overlay-badge">
-                <i class="bi bi-person-fill"></i>
-              </span>
-            </div>
+      <div v-if="events.length > 0">
+        <!-- Grid View Mode -->
+        <div v-if="displayMode === 'grid' || windowWidth > 1000" class="events-grid" :class="{ 'is-forced-mobile': windowWidth === 999 }">
+          <div v-for="event in (windowWidth <= 1000 ? paginatedEvents : events.slice(0, 5))" :key="event.id" class="event-card transition-all hover-bg">
             
-            <button @click="emit('deleteSingle', event.timestamp)" class="btn btn-dark btn-sm text-danger delete-btn" title="Hapus rekaman ini">
-              <i class="bi bi-trash"></i>
-            </button>
-          </div>
+            <div v-if="event.imageUrl" class="event-image-wrapper">
+              <img :src="getImageUrl(event.imageUrl)" @error="handleImageError" @click="openViewer(event)" class="event-image" alt="Snapshot" loading="lazy" />
 
-          <!-- Actions for non-image logs -->
-          <div v-else class="d-flex justify-content-end p-2 pb-0">
-            <button @click="emit('deleteSingle', event.timestamp)" class="btn btn-dark btn-sm text-danger" title="Hapus rekaman ini">
-              <i class="bi bi-trash"></i>
-            </button>
-          </div>
-
-          <div class="event-details mt-2 px-2 pb-2">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <span class="fw-bold text-slate-200 text-truncate trigger-text" :title="translateTrigger(event.trigger)">{{ translateTrigger(event.trigger) }}</span>
-              <button v-if="event.videoUrl" @click="openVideo(event)" class="btn btn-sm btn-link text-primary p-0 d-flex align-items-center gap-1 text-decoration-none metadata-text" title="Play Video">
-                <i class="bi bi-play-circle-fill fs-5"></i>
+              <div class="event-badges">
+                <span v-if="event.humanPresence" class="badge bg-danger text-white border border-danger border-opacity-25 d-flex align-items-center py-0 px-1 overlay-badge">
+                  <i class="bi bi-person-fill"></i>
+                </span>
+              </div>
+              
+              <button @click="emit('deleteSingle', event.timestamp)" class="btn btn-dark btn-sm text-danger delete-btn" title="Hapus rekaman ini">
+                <i class="bi bi-trash"></i>
               </button>
             </div>
-            <div class="d-flex justify-content-between align-items-center text-secondary metadata-text">
-              <span class="font-monospace text-nowrap time-text">{{ formatEventTime(event.timestamp) }}</span>
+
+            <!-- Actions for non-image logs -->
+            <div v-else class="d-flex justify-content-end p-2 pb-0">
+              <button @click="emit('deleteSingle', event.timestamp)" class="btn btn-dark btn-sm text-danger" title="Hapus rekaman ini">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+
+            <div class="event-details mt-2 px-2 pb-2">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="fw-bold text-slate-200 text-truncate trigger-text" :title="translateTrigger(event.trigger)">{{ translateTrigger(event.trigger) }}</span>
+                <button v-if="event.videoUrl" @click="openVideo(event)" class="btn btn-sm btn-link text-primary p-0 d-flex align-items-center gap-1 text-decoration-none metadata-text" title="Play Video">
+                  <i class="bi bi-play-circle-fill fs-5"></i>
+                </button>
+              </div>
+              <div class="d-flex justify-content-between align-items-center text-secondary metadata-text">
+                <span class="font-monospace text-nowrap time-text">{{ formatEventTime(event.timestamp) }}</span>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+
+        <!-- List View Mode -->
+        <div v-else class="events-list d-flex flex-column px-2 py-1 gap-1" :class="{ 'is-forced-mobile-list': windowWidth === 999 }">
+          <div v-for="event in (windowWidth <= 1000 ? paginatedEvents : events.slice(0, 5))" :key="event.id" class="event-list-item d-flex align-items-center justify-content-between p-2 hover-bg border-bottom border-slate-800" style="background-color: #1e293b; border: 1px solid #334155; border-radius: 0.375rem;">
+            <div class="d-flex align-items-center gap-2 flex-grow-1 overflow-hidden">
+              <!-- Thumbnail -->
+              <div v-if="event.imageUrl" class="position-relative flex-shrink-0" style="width: 144px; height: 81px; border-radius: 4px; overflow: hidden; background-color: #0f172a;">
+                <img :src="getImageUrl(event.imageUrl)" @error="handleImageError" @click="openViewer(event)" class="w-100 h-100" style="object-fit: cover; cursor: pointer;" alt="Thumb" />
+                <span v-if="event.humanPresence" class="position-absolute top-0 start-0 badge bg-danger p-1 rounded-0" style="font-size: 0.5rem; line-height: 1; border-bottom-right-radius: 4px !important;">
+                  <i class="bi bi-person-fill"></i>
+                </span>
+              </div>
+              <div v-else class="d-flex align-items-center justify-content-center bg-slate-900 rounded flex-shrink-0 text-slate-500 border border-slate-800" style="width: 144px; height: 81px;">
+                <i class="bi bi-info-circle"></i>
+              </div>
+              
+              <!-- Details -->
+              <div class="d-flex flex-column overflow-hidden">
+                <span class="fw-bold text-slate-200 text-truncate" style="font-size: 0.75rem;" :title="translateTrigger(event.trigger)">
+                  {{ translateTrigger(event.trigger) }}
+                </span>
+                <span class="text-secondary font-monospace" style="font-size: 0.6rem;">
+                  {{ formatEventTime(event.timestamp) }}
+                </span>
+              </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="d-flex align-items-center gap-2 flex-shrink-0 ms-2">
+              <button v-if="event.videoUrl" @click="openVideo(event)" class="btn btn-sm btn-link text-primary p-0 d-flex align-items-center shadow-none border-0" title="Play Video">
+                <i class="bi bi-play-circle-fill fs-5"></i>
+              </button>
+              <button @click="emit('deleteSingle', event.timestamp)" class="btn btn-link text-danger p-0 d-flex align-items-center shadow-none border-0" style="font-size: 0.95rem; cursor: pointer;" title="Hapus rekaman ini">
+                <i class="bi bi-trash"></i>
+              </button>
             </div>
           </div>
-          
         </div>
       </div>
       
