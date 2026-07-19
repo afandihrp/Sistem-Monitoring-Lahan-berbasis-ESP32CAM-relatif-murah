@@ -5,6 +5,7 @@ import StreamView from './dashboard/StreamView.vue'
 import DeviceList from './dashboard/DeviceList.vue'
 import EventLogs from './dashboard/EventLogs.vue'
 import SystemSettingsModal from './dashboard/SystemSettingsModal.vue'
+import AnalyticsModal from './dashboard/AnalyticsModal.vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -86,6 +87,8 @@ const cameraBoxes = ref({})
 const viewMode = ref(localStorage.getItem('viewMode') || 'multiple')
 const showSystemConfig = ref(false)
 const showDeviceListModal = ref(false)
+const showAnalyticsModal = ref(false)
+const sortOrder = ref('desc')
 let lastObjectUrl = null
 
 const currentStreamIndex = ref(0)
@@ -354,10 +357,16 @@ const selectedDate = ref(new Date())
 const todayString = ref(new Date().toDateString())
 
 const filteredEvents = computed(() => {
-  return events.value.filter(event => {
+  const list = events.value.filter(event => {
     if (!event.timestamp) return false;
     const eventDate = new Date(event.timestamp);
     return eventDate.toDateString() === selectedDate.value.toDateString();
+  });
+  
+  return list.sort((a, b) => {
+    const timeA = new Date(a.timestamp).getTime();
+    const timeB = new Date(b.timestamp).getTime();
+    return sortOrder.value === 'desc' ? timeB - timeA : timeA - timeB;
   });
 });
 
@@ -569,11 +578,14 @@ const effectiveWindowWidth = computed(() => {
           :windowWidth="effectiveWindowWidth"
           :backendUrl="backendBaseUrl"
           :eventsPerPage="eventsPerPage"
+          :sortOrder="sortOrder"
           @loadMoreEvents="loadMoreEvents"
           @dateSelected="handleDateSelected"
           @deleteSingle="handleDeleteSingleEvent"
           @deleteBatch="handleDeleteBatchEvents"
           @update:eventsPerPage="val => eventsPerPage = val"
+          @openAnalytics="showAnalyticsModal = true"
+          @update:sortOrder="val => sortOrder = val"
         />
       </aside>
     </main>
@@ -599,6 +611,15 @@ const effectiveWindowWidth = computed(() => {
       :initialConfig="{ ...systemConfig, cameraDetectionEnabled: aiEnabled }"
       @close="showSystemConfig = false" 
       @save="handleSaveSystemConfig" 
+    />
+
+    <!-- Analytics & Statistics Modal -->
+    <AnalyticsModal 
+      v-if="showAnalyticsModal"
+      :events="events"
+      :selectedDate="selectedDate"
+      :devices="devices"
+      @close="showAnalyticsModal = false"
     />
   </div>
 </template>

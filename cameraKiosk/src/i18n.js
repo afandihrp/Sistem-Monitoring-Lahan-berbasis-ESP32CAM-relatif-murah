@@ -39,7 +39,8 @@ const messages = {
       next: 'Next',
       page: 'Page',
       of: 'of',
-      on: 'on'
+      on: 'on',
+      analytics: 'Analytics'
     },
     playback: {
       playback: 'PLAYBACK',
@@ -265,7 +266,8 @@ const messages = {
       next: 'Berikutnya',
       page: 'Halaman',
       of: 'dari',
-      on: 'pada'
+      on: 'pada',
+      analytics: 'Analisis'
     },
     playback: {
       playback: 'PEMUTARAN',

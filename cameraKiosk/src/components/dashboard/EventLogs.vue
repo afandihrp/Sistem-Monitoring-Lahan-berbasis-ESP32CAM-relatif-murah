@@ -48,11 +48,12 @@ const props = defineProps({
   totalPages: { type: Number, required: true },
   windowWidth: { type: Number, required: true },
   backendUrl: { type: String, default: '' },
-  eventsPerPage: { type: Number, default: 10 }
+  eventsPerPage: { type: Number, default: 10 },
+  sortOrder: { type: String, default: 'desc' }
 })
 
 // Sudah ditambahkan deleteSingle dan deleteBatch
-const emit = defineEmits(['loadMoreEvents', 'dateSelected', 'deleteSingle', 'deleteBatch', 'update:eventsPerPage'])
+const emit = defineEmits(['loadMoreEvents', 'dateSelected', 'deleteSingle', 'deleteBatch', 'update:eventsPerPage', 'openAnalytics', 'update:sortOrder'])
 
 const formatEventTime = (timestamp) => {
   if (!timestamp) return 'N/A';
@@ -139,6 +140,21 @@ const openVideo = (event) => {
         </div>
         
         <div class="d-flex align-items-center gap-2">
+          <!-- Statistics / Analytics Button -->
+          <button @click="emit('openAnalytics')" class="btn btn-sm btn-outline-info p-0 border-0 shadow-none d-flex align-items-center justify-content-center" style="font-size: 0.8rem; height: 22px; width: 24px; cursor: pointer; border-radius: 4px; background: rgba(59, 130, 246, 0.1);" :title="$t('events.analytics')">
+            <i class="bi bi-graph-up text-info"></i>
+          </button>
+
+          <!-- Sort Order Toggle (Ascending/Descending) -->
+          <div class="btn-group border border-slate-700 rounded overflow-hidden" style="padding: 1px; background-color: #0f172a;" title="Sort Direction">
+            <button @click="emit('update:sortOrder', 'desc')" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', sortOrder === 'desc' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.7rem; height: 22px; width: 24px; cursor: pointer;" :title="locale === 'id' ? 'Terbaru Pertama' : 'Newest First'">
+              <i class="bi bi-sort-down"></i>
+            </button>
+            <button @click="emit('update:sortOrder', 'asc')" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', sortOrder === 'asc' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.7rem; height: 22px; width: 24px; cursor: pointer;" :title="locale === 'id' ? 'Terlama Pertama' : 'Oldest First'">
+              <i class="bi bi-sort-up"></i>
+            </button>
+          </div>
+
           <!-- View Style Toggle (Grid/List) -->
           <div v-if="windowWidth <= 1000" class="btn-group border border-slate-700 rounded overflow-hidden" style="padding: 1px; background-color: #0f172a;">
             <button @click="displayMode = 'grid'" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', displayMode === 'grid' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.7rem; height: 22px; width: 24px; cursor: pointer;" title="Grid View">
