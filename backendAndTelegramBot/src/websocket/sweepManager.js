@@ -15,54 +15,48 @@ function updateDeviceAutoSweep(deviceId) {
   const device = state.devices.get(deviceId);
   if (!device || !device.mac || device.status === 'Offline') return;
 
-  // Read sweepMode from config file
-  let sweepMode = 'disabled';
+  // Read servoMode and servoTimer from config file
+  let servoMode = 'sweep';
+  let servoTimer = 'disabled';
   const config = getDeviceConfig(device.mac);
-  if (config && config.sweepMode) {
-    sweepMode = config.sweepMode;
+  if (config) {
+    if (config.servoMode) servoMode = config.servoMode;
+    if (config.servoTimer) servoTimer = config.servoTimer;
   }
 
-  console.log(`[Auto Sweep] Updating sweep state for ${deviceId} (MAC: ${device.mac}). Mode: ${sweepMode}`);
+  console.log(`[Auto Sweep] Updating sweep state for ${deviceId} (MAC: ${device.mac}). Mode: ${servoMode}, Timer: ${servoTimer}`);
 
-  if (sweepMode === 'continuous') {
-    // Continuous sweep is handled directly on ESP32CAM firmware
-    updateDeviceSweepState(deviceId, 'continuous');
-    if (device) {
-      device.nextSweepTime = null;
-      broadcastDeviceList();
-    }
-  } else if (['15s', '30s', '1m', '2m', '3m', '4m', '5m'].includes(sweepMode)) {
-    // If continuous sweep was previously running, stop it first
+  if (servoMode === 'sweep' && ['15s', '30s', '1m', '2m', '3m', '4m', '5m'].includes(servoTimer)) {
     updateDeviceSweepState(deviceId, 'off');
 
     let intervalMs = 15000;
-    if (sweepMode === '30s') intervalMs = 30000;
-    else if (sweepMode === '1m') intervalMs = 60000;
-    else if (sweepMode === '2m') intervalMs = 120000;
-    else if (sweepMode === '3m') intervalMs = 180000;
-    else if (sweepMode === '4m') intervalMs = 240000;
-    else if (sweepMode === '5m') intervalMs = 300000;
+    if (servoTimer === '30s') intervalMs = 30000;
+    else if (servoTimer === '1m') intervalMs = 60000;
+    else if (servoTimer === '2m') intervalMs = 120000;
+    else if (servoTimer === '3m') intervalMs = 180000;
+    else if (servoTimer === '4m') intervalMs = 240000;
+    else if (servoTimer === '5m') intervalMs = 300000;
 
-    scheduleNextSweep(deviceId, intervalMs, sweepMode);
+    scheduleNextSweep(deviceId, intervalMs, servoTimer);
   } else {
     // Disabled / off
     updateDeviceSweepState(deviceId, 'off');
     if (device) {
-      device.nextSweepTime = null;
+      device.nextTimerTime = null;
       broadcastDeviceList();
     }
   }
 }
 
-function scheduleNextSweep(deviceId, intervalMs, sweepMode) {
+function scheduleNextSweep(deviceId, intervalMs, servoTimer) {
   if (deviceSweepIntervals.has(deviceId)) {
     clearTimeout(deviceSweepIntervals.get(deviceId).timer);
   }
 
-  const nextSweepTime = Date.now() + intervalMs;
+  const nextTimerTime = Date.now() + intervalMs;
   const dev = state.devices.get(deviceId);
   if (dev) {
-    dev.nextSweepTime = nextSweepTime;
+    dev.nextTimerTime = nextTimerTime;
     broadcastDeviceList();
   }
 
@@ -71,14 +65,14 @@ function scheduleNextSweep(deviceId, intervalMs, sweepMode) {
     if (dev && dev.status === 'Online' && dev.ws && dev.ws.readyState === 1) {
       if (dev.sweepActive !== 'off') {
          console.log(`[Auto Sweep] Skipped - device ${deviceId} is currently already sweeping`);
-         scheduleNextSweep(deviceId, intervalMs, sweepMode);
+         scheduleNextSweep(deviceId, intervalMs, servoTimer);
          return;
       }
       // For Smart Sweep, ensure the device is truly idle before triggering
-      if (['2m', '3m', '4m', '5m'].includes(sweepMode)) {
+      if (['2m', '3m', '4m', '5m'].includes(servoTimer)) {
         if (dev.isRecordingAi || dev.isPirActive || dev.trackingReturnTimer) {
-           console.log(`[Auto Sweep] Skipped ${sweepMode} smart sweep for ${deviceId} (Device is currently busy/tracking)`);
-           scheduleNextSweep(deviceId, intervalMs, sweepMode);
+           console.log(`[Auto Sweep] Skipped ${servoTimer} smart sweep for ${deviceId} (Device is currently busy/tracking)`);
+           scheduleNextSweep(deviceId, intervalMs, servoTimer);
            return;
         }
       }
@@ -89,7 +83,7 @@ function scheduleNextSweep(deviceId, intervalMs, sweepMode) {
         deviceSweepIntervals.get(deviceId).timer = null;
       }
       if (dev) {
-        dev.nextSweepTime = null;
+        dev.nextTimerTime = null;
         broadcastDeviceList();
       }
 
@@ -100,7 +94,7 @@ function scheduleNextSweep(deviceId, intervalMs, sweepMode) {
   deviceSweepIntervals.set(deviceId, {
     timer,
     intervalMs,
-    sweepMode
+    servoTimer
   });
 }
 
@@ -109,9 +103,9 @@ function resetIdleTimer(deviceId) {
   if (!activeTimer) return;
 
   // Re-establish timer starting from now
-  scheduleNextSweep(deviceId, activeTimer.intervalMs, activeTimer.sweepMode);
+  scheduleNextSweep(deviceId, activeTimer.intervalMs, activeTimer.servoTimer);
   
-  if (activeTimer.sweepMode === '5m') {
+  if (activeTimer.servoTimer === '5m') {
      // console.log(`[Auto Sweep] Reset 5-minute idle watchdog timer for device: ${deviceId}`);
   }
 }
@@ -129,7 +123,7 @@ function suspendDeviceSweepTimer(deviceId) {
   }
   const dev = state.devices.get(deviceId);
   if (dev) {
-    dev.nextSweepTime = null;
+    dev.nextTimerTime = null;
     broadcastDeviceList();
   }
 }
@@ -142,7 +136,7 @@ function clearDeviceSweep(deviceId) {
   }
   const dev = state.devices.get(deviceId);
   if (dev) {
-    dev.nextSweepTime = null;
+    dev.nextTimerTime = null;
     broadcastDeviceList();
   }
 }

@@ -21,17 +21,29 @@ const sweepOptions = [
   { value: '2m', val: '2', suffixKey: 'servo.min', tickLabel: '2m' },
   { value: '3m', val: '3', suffixKey: 'servo.min', tickLabel: '3m' },
   { value: '4m', val: '4', suffixKey: 'servo.min', tickLabel: '4m' },
-  { value: '5m', val: '5', suffixKey: 'servo.min', tickLabel: '5m' },
-  { value: 'continuous', labelKey: 'servo.continuous', isKey: true, tickLabel: 'Cont' }
+  { value: '5m', val: '5', suffixKey: 'servo.min', tickLabel: '5m' }
 ]
+
+const servoMode = computed({
+  get: () => {
+    return servoConfig.value.servoMode || 'sweep';
+  },
+  set: (mode) => {
+    servoConfig.value.servoMode = mode;
+    // Set a default timer value if currently disabled, to make it easier for user to use
+    if (servoConfig.value.servoTimer === 'disabled') {
+       servoConfig.value.servoTimer = '15s';
+    }
+  }
+})
 
 const sweepSliderIndex = computed({
   get: () => {
-    const idx = sweepOptions.findIndex(o => o.value === servoConfig.value.sweepMode);
+    const idx = sweepOptions.findIndex(o => o.value === servoConfig.value.servoTimer);
     return idx >= 0 ? idx : 0;
   },
   set: (val) => {
-    servoConfig.value.sweepMode = sweepOptions[val].value;
+    servoConfig.value.servoTimer = sweepOptions[val].value;
   }
 })
 
@@ -80,64 +92,70 @@ const handleThumbEnd = () => {
 <template>
   <div class="d-flex flex-column h-100">
     <div class="flex-grow-1 overflow-auto pe-1 custom-scrollbar">
-        <!-- Default Angle -->
-        <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
-          <div class="d-flex justify-content-between align-items-center mb-2">
+      <!-- Selectable Servo Mode: Sweep vs Auto Return -->
+      <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
+        <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">Servo Mode</label>
+        <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Choose whether the camera sweeps or returns to default angle after tracking.</span>
+        <div class="d-flex gap-2">
+          <button 
+            type="button"
+            @click="servoMode = 'sweep'" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase', servoMode === 'sweep' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem;">
+            Sweep Mode
+          </button>
+          <button 
+            type="button"
+            @click="servoMode = 'return'" 
+            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase', servoMode === 'return' ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
+            style="font-size: 0.75rem;">
+            Auto Return Mode
+          </button>
+        </div>
+      </div>
+
+      <!-- Servo Timer Option Selectors (Snapping Slider) -->
+      <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <label class="text-slate-300 small fw-bold text-uppercase">Servo Timer</label>
+          <span class="text-info font-monospace small fw-bold">
+            <template v-if="sweepOptions[sweepSliderIndex].isKey">
+              {{ t(sweepOptions[sweepSliderIndex].labelKey) }}
+            </template>
+            <template v-else>
+              {{ sweepOptions[sweepSliderIndex].val }}{{ t(sweepOptions[sweepSliderIndex].suffixKey) }}
+            </template>
+          </span>
+        </div>
+        <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">Set the camera sweep interval timer or select Cont for continuous sweeping. Select Off to disable sweeping.</span>
+        
+        <input type="range" class="form-range custom-slider" min="0" :max="sweepOptions.length - 1" step="1" v-model.number="sweepSliderIndex">
+        
+        <!-- Tick marks -->
+        <div class="position-relative mt-2" style="height: 20px;">
+          <span v-for="(opt, index) in sweepOptions" :key="opt.value" 
+                class="position-absolute text-center"
+                :style="{ 
+                  left: `calc(${(index / (sweepOptions.length - 1)) * 100}% - 15px)`, 
+                  width: '30px',
+                  fontSize: '0.6rem',
+                  color: sweepSliderIndex === index ? '#0dcaf0' : '#ffffff',
+                  fontWeight: sweepSliderIndex === index ? 'bold' : 'normal',
+                  textShadow: sweepSliderIndex === index ? '0 0 5px rgba(13, 202, 240, 0.6)' : 'none',
+                  transition: 'all 0.2s ease'
+                }">
+            {{ opt.tickLabel }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Default Angle -->
+      <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
+        <div class="d-flex justify-content-between align-items-center mb-2">
           <label class="text-slate-300 small fw-bold">{{ t('servo.defaultAngle') }}</label>
           <span class="text-info font-monospace small">{{ servoConfig.defaultAngle }}°</span>
         </div>
         <input type="range" class="form-range custom-slider" min="0" max="180" v-model.number="servoConfig.defaultAngle">
-      </div>
-
-      <!-- Return to Default Duration -->
-      <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
-        <label class="text-slate-300 small fw-bold mb-2 text-uppercase d-block">{{ t('servo.autoReturn') }}</label>
-        <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">{{ t('servo.autoReturnDesc') }}</span>
-        
-        <div class="d-flex gap-2 justify-content-between flex-wrap">
-          <button 
-            type="button"
-            @click="servoConfig.returnToDefaultDuration = 0" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 0 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem; min-width: 65px;">
-            {{ t('servo.disabled') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.returnToDefaultDuration = 3" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 3 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            3{{ t('servo.sec') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.returnToDefaultDuration = 5" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 5 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            5{{ t('servo.sec') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.returnToDefaultDuration = 15" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 15 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            15{{ t('servo.sec') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.returnToDefaultDuration = 30" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 30 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            30{{ t('servo.sec') }}
-          </button>
-          <button 
-            type="button"
-            @click="servoConfig.returnToDefaultDuration = 60" 
-            :class="['btn flex-grow-1 py-2 fw-bold text-uppercase duration-btn', servoConfig.returnToDefaultDuration === 60 ? 'btn-info text-dark shadow-info' : 'btn-outline-secondary text-slate-300']"
-            style="font-size: 0.75rem;">
-            60{{ t('servo.sec') }}
-          </button>
-        </div>
       </div>
 
       <!-- PIR Mapping (Multi-Thumb Slider) -->
@@ -243,43 +261,8 @@ const handleThumbEnd = () => {
           </div>
         </div>
       </div>
-
-      <!-- Servo Sweep Option Selectors (Snapping Slider) -->
-      <div class="mb-4 p-3 bg-slate-800 rounded-2 border border-slate-700">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <label class="text-slate-300 small fw-bold text-uppercase">{{ t('servo.servoSweep') }}</label>
-          <span class="text-info font-monospace small fw-bold">
-            <template v-if="sweepOptions[sweepSliderIndex].isKey">
-              {{ t(sweepOptions[sweepSliderIndex].labelKey) }}
-            </template>
-            <template v-else>
-              {{ sweepOptions[sweepSliderIndex].val }}{{ t(sweepOptions[sweepSliderIndex].suffixKey) }}
-            </template>
-          </span>
-        </div>
-        <span class="text-slate-500 d-block mb-3" style="font-size: 0.7rem;">{{ t('servo.sweepDesc') }}</span>
-        
-        <input type="range" class="form-range custom-slider" min="0" :max="sweepOptions.length - 1" step="1" v-model.number="sweepSliderIndex">
-        
-        <!-- Tick marks -->
-        <div class="position-relative mt-2" style="height: 20px;">
-          <span v-for="(opt, index) in sweepOptions" :key="opt.value" 
-                class="position-absolute text-center"
-                :style="{ 
-                  left: `calc(${(index / (sweepOptions.length - 1)) * 100}% - 15px)`, 
-                  width: '30px',
-                  fontSize: '0.6rem',
-                  color: sweepSliderIndex === index ? '#0dcaf0' : '#ffffff',
-                  fontWeight: sweepSliderIndex === index ? 'bold' : 'normal',
-                  textShadow: sweepSliderIndex === index ? '0 0 5px rgba(13, 202, 240, 0.6)' : 'none',
-                  transition: 'all 0.2s ease'
-                }">
-            {{ opt.tickLabel }}
-          </span>
-        </div>
-        </div>
-      </div>
     </div>
+  </div>
 </template>
 
 <style scoped>

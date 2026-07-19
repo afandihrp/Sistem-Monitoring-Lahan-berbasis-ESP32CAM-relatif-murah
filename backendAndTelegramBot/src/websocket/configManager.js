@@ -92,10 +92,18 @@ function getEffectiveCameraConfig(config, device) {
 
 function getReturnDuration(mac) {
   const config = getDeviceConfig(mac);
-  if (config && config.returnToDefaultDuration !== undefined && config.returnToDefaultDuration !== null) {
-    return Number(config.returnToDefaultDuration) * 1000;
+  if (config && config.servoMode === 'return' && config.servoTimer && config.servoTimer !== 'disabled') {
+    let intervalMs = 15000;
+    if (config.servoTimer === '15s') intervalMs = 15000;
+    else if (config.servoTimer === '30s') intervalMs = 30000;
+    else if (config.servoTimer === '1m') intervalMs = 60000;
+    else if (config.servoTimer === '2m') intervalMs = 120000;
+    else if (config.servoTimer === '3m') intervalMs = 180000;
+    else if (config.servoTimer === '4m') intervalMs = 240000;
+    else if (config.servoTimer === '5m') intervalMs = 300000;
+    return intervalMs;
   }
-  return 15000; // Default fallback
+  return 0; // Disabled or not in return mode
 }
 
 function getDefaultAngle(mac) {

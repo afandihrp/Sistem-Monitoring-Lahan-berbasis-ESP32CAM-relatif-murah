@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const state = require('./state');
 const { getDefaultAngle, getReturnDuration } = require('./configManager');
-const { updateDeviceServoAngle, serializeFrame, updateDeviceSweepState } = require('./deviceManager');
+const { updateDeviceServoAngle, serializeFrame, updateDeviceSweepState, broadcastDeviceList } = require('./deviceManager');
 const { getDeviceConfig } = require('../services/sqllite_config');
 
 const { yoloClient, pixelClient, aiClient } = require('../services/aiClient');
@@ -158,26 +158,12 @@ function stopAiRecording(deviceId, reason) {
           });
           state.broadcastToKiosks(payloadLogs);
         }
-
-        // Instruct camera to return to default position
-        const defaultAngle = getDefaultAngle(device.mac);
-        updateDeviceServoAngle(deviceId, defaultAngle);
-        updateDeviceAutoSweep(deviceId);
-        console.log(`[AI Record] Sent return-to-center command after video rendering completed.`);
       })
       .catch(err => {
         console.error(`[AI Record] Gagal merender video: ${err.message}`);
-        // Fallback return-to-center in case of rendering errors
-        const defaultAngle = getDefaultAngle(device.mac);
-        updateDeviceServoAngle(deviceId, defaultAngle);
-        updateDeviceAutoSweep(deviceId);
       });
   } else {
     console.log(`[AI Record] Stop AI Event: no frames to render for ${deviceId}. Skipping rendering.`);
-    // Instruct camera to return to default position
-    const defaultAngle = getDefaultAngle(device.mac);
-    updateDeviceServoAngle(deviceId, defaultAngle);
-    updateDeviceAutoSweep(deviceId);
   }
 }
 
@@ -217,11 +203,21 @@ function triggerAiWorker() {
       device.personDetected = personDetected;
       // Logika Perekaman AI
       if (personDetected) {
+        // Cancel return-to-center timer immediately because person is detected
+        if (device.trackingReturnTimer) {
+          clearTimeout(device.trackingReturnTimer);
+          device.trackingReturnTimer = null;
+          device.nextTimerTime = null;
+          broadcastDeviceList();
+          console.log(`[Servo Auto Return] Person detected on ${deviceId}. Cancelled return-to-center timer.`);
+        }
+
         // Pause any active sweep so the object follower can take over from the current angle
         if (device.sweepActive !== 'off') {
           updateDeviceSweepState(deviceId, 'off');
           console.log(`[AI Detection] Ongoing sweep paused for ${deviceId} — object follower taking over.`);
         }
+        device.isTracking = true;
         suspendDeviceSweepTimer(deviceId);
         if (device.aiStopTimer) {
           clearTimeout(device.aiStopTimer);
@@ -231,12 +227,6 @@ function triggerAiWorker() {
 
         // Object Follower: track human if AI is online and tracking is enabled
         if (state.globalObjectTracking) {
-          // Cancel return-to-center timer because person is detected
-          if (device.trackingReturnTimer) {
-            clearTimeout(device.trackingReturnTimer);
-            device.trackingReturnTimer = null;
-            console.log(`[Object Follower] Person present. Cancelled return-to-center timer for ${deviceId}.`);
-          }
           // Reset manual override cooldown when person is detected in frame
           device.lastManualControlTime = null;
 
@@ -499,24 +489,38 @@ function triggerAiWorker() {
           }
         }
 
-        // Object Follower: if no person detected, schedule return to center after 3 seconds
-        if (state.globalObjectTracking) {
-          const defaultAngle = getDefaultAngle(device.mac);
-          const now = Date.now();
-          const manualControlAge = device.lastManualControlTime ? (now - device.lastManualControlTime) : Infinity;
-          const returnDuration = getReturnDuration(device.mac);
-          if (returnDuration > 0 && device.currentAngle !== defaultAngle && !device.trackingReturnTimer && manualControlAge > returnDuration) {
-            console.log(`[Object Follower] No person detected on ${deviceId}. Scheduling return-to-center in ${returnDuration/1000} seconds...`);
-            device.trackingReturnTimer = setTimeout(() => {
-               if (!device.isRecordingAi && !device.isPirActive) {
-                    const defAngle = getDefaultAngle(device.mac);
-                    updateDeviceServoAngle(deviceId, defAngle);
-                    updateDeviceAutoSweep(deviceId); // Resume configured sweep mode on return to center
-                    console.log(`[Object Follower] Returned servo to default ${defAngle}° for ${deviceId} after ${returnDuration/1000}s of no detection.`);
-               }
-               device.trackingReturnTimer = null;
-            }, returnDuration);
-          }
+        // Servo Auto Return: if no person detected, schedule return to center after returnToDefaultDuration
+        const defaultAngle = getDefaultAngle(device.mac);
+        const now = Date.now();
+        const manualControlAge = device.lastManualControlTime ? (now - device.lastManualControlTime) : Infinity;
+        const returnDuration = getReturnDuration(device.mac);
+        
+        // Diagnostic log (throttled to once every 3 seconds to avoid spamming console)
+        if (!device._lastReturnDiagTime || now - device._lastReturnDiagTime > 3000) {
+          device._lastReturnDiagTime = now;
+          console.log(`[Servo Auto Return Diag] Device: ${deviceId}, currentAngle: ${device.currentAngle}, defaultAngle: ${defaultAngle}, returnDuration: ${returnDuration}, hasTimer: ${!!device.trackingReturnTimer}, manualAge: ${manualControlAge}`);
+        }
+
+        if (returnDuration > 0 && device.currentAngle !== defaultAngle && !device.trackingReturnTimer) {
+          device.isTracking = false;
+          console.log(`[Servo Auto Return] No person detected on ${deviceId}. Scheduling return-to-center in ${returnDuration/1000} seconds...`);
+          device.nextTimerTime = Date.now() + returnDuration;
+          broadcastDeviceList();
+          device.trackingReturnTimer = setTimeout(() => {
+             if (!device.isRecordingAi && !device.isPirActive) {
+                  const defAngle = getDefaultAngle(device.mac);
+                  updateDeviceServoAngle(deviceId, defAngle);
+                  updateDeviceAutoSweep(deviceId); // Resume configured sweep mode on return to center
+                  console.log(`[Servo Auto Return] Returned servo to default ${defAngle}° for ${deviceId} after ${returnDuration/1000}s of no detection.`);
+             }
+             device.trackingReturnTimer = null;
+             device.nextTimerTime = null;
+             broadcastDeviceList();
+          }, returnDuration);
+        } else if (returnDuration === 0 && device.isTracking) {
+          device.isTracking = false;
+          updateDeviceAutoSweep(deviceId);
+          console.log(`[Servo Auto Sweep] No person detected on ${deviceId}. Resuming sweep timer cooldown...`);
         }
       }
 

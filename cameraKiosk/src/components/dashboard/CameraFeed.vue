@@ -17,6 +17,7 @@ const props = defineProps({
   aiEnabled: {
     type: Boolean,
     default: true
+  },
   detectionMode: {
     type: String,
     default: 'AI'

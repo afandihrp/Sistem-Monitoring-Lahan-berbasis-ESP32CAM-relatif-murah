@@ -261,15 +261,18 @@ function initWebSocket(servers) {
         state.broadcastToKiosks(activeStreamPayload);
       }
 
-      if (fs.existsSync(CONFIG_FILE)) {
+      // Ensure a default database entry exists if it's a new camera deployment
+      let config = getDeviceConfig(macAddress);
+      if (!config) {
+        upsertDeviceConfig(macAddress, {}); // Will automatically merge with defaultDeviceConfig inside sqllite_config
+        config = getDeviceConfig(macAddress);
+      }
+
+      if (config) {
         try {
-          const allConfigs = JSON.parse(fs.readFileSync(CONFIG_FILE));
-          const config = allConfigs[macAddress];
-          if (config) {
-            ws.send(JSON.stringify({ type: 'servo_config_update', config }));
-            console.log(`Sent servo config to camera ${macAddress}`);
-          }
-        } catch (e) { console.error('Error sending config to camera:', e); }
+          ws.send(JSON.stringify({ type: 'servo_config_update', config }));
+          console.log(`Sent servo config to camera ${macAddress}`);
+        } catch (e) { console.error('Error sending servo config to camera:', e); }
       }
 
       // Send system settings (PIR config & UDP stream mode) to the camera on boot
@@ -283,18 +286,14 @@ function initWebSocket(servers) {
         console.log(`Sent system settings to camera ${macAddress} (PIR Enabled: ${state.globalSystemConfig.pirEnabled}, Cooldown: ${state.globalSystemConfig.pirCooldown}s, UDP Stream: ${state.globalSystemConfig.udpStreamEnabled})`);
       } catch (e) { console.error('Error sending system settings to camera:', e); }
 
-      if (fs.existsSync(CAMERA_CONFIG_FILE)) {
+      if (config) {
         try {
-          const allCamConfigs = JSON.parse(fs.readFileSync(CAMERA_CONFIG_FILE));
-          const camConfig = allCamConfigs[macAddress];
-          if (camConfig) {
-            const device = state.devices.get(deviceId);
-            const configToSend = getEffectiveCameraConfig(camConfig, device);
-            ws.send(JSON.stringify({ type: 'camera_config_update', config: configToSend }));
-            device.currentResolution = configToSend.resolution;
-            device.currentQuality = configToSend.quality;
-            console.log(`Sent camera sensor config on boot to camera ${macAddress} (scaleMode: ${camConfig.scaleMode || 'static'}, Res: ${configToSend.resolution}, Qual: ${configToSend.quality})`);
-          }
+          const device = state.devices.get(deviceId);
+          const configToSend = getEffectiveCameraConfig(config, device);
+          ws.send(JSON.stringify({ type: 'camera_config_update', config: configToSend }));
+          device.currentResolution = configToSend.resolution;
+          device.currentQuality = configToSend.quality;
+          console.log(`Sent camera sensor config on boot to camera ${macAddress} (scaleMode: ${config.scaleMode || 'static'}, Res: ${configToSend.resolution}, Qual: ${configToSend.quality})`);
         } catch (e) { console.error('Error sending camera config on boot to camera:', e); }
       }
     } else {
@@ -663,6 +662,8 @@ function initWebSocket(servers) {
               if (device.trackingReturnTimer) {
                 clearTimeout(device.trackingReturnTimer);
                 device.trackingReturnTimer = null;
+                device.nextTimerTime = null;
+                broadcastDeviceList();
                 console.log(`[Object Follower] Cancelled return-to-center due to manual control for ${data.deviceId}`);
               }
               // Cancel any active auto sweep
@@ -705,7 +706,11 @@ function initWebSocket(servers) {
               updateDeviceAutoSweep(cameraDevice.id);
             }
           } else if (data.type === 'get_camera_config' && !isCamera) {
-            const config = getDeviceConfig(data.mac);
+            let config = getDeviceConfig(data.mac);
+            if (!config) {
+              upsertDeviceConfig(data.mac, {});
+              config = getDeviceConfig(data.mac);
+            }
             ws.send(JSON.stringify({ type: 'camera_config_response', mac: data.mac, config }));
           } else if (data.type === 'save_camera_config' && !isCamera) {
             upsertDeviceConfig(data.mac, data.config);

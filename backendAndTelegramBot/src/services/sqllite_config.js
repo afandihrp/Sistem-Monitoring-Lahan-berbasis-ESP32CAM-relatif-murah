@@ -41,8 +41,8 @@ db.exec(`
     leftPirAngle INTEGER,
     middlePirAngle INTEGER,
     rightPirAngle INTEGER,
-    returnToDefaultDuration INTEGER,
-    sweepMode TEXT
+    servoMode TEXT,
+    servoTimer TEXT
   )
 `);
 
@@ -79,8 +79,38 @@ function getAllDeviceConfigs() {
   return result;
 }
 
+const defaultDeviceConfig = {
+  name: 'New Camera',
+  resolution: 'HVGA',
+  quality: 12,
+  scaleMode: 'static',
+  dynRes5: 'UXGA', dynQual5: 10,
+  dynRes4: 'SVGA', dynQual4: 12,
+  dynRes3: 'VGA', dynQual3: 15,
+  dynRes2: 'QQVGA', dynQual2: 20,
+  dynRes1: '96X96', dynQual1: 25,
+  brightness: 0,
+  contrast: 0,
+  saturation: 0,
+  awb: true,
+  aec: true,
+  agc: true,
+  hmirror: false,
+  vflip: false,
+  specialEffect: 0,
+  xclk: 20000000,
+  flashOnCapture: false,
+  flashIntensity: 0,
+  defaultAngle: 90,
+  leftPirAngle: 155,
+  middlePirAngle: 90,
+  rightPirAngle: 0,
+  servoMode: 'sweep',
+  servoTimer: '15s'
+};
+
 function upsertDeviceConfig(mac, config) {
-  const existing = getDeviceConfig(mac) || {};
+  const existing = getDeviceConfig(mac) || defaultDeviceConfig;
   const merged = { ...existing, ...config };
   
   // Cast booleans to integers
@@ -96,13 +126,13 @@ function upsertDeviceConfig(mac, config) {
       dynRes5, dynQual5, dynRes4, dynQual4, dynRes3, dynQual3,
       dynRes2, dynQual2, dynRes1, dynQual1, brightness, contrast,
       saturation, awb, aec, agc, hmirror, vflip, specialEffect, xclk, flashOnCapture, flashIntensity,
-      defaultAngle, leftPirAngle, middlePirAngle, rightPirAngle, returnToDefaultDuration, sweepMode
+      defaultAngle, leftPirAngle, middlePirAngle, rightPirAngle, servoMode, servoTimer
     ) VALUES (
       @mac, @name, @resolution, @quality, @scaleMode,
       @dynRes5, @dynQual5, @dynRes4, @dynQual4, @dynRes3, @dynQual3,
       @dynRes2, @dynQual2, @dynRes1, @dynQual1, @brightness, @contrast,
       @saturation, @awb, @aec, @agc, @hmirror, @vflip, @specialEffect, @xclk, @flashOnCapture, @flashIntensity,
-      @defaultAngle, @leftPirAngle, @middlePirAngle, @rightPirAngle, @returnToDefaultDuration, @sweepMode
+      @defaultAngle, @leftPirAngle, @middlePirAngle, @rightPirAngle, @servoMode, @servoTimer
     )
     ON CONFLICT(mac) DO UPDATE SET
       name = @name,
@@ -130,8 +160,8 @@ function upsertDeviceConfig(mac, config) {
       leftPirAngle = @leftPirAngle,
       middlePirAngle = @middlePirAngle,
       rightPirAngle = @rightPirAngle,
-      returnToDefaultDuration = @returnToDefaultDuration,
-      sweepMode = @sweepMode
+      servoMode = @servoMode,
+      servoTimer = @servoTimer
   `);
   
   // Fill undefined with null for param binding
@@ -141,7 +171,7 @@ function upsertDeviceConfig(mac, config) {
     'dynRes5', 'dynQual5', 'dynRes4', 'dynQual4', 'dynRes3', 'dynQual3',
     'dynRes2', 'dynQual2', 'dynRes1', 'dynQual1', 'brightness', 'contrast',
     'saturation', 'awb', 'aec', 'agc', 'hmirror', 'vflip', 'specialEffect', 'xclk', 'flashOnCapture', 'flashIntensity',
-    'defaultAngle', 'leftPirAngle', 'middlePirAngle', 'rightPirAngle', 'returnToDefaultDuration', 'sweepMode'
+    'defaultAngle', 'leftPirAngle', 'middlePirAngle', 'rightPirAngle', 'servoMode', 'servoTimer'
   ];
   
   for (const k of keys) {

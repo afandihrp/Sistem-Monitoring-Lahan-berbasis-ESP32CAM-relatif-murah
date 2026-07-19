@@ -67,9 +67,6 @@ String pendingCaptureLabel = "";
 // Flag untuk servo control
 volatile int pendingServoAngle = -1;
 
-unsigned long servoReturnTime = 0;
-bool isServoWaitingToReturn = false;
-
 volatile bool pendingConnectionRestart = false;
 
 volatile int currentServoAngle = 90;
@@ -382,7 +379,6 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       isConnected = false;
       lastWsActivity = 0;
       setTargetAngle(SERVO_POS_DEFAULT);
-      isServoWaitingToReturn = false;
       udpInitialized = false;
       __atomic_store_n(&ledNotificationState, LED_STATE_FINDING_SERVER, __ATOMIC_SEQ_CST);
       break;
@@ -406,9 +402,6 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
         } else if (cmd.indexOf("\"capture_request\"") >= 0) {
           Serial.println("[WSc] On-demand capture queued.");
           pendingCaptureLabel = "capture";
-        } else if (cmd.indexOf("\"cancel_return\"") >= 0) {
-          isServoWaitingToReturn = false;
-          Serial.println("[WSc] Cancel return command received.");
         } else if (cmd.indexOf("\"servo_control\"") >= 0) {
           int valueIdx = cmd.indexOf("\"value\":") + 8;
           int endIdx = cmd.indexOf("}", valueIdx);
@@ -1213,15 +1206,6 @@ void loop() {
     int angle = pendingServoAngle;
     pendingServoAngle = -1; // Reset
     setTargetAngle(angle);
-    
-    // Batalkan auto-return jika digerakkan manual
-    isServoWaitingToReturn = false;
-  }
-
-  // Proses auto-return servo
-  if (isServoWaitingToReturn && millis() > servoReturnTime) {
-    setTargetAngle(SERVO_POS_DEFAULT);
-    isServoWaitingToReturn = false;
   }
 
   // Proses pending motion reports secara thread-safe dari pirTask

@@ -122,12 +122,50 @@ const startCountdown = (targetTime) => {
   countdownInterval = setInterval(update, 1000)
 }
 
-watch(() => props.currentStream?.nextSweepTime, (newVal) => {
+watch(() => props.currentStream?.nextTimerTime, (newVal) => {
   startCountdown(newVal)
 }, { immediate: true })
 
 onUnmounted(() => {
   if (countdownInterval) clearInterval(countdownInterval)
+})
+
+const countdownText = computed(() => {
+  if (localSweepMode.value !== 'off') {
+    return 'Sweeping...'
+  }
+  if (secondsRemaining.value !== null && secondsRemaining.value > 0) {
+    if (props.currentStream?.servoMode === 'sweep') {
+      return `Sweep in ${secondsRemaining.value}s`
+    } else {
+      return `Return in ${secondsRemaining.value}s`
+    }
+  }
+  return null
+})
+
+const countdownClass = computed(() => {
+  if (localSweepMode.value !== 'off') return 'text-danger animate-pulse-custom animate-pulse border-danger border-opacity-25'
+  if (secondsRemaining.value !== null && secondsRemaining.value > 0) {
+    if (props.currentStream?.servoMode === 'sweep') {
+      return 'text-info border-info border-opacity-25'
+    } else {
+      return 'text-warning border-warning border-opacity-25'
+    }
+  }
+  return ''
+})
+
+const countdownIcon = computed(() => {
+  if (localSweepMode.value !== 'off') return 'bi bi-x-circle-fill text-danger'
+  if (secondsRemaining.value !== null && secondsRemaining.value > 0) {
+    if (props.currentStream?.servoMode === 'sweep') {
+      return 'bi bi-hourglass-split text-info animate-pulse'
+    } else {
+      return 'bi bi-arrow-counterclockwise text-warning animate-pulse'
+    }
+  }
+  return ''
 })
 
 const startContinuousSweep = () => {
@@ -374,18 +412,15 @@ const getNominalDbm = (bars) => {
                 <i :class="['bi', localSweepMode !== 'off' ? 'bi-x-circle-fill' : 'bi-play-fill']" style="font-size: 0.8rem;"></i>
                 {{ localSweepMode !== 'off' ? $t('stream.cancelSweep') : $t('stream.sweepOnce') }}
               </button>
-              <span class="badge bg-slate-900 border border-slate-700 text-info font-monospace animate-pulse-custom animate-pulse" v-if="localSweepMode !== 'off'" style="font-size: 0.65rem; border-radius: 4px; border: 1px solid rgba(220, 53, 69, 0.3);">
-                {{ $t('stream.sweeping') }}
-              </span>
-              <!-- Sweep Countdown Badge -->
-              <span class="badge bg-slate-900 border border-slate-700 text-info font-monospace d-flex align-items-center gap-1" 
-                    v-if="localSweepMode === 'off' && secondsRemaining !== null && secondsRemaining > 0"
-                    style="font-size: 0.75rem; border-radius: 6px; padding: 4px 8px;">
-                <i class="bi bi-hourglass-split text-info animate-pulse" style="font-size: 0.85rem;"></i>
-                {{ secondsRemaining }}s
-              </span>
             </div>
             <div class="d-flex align-items-center gap-2">
+              <!-- Unified Countdown Badge (Sweep & Auto Return) -->
+              <span v-if="countdownText"
+                    :class="['badge bg-slate-900 border border-slate-700 font-monospace d-flex align-items-center gap-1', countdownClass]" 
+                    style="font-size: 0.75rem; border-radius: 6px; padding: 4px 8px;">
+                <i :class="countdownIcon" style="font-size: 0.85rem;"></i>
+                {{ countdownText }}
+              </span>
               <span class="badge bg-slate-900 border border-slate-700 text-info font-monospace" style="font-size: 0.8rem; min-width: 50px;">
                 {{ servoValue }}°
               </span>

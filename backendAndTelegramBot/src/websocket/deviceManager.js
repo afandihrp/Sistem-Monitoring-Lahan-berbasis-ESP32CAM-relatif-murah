@@ -72,7 +72,8 @@ function broadcastDeviceList() {
       lastSeen: device.lastSeen,
       currentAngle: device.currentAngle,
       sweepActive: device.sweepActive || 'off',
-      nextSweepTime: device.nextSweepTime || null
+      nextTimerTime: device.nextTimerTime || null,
+      servoMode: config && config.servoMode ? config.servoMode : 'sweep'
     };
   });
 
