@@ -141,34 +141,34 @@ const openVideo = (event) => {
         
         <div class="d-flex align-items-center gap-2">
           <!-- Statistics / Analytics Button -->
-          <button @click="emit('openAnalytics')" class="btn btn-sm btn-outline-info p-0 border-0 shadow-none d-flex align-items-center justify-content-center" style="font-size: 0.8rem; height: 22px; width: 24px; cursor: pointer; border-radius: 4px; background: rgba(59, 130, 246, 0.1);" :title="$t('events.analytics')">
+          <button @click="emit('openAnalytics')" class="btn btn-sm btn-outline-info p-0 border-0 shadow-none d-flex align-items-center justify-content-center" style="font-size: 0.95rem; height: 28px; width: 30px; cursor: pointer; border-radius: 4px; background: rgba(59, 130, 246, 0.1);" :title="$t('events.analytics')">
             <i class="bi bi-graph-up text-info"></i>
           </button>
 
           <!-- Sort Order Toggle (Ascending/Descending) -->
           <div class="btn-group border border-slate-700 rounded overflow-hidden" style="padding: 1px; background-color: #0f172a;" title="Sort Direction">
-            <button @click="emit('update:sortOrder', 'desc')" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', sortOrder === 'desc' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.7rem; height: 22px; width: 24px; cursor: pointer;" :title="locale === 'id' ? 'Terbaru Pertama' : 'Newest First'">
+            <button @click="emit('update:sortOrder', 'desc')" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', sortOrder === 'desc' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.85rem; height: 28px; width: 30px; cursor: pointer;" :title="locale === 'id' ? 'Terbaru Pertama' : 'Newest First'">
               <i class="bi bi-sort-down"></i>
             </button>
-            <button @click="emit('update:sortOrder', 'asc')" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', sortOrder === 'asc' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.7rem; height: 22px; width: 24px; cursor: pointer;" :title="locale === 'id' ? 'Terlama Pertama' : 'Oldest First'">
+            <button @click="emit('update:sortOrder', 'asc')" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', sortOrder === 'asc' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.85rem; height: 28px; width: 30px; cursor: pointer;" :title="locale === 'id' ? 'Terlama Pertama' : 'Oldest First'">
               <i class="bi bi-sort-up"></i>
             </button>
           </div>
 
           <!-- View Style Toggle (Grid/List) -->
           <div v-if="windowWidth <= 1000" class="btn-group border border-slate-700 rounded overflow-hidden" style="padding: 1px; background-color: #0f172a;">
-            <button @click="displayMode = 'grid'" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', displayMode === 'grid' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.7rem; height: 22px; width: 24px; cursor: pointer;" title="Grid View">
+            <button @click="displayMode = 'grid'" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', displayMode === 'grid' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.85rem; height: 28px; width: 30px; cursor: pointer;" title="Grid View">
               <i class="bi bi-grid-fill"></i>
             </button>
-            <button @click="displayMode = 'list'" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', displayMode === 'list' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.7rem; height: 22px; width: 24px; cursor: pointer;" title="List View">
+            <button @click="displayMode = 'list'" :class="['btn btn-sm p-1 border-0 shadow-none d-flex align-items-center justify-content-center', displayMode === 'list' ? 'btn-primary text-white' : 'text-slate-400 bg-transparent']" style="font-size: 0.85rem; height: 28px; width: 30px; cursor: pointer;" title="List View">
               <i class="bi bi-list-ul"></i>
             </button>
           </div>
 
           <!-- Per Page Select Dropdown -->
-          <div v-if="windowWidth <= 1000" class="d-flex align-items-center gap-1 bg-slate-900 border border-slate-700 rounded px-2 py-1">
-            <span class="text-slate-500 font-monospace" style="font-size: 0.6rem;">LIMIT</span>
-            <select :value="eventsPerPage" @change="emit('update:eventsPerPage', Number($event.target.value))" class="form-select form-select-sm bg-transparent border-0 text-primary py-0 ps-1 pe-4 fw-bold font-monospace" style="font-size: 0.65rem; height: 18px; outline: none; box-shadow: none; cursor: pointer; width: 62px;">
+          <div v-if="windowWidth <= 1000" class="d-flex align-items-center gap-1 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5" style="height: 28px;" :title="locale === 'id' ? 'Batas Log per Halaman' : 'Logs Per Page Limit'">
+            <i class="bi bi-list-ol text-slate-500" style="font-size: 0.85rem;"></i>
+            <select :value="eventsPerPage" @change="emit('update:eventsPerPage', Number($event.target.value))" class="form-select form-select-sm bg-transparent border-0 text-primary py-0 ps-1 pe-3 fw-bold font-monospace" style="font-size: 0.65rem; height: 18px; outline: none; box-shadow: none; cursor: pointer; width: 55px;">
               <option value="10" class="bg-slate-900 text-white">10</option>
               <option value="20" class="bg-slate-900 text-white">20</option>
               <option value="50" class="bg-slate-900 text-white">50</option>
