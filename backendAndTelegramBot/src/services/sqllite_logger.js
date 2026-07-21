@@ -31,42 +31,64 @@ db.exec(`
   )
 `);
 
+// Idempotent migration: add mac column as FK reference to device_configs.mac
+// SQLite does not support IF NOT EXISTS on ALTER TABLE, so we use try/catch.
+try {
+  db.exec(`ALTER TABLE logs ADD COLUMN mac TEXT`);
+  console.log('[Logger] Migration: added mac column to logs table.');
+} catch (e) {
+  // Column already exists — silently ignore
+}
 
 // Prepared statements for better performance
 const insertLogStmt = db.prepare(`
-  INSERT INTO logs (type, sensor, location, deviceId, timestamp, imageUrl, videoUrl, humanPresence, aiDetails)
-  VALUES (@type, @sensor, @location, @deviceId, @timestamp, @imageUrl, @videoUrl, @humanPresence, @aiDetails)
+  INSERT INTO logs (type, sensor, location, mac, deviceId, timestamp, imageUrl, videoUrl, humanPresence, aiDetails)
+  VALUES (@type, @sensor, @location, @mac, @deviceId, @timestamp, @imageUrl, @videoUrl, @humanPresence, @aiDetails)
 `);
 
 const getAllLogsStmt = db.prepare('SELECT * FROM logs ORDER BY timestamp ASC');
 
-// Use subquery with limit 1 instead of UPDATE ... LIMIT 1 for standard SQLite compatibility
+// Match by mac when available (stable FK), fallback to deviceId for legacy rows
 const updateLogWithAiStmt = db.prepare(`
   UPDATE logs 
-  SET imageUrl = ?, humanPresence = ?, aiDetails = ? 
+  SET imageUrl = ?, humanPresence = ?, aiDetails = ?, mac = COALESCE(mac, ?)
   WHERE id = (
     SELECT id FROM logs 
-    WHERE sensor = ? AND deviceId = ? AND imageUrl IS NULL AND timestamp >= ? 
+    WHERE sensor = ? AND (mac = ? OR (mac IS NULL AND deviceId = ?)) AND imageUrl IS NULL AND timestamp >= ? 
     ORDER BY timestamp DESC LIMIT 1
   )
 `);
 
 const updateLogWithVideoStmt = db.prepare(`
   UPDATE logs 
-  SET videoUrl = ? 
+  SET videoUrl = ?, mac = COALESCE(mac, ?)
   WHERE id = (
     SELECT id FROM logs 
-    WHERE sensor = ? AND deviceId = ? AND videoUrl IS NULL 
+    WHERE sensor = ? AND (mac = ? OR (mac IS NULL AND deviceId = ?)) AND videoUrl IS NULL 
     ORDER BY timestamp DESC LIMIT 1
   )
 `);
 
-function mapRowToLog(row) {
+/**
+ * Map a DB row to a log object, dynamically resolving the current camera name
+ * from the device_configs table via mac (stable FK).
+ * Falls back to the baked row.location for legacy rows without a mac.
+ * @param {object} row - SQLite row
+ * @param {object} configsMap - Map of mac -> device config from getAllDeviceConfigs()
+ */
+function mapRowToLog(row, configsMap) {
+  // Resolve current name from config if we have a mac FK; otherwise use baked snapshot
+  let resolvedLocation = row.location;
+  if (row.mac && configsMap && configsMap[row.mac] && configsMap[row.mac].name) {
+    resolvedLocation = configsMap[row.mac].name;
+  }
+
   return {
     id: row.id,
     type: row.type,
     sensor: row.sensor,
-    location: row.location,
+    location: resolvedLocation,
+    mac: row.mac || null,
     deviceId: row.deviceId,
     timestamp: row.timestamp,
     imageUrl: row.imageUrl,
@@ -76,12 +98,18 @@ function mapRowToLog(row) {
   };
 }
 
+/**
+ * Log a new event. Provide eventData.mac for stable FK association.
+ * @param {object} eventData
+ * @param {string|null} eventData.mac - MAC address of the originating camera device
+ */
 function logEvent(eventData) {
   try {
     insertLogStmt.run({
       type: eventData.type || null,
       sensor: eventData.sensor || null,
       location: eventData.location || null,
+      mac: eventData.mac || null,
       deviceId: eventData.deviceId || null,
       timestamp: eventData.timestamp || new Date().toISOString(),
       imageUrl: eventData.imageUrl || null,
@@ -94,17 +122,34 @@ function logEvent(eventData) {
   }
 }
 
+/**
+ * Fetch all logs, resolving camera names dynamically from device_configs via mac FK.
+ * Legacy rows (mac IS NULL) will use their baked location string as fallback.
+ */
 function getLogs() {
   try {
+    const { getAllDeviceConfigs } = require('./sqllite_config');
+    const configsMap = getAllDeviceConfigs();
     const rows = getAllLogsStmt.all();
-    return rows.map(mapRowToLog);
+    return rows.map(row => mapRowToLog(row, configsMap));
   } catch (error) {
     console.error('Error reading logs from SQLite:', error);
     return [];
   }
 }
 
-async function updateLatestLogWithAI(sensor, deviceIp, imageUrl, humanPresence, aiDetails, locationName) {
+/**
+ * Update the most recent log entry matching this sensor/device with AI analysis results.
+ * Uses mac as the stable match key when provided; falls back to IP-derived deviceId.
+ * @param {string} sensor
+ * @param {string} deviceIp
+ * @param {string|null} mac - MAC address of the device (stable FK)
+ * @param {string} imageUrl
+ * @param {boolean} humanPresence
+ * @param {object|null} aiDetails
+ * @param {string} locationName
+ */
+async function updateLatestLogWithAI(sensor, deviceIp, mac, imageUrl, humanPresence, aiDetails, locationName) {
   const deviceId = `cam_${deviceIp.replace(/\./g, '_')}`;
   
   try {
@@ -113,8 +158,10 @@ async function updateLatestLogWithAI(sensor, deviceIp, imageUrl, humanPresence, 
       imageUrl, 
       humanPresence ? 1 : 0, 
       aiDetails ? JSON.stringify(aiDetails) : null,
+      mac || null,      // set mac if currently NULL on the row
       sensor, 
-      deviceId,
+      mac || null,      // match by mac
+      deviceId,         // fallback match by deviceId
       tenSecondsAgo
     );
     
@@ -126,6 +173,7 @@ async function updateLatestLogWithAI(sensor, deviceIp, imageUrl, humanPresence, 
         type: 'motion_event',
         sensor: sensor,
         location: locationName || deviceIp,
+        mac: mac || null,
         deviceId: deviceId,
         imageUrl: imageUrl,
         humanPresence: humanPresence,
@@ -139,10 +187,24 @@ async function updateLatestLogWithAI(sensor, deviceIp, imageUrl, humanPresence, 
   }
 }
 
-function updateLatestLogVideo(sensor, deviceIp, videoUrl) {
+/**
+ * Update the most recent log entry matching this sensor/device with a video URL.
+ * Uses mac as the stable match key when provided; falls back to IP-derived deviceId.
+ * @param {string} sensor
+ * @param {string} deviceIp
+ * @param {string|null} mac - MAC address of the device (stable FK)
+ * @param {string} videoUrl
+ */
+function updateLatestLogVideo(sensor, deviceIp, mac, videoUrl) {
   try {
     const deviceId = `cam_${deviceIp.replace(/\./g, '_')}`;
-    updateLogWithVideoStmt.run(videoUrl, sensor, deviceId);
+    updateLogWithVideoStmt.run(
+      videoUrl,
+      mac || null,   // set mac if currently NULL on the row
+      sensor,
+      mac || null,   // match by mac
+      deviceId       // fallback match by deviceId
+    );
   } catch (error) {
     console.error('Error updating log with video:', error);
   }

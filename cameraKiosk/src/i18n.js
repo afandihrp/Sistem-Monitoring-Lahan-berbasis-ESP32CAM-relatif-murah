@@ -140,7 +140,10 @@ const messages = {
         durContinuous: 'Continuous',
         
         maxDuration: 'Max Video Duration Compress',
-        maxDurationDesc: 'Compresses and speeds up output video if recording duration exceeds this limit'
+        maxDurationDesc: 'Compresses and speeds up output video if recording duration exceeds this limit',
+        
+        gracePeriod: 'Detection Grace Period',
+        gracePeriodDesc: 'Duration to wait (seconds) after detection stops before stopping the recording'
       },
       other: {
         webSound: 'Kiosk Web Alert Sound',
@@ -367,7 +370,10 @@ const messages = {
         durContinuous: 'Terus Menerus',
         
         maxDuration: 'Kompresi Durasi Video Maks',
-        maxDurationDesc: 'Mengompresi dan mempercepat video keluaran jika durasi perekaman melebihi batas ini'
+        maxDurationDesc: 'Mengompresi dan mempercepat video keluaran jika durasi perekaman melebihi batas ini',
+        
+        gracePeriod: 'Masa Tenggang Deteksi',
+        gracePeriodDesc: 'Durasi tunggu (detik) setelah deteksi objek berhenti sebelum menghentikan rekaman'
       },
       other: {
         webSound: 'Suara Peringatan Web Kios',

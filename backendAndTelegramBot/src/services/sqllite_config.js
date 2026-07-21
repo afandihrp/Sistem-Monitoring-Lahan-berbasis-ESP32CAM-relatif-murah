@@ -69,9 +69,9 @@ const defaultDeviceConfig = {
   flashOnCapture: false,
   flashIntensity: 0,
   defaultAngle: 90,
-  leftPirAngle: 155,
+  leftPirAngle: 45,
   middlePirAngle: 90,
-  rightPirAngle: 0,
+  rightPirAngle: 155,
   servoMode: 'sweep',
   servoTimer: '15s'
 };

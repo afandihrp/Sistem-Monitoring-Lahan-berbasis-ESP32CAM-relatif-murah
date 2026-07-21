@@ -62,25 +62,19 @@ function stopAiRecording(deviceId, reason) {
   const device = state.devices.get(deviceId);
   if (!device || !device.isRecordingAi) return;
 
+  const gracePeriod = (state.globalSystemConfig.cameraDetectionGracePeriod !== undefined)
+    ? state.globalSystemConfig.cameraDetectionGracePeriod
+    : 5;
+
   const stopReason = reason || ((state.globalStreamAiRecording === 'continuous' || state.globalStreamAiRecording === true) 
-    ? 'no person seen for 3s' 
+    ? `no person seen for ${gracePeriod}s` 
     : `${state.globalStreamAiRecording}s duration elapsed`);
   console.log(`[AI Record] Selesai mengumpulkan frame (${stopReason}) untuk ${deviceId}. Memulai render...`);
   device.isRecordingAi = false;
 
-  // If stopped due to fixed-duration timer, apply a cooldown so the recording
-  // doesn't immediately re-trigger if the person is still in frame.
-  const isPixelMode = (state.globalSystemConfig.cameraDetectionMode === 'Pixel');
-  const isHybridMode = (state.globalSystemConfig.cameraDetectionMode === 'Hybrid');
-  const isPixelOrHybrid = isPixelMode || isHybridMode;
-  const isFixedDuration = (state.globalStreamAiRecording !== 'continuous' && state.globalStreamAiRecording !== true && state.globalStreamAiRecording !== 'off');
-  const isRecordingActive = isPixelOrHybrid 
-    ? (isFixedDuration && state.globalSystemConfig.pixelMotionRecordingEnabled) 
-    : isFixedDuration;
-  if (isRecordingActive) {
-    device.aiRecordCooldownUntil = Date.now() + 3000; // 3-second cooldown before next event
-    console.log(`[AI Record] Fixed-duration stop for ${deviceId}. Cooldown active for 3s to prevent immediate re-trigger.`);
-  }
+  // Always apply a cooldown equal to the grace period after an event ends to prevent immediate re-trigger.
+  device.aiRecordCooldownUntil = Date.now() + gracePeriod * 1000;
+  console.log(`[AI Record] Event stopped for ${deviceId}. Cooldown active for ${gracePeriod}s to prevent immediate re-trigger.`);
 
   // Clear bounding boxes when recording/hold stops to avoid leftovers
   if (state.wssInstance) {
@@ -148,7 +142,7 @@ function stopAiRecording(deviceId, reason) {
 
         // Bind and save video to log.json
         const videoUrl = `/data/videos/${outputFilename}`;
-        updateLatestLogVideo(sensorName, remoteIp, videoUrl);
+        updateLatestLogVideo(sensorName, remoteIp, device?.mac || null, videoUrl);
 
         // Broadcast updated logs to all Kiosks
         if (state.wssInstance) {
@@ -439,6 +433,7 @@ function triggerAiWorker() {
                     type: 'motion_event',
                     sensor: sensor,
                     location: location,
+                    mac: device?.mac || null,
                     deviceId: deviceId,
                     imageUrl: imageUrl,
                     humanPresence: humanPresence,
@@ -481,11 +476,14 @@ function triggerAiWorker() {
             ? (isRecordingEnabled && state.globalSystemConfig.pixelMotionRecordingEnabled) 
             : isRecordingEnabled;
           if (device.isPirActive || !isRecordingActive || state.globalStreamAiRecording === 'continuous' || state.globalStreamAiRecording === true) {
-            // console.log(`[AI Record] No ${isPixelOrHybrid ? 'motion' : 'person'} detected on ${deviceId}. Scheduling stop in 3 seconds...`);
+            const gracePeriod = (state.globalSystemConfig.cameraDetectionGracePeriod !== undefined)
+              ? state.globalSystemConfig.cameraDetectionGracePeriod
+              : 5;
+            // console.log(`[AI Record] No ${isPixelOrHybrid ? 'motion' : 'person'} detected on ${deviceId}. Scheduling stop in ${gracePeriod} seconds...`);
             device.aiStopTimer = setTimeout(() => {
-              console.log(`[AI Record] 3 seconds elapsed with no ${isPixelOrHybrid ? 'motion' : 'person'} detected on ${deviceId}. Stopping recording.`);
+              console.log(`[AI Record] ${gracePeriod} seconds elapsed with no ${isPixelOrHybrid ? 'motion' : 'person'} detected on ${deviceId}. Stopping recording.`);
               stopAiRecording(deviceId);
-            }, 3000);
+            }, gracePeriod * 1000);
           }
         }
 

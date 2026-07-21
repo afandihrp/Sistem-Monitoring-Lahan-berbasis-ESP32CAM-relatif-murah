@@ -35,6 +35,7 @@ function handleUpload(wss) {
           type: 'telegram capture',
           sensor: sensor,
           location: location,
+          mac: device?.mac || null,
           deviceId: deviceId,
           imageUrl: imageUrl,
           timestamp: new Date().toISOString()

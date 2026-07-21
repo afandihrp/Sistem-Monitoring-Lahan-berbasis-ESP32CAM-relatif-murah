@@ -36,7 +36,23 @@ const state = {
     pixelMotionRecordingEnabled: true,
     pixelMotionCaptureDelay: 100,
     webSoundEnabled: true,
-    udpStreamEnabled: false
+    udpStreamEnabled: false,
+    cameraDetectionGracePeriod: 5,
+    pirAiDetection: true,
+    pirAiRecording: true,
+    streamAiRecording: 'continuous',
+    streamAiTelegram: true,
+    telegramInterval: 10,
+    maxDuration: 30,
+    cameraDetectionEnabled: true
+  },
+
+  getMergedSystemConfig() {
+    return {
+      ...state.globalSystemConfig,
+      globalAiEnabled: state.globalAiEnabled,
+      cameraDetectionEnabled: state.globalAiEnabled
+    };
   },
 
   // Broadcast payload to all Kiosk clients (clients that are not camera devices)

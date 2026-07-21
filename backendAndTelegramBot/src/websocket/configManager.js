@@ -10,22 +10,23 @@ function loadSystemSettings() {
     if (fs.existsSync(SYSTEM_SETTINGS_FILE)) {
       const data = fs.readFileSync(SYSTEM_SETTINGS_FILE, 'utf8');
       const settings = JSON.parse(data);
-      state.globalAiEnabled = settings.globalAiEnabled !== undefined ? settings.globalAiEnabled : true;
-      state.globalPirAiDetection = settings.pirAiDetection !== undefined ? settings.pirAiDetection : true;
-      state.globalPirAiRecording = settings.pirAiRecording !== undefined ? settings.pirAiRecording : true;
-      state.globalStreamAiDetection = settings.streamAiDetection !== undefined ? settings.streamAiDetection : true;
-      let rawStreamAiRecording = settings.streamAiRecording !== undefined ? settings.streamAiRecording : 'continuous';
+      
+      state.globalSystemConfig = { ...state.globalSystemConfig, ...settings };
+
+      state.globalAiEnabled = state.globalSystemConfig.cameraDetectionEnabled !== undefined ? state.globalSystemConfig.cameraDetectionEnabled : true;
+      state.globalPirAiDetection = state.globalSystemConfig.pirAiDetection !== undefined ? state.globalSystemConfig.pirAiDetection : true;
+      state.globalPirAiRecording = state.globalSystemConfig.pirAiRecording !== undefined ? state.globalSystemConfig.pirAiRecording : true;
+      state.globalStreamAiDetection = state.globalSystemConfig.streamAiDetection !== undefined ? state.globalSystemConfig.streamAiDetection : true;
+      let rawStreamAiRecording = state.globalSystemConfig.streamAiRecording !== undefined ? state.globalSystemConfig.streamAiRecording : 'continuous';
       if (rawStreamAiRecording === true) rawStreamAiRecording = 'continuous';
       if (rawStreamAiRecording === false) rawStreamAiRecording = 'off';
       state.globalStreamAiRecording = rawStreamAiRecording;
-      state.globalStreamAiTelegram = settings.streamAiTelegram !== undefined ? settings.streamAiTelegram : true;
-      state.globalTelegramInterval = settings.telegramInterval !== undefined ? settings.telegramInterval : 10;
-      state.globalObjectTracking = settings.objectTracking !== undefined ? settings.objectTracking : true;
-      state.globalMaxDuration = settings.maxDuration !== undefined ? settings.maxDuration : 30;
-      if (settings.systemConfig) {
-        state.globalSystemConfig = { ...state.globalSystemConfig, ...settings.systemConfig };
-      }
-      console.log(`[Settings] Loaded system settings: AI = ${state.globalAiEnabled ? 'ENABLED' : 'DISABLED'}, PIR AI Det = ${state.globalPirAiDetection}, PIR AI Rec = ${state.globalPirAiRecording}, Stream AI Det = ${state.globalStreamAiDetection}, Stream AI Rec = ${state.globalStreamAiRecording}, Stream Telegram = ${state.globalStreamAiTelegram}, Telegram Interval = ${state.globalTelegramInterval}s, Tracking = ${state.globalObjectTracking}, MaxDur = ${state.globalMaxDuration}s`);
+      state.globalStreamAiTelegram = state.globalSystemConfig.streamAiTelegram !== undefined ? state.globalSystemConfig.streamAiTelegram : true;
+      state.globalTelegramInterval = state.globalSystemConfig.telegramInterval !== undefined ? state.globalSystemConfig.telegramInterval : 10;
+      state.globalObjectTracking = state.globalSystemConfig.objectTracking !== undefined ? state.globalSystemConfig.objectTracking : true;
+      state.globalMaxDuration = state.globalSystemConfig.maxDuration !== undefined ? state.globalSystemConfig.maxDuration : 30;
+
+      console.log(`[Settings] Loaded flat system settings successfully.`);
     } else {
       console.log('[Settings] No system settings file found, using defaults.');
     }
@@ -40,20 +41,21 @@ function saveSystemSettings() {
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
     }
-    const settings = {
-      globalAiEnabled: state.globalAiEnabled,
-      pirAiDetection: state.globalPirAiDetection,
-      pirAiRecording: state.globalPirAiRecording,
-      streamAiDetection: state.globalStreamAiDetection,
-      streamAiRecording: state.globalStreamAiRecording,
-      streamAiTelegram: state.globalStreamAiTelegram,
-      telegramInterval: state.globalTelegramInterval,
-      objectTracking: state.globalObjectTracking,
-      maxDuration: state.globalMaxDuration,
-      systemConfig: state.globalSystemConfig
-    };
-    fs.writeFileSync(SYSTEM_SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
-    console.log('[Settings] Saved system settings successfully.');
+
+    // Sync active in-memory state variables to flat globalSystemConfig object before saving
+    state.globalSystemConfig.cameraDetectionEnabled = state.globalAiEnabled;
+    state.globalSystemConfig.pirAiDetection = state.globalPirAiDetection;
+    state.globalSystemConfig.pirAiRecording = state.globalPirAiRecording;
+    state.globalSystemConfig.streamAiDetection = state.globalStreamAiDetection;
+    state.globalSystemConfig.streamAiRecording = state.globalStreamAiRecording;
+    state.globalSystemConfig.streamAiTelegram = state.globalStreamAiTelegram;
+    state.globalSystemConfig.telegramInterval = state.globalTelegramInterval;
+    state.globalSystemConfig.objectTracking = state.globalObjectTracking;
+    state.globalSystemConfig.maxDuration = state.globalMaxDuration;
+
+    // Save as clean flat JSON file (starts fresh, no duplicates or nesting)
+    fs.writeFileSync(SYSTEM_SETTINGS_FILE, JSON.stringify(state.globalSystemConfig, null, 2), 'utf8');
+    console.log('[Settings] Saved flat system settings successfully.');
   } catch (err) {
     console.error('[Settings] Failed to save system settings:', err.message);
   }
@@ -122,9 +124,9 @@ function getPirAngle(mac, sensor) {
     if (sensor === 'right' && config.rightPirAngle !== undefined && config.rightPirAngle !== null) return Number(config.rightPirAngle);
     if (config.defaultAngle !== undefined && config.defaultAngle !== null) return Number(config.defaultAngle);
   }
-  if (sensor === 'left') return 155;
+  if (sensor === 'left') return 45;
   if (sensor === 'middle') return 90;
-  if (sensor === 'right') return 0;
+  if (sensor === 'right') return 155;
   return 90; // Default fallback
 }
 

@@ -210,7 +210,7 @@ async function handlePirTrigger(ip, sensor, wss) {
     }
 
     // Update log.json
-    await updateLatestLogWithAI(sensor, ip, imageUrl, humanPresence, aiDetails, locationName);
+    await updateLatestLogWithAI(sensor, ip, device?.mac || null, imageUrl, humanPresence, aiDetails, locationName);
 
     // Notify kiosk clients
     const motionPayload = JSON.stringify({

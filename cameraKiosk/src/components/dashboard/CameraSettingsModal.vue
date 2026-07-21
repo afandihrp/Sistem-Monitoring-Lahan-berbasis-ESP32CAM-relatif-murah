@@ -31,9 +31,14 @@ const originalCamConfig = ref(null)
 
 const servoConfig = ref({
   defaultAngle: 90, leftPirAngle: 45, middlePirAngle: 90,
-  rightPirAngle: 135, returnToDefaultDuration: 15, sweepMode: 'disabled'
+  rightPirAngle: 155, returnToDefaultDuration: 15, sweepMode: 'disabled'
 })
 const originalServoConfig = ref(null)
+
+const isLoadingConfig = ref(true)
+const hasReceivedCam = ref(false)
+const hasReceivedServo = ref(false)
+const isSaving = ref(false)
 
 const fetchCameraConfig = () => {
   if (!props.mac || props.mac === 'Unknown MAC') return
@@ -52,6 +57,10 @@ const handleCameraConfigReceived = (event) => {
       Object.assign(camConfig.value, validConfig)
     }
     originalCamConfig.value = JSON.parse(JSON.stringify(camConfig.value));
+    hasReceivedCam.value = true
+    if (hasReceivedServo.value) {
+      isLoadingConfig.value = false
+    }
   }
 };
 const handleServoConfigReceived = (event) => {
@@ -62,12 +71,26 @@ const handleServoConfigReceived = (event) => {
       Object.assign(servoConfig.value, validConfig)
     }
     originalServoConfig.value = JSON.parse(JSON.stringify(servoConfig.value));
+    hasReceivedServo.value = true
+    if (hasReceivedCam.value) {
+      isLoadingConfig.value = false
+    }
+  }
+};
+
+const handleSaveSuccess = (event) => {
+  const { mac } = event.detail;
+  if (mac === props.mac) {
+    isSaving.value = false
+    emit('close')
   }
 };
 
 onMounted(() => {
   window.addEventListener('camera_config_received', handleCameraConfigReceived);
   window.addEventListener('servo_config_received', handleServoConfigReceived);
+  window.addEventListener('save_camera_config_success', handleSaveSuccess);
+  window.addEventListener('save_servo_config_success', handleSaveSuccess);
   fetchCameraConfig();
   fetchServoConfig();
 })
@@ -75,6 +98,8 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('camera_config_received', handleCameraConfigReceived);
   window.removeEventListener('servo_config_received', handleServoConfigReceived);
+  window.removeEventListener('save_camera_config_success', handleSaveSuccess);
+  window.removeEventListener('save_servo_config_success', handleSaveSuccess);
 })
 
 const handleSaveAll = () => {
@@ -113,8 +138,10 @@ const handleSaveAll = () => {
   
   if (!camSaved && !servoSaved) {
     alert('No settings were changed.')
+    emit('close')
+  } else {
+    isSaving.value = true
   }
-  emit('close')
 }
 
 
@@ -130,7 +157,7 @@ const handleSaveAll = () => {
           <h6 class="text-white mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">
             <i class="bi bi-camera me-2 text-info"></i>{{ t('cameraConfig.title') || 'Camera Settings' }}
           </h6>
-          <button @click="emit('close')" class="btn-close btn-close-white shadow-none"></button>
+          <button @click="emit('close')" :disabled="isLoadingConfig || isSaving" class="btn-close btn-close-white shadow-none"></button>
         </div>
         
         <ul class="nav nav-tabs custom-tabs border-0">
@@ -154,7 +181,23 @@ const handleSaveAll = () => {
       </div>
 
       <!-- Tab Content Area -->
-      <div class="flex-grow-1 overflow-hidden position-relative bg-slate-900">
+      <div class="flex-grow-1 overflow-hidden position-relative bg-slate-900" style="min-height: 250px;">
+        <!-- Loading Overlay -->
+        <div v-if="isLoadingConfig" class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-slate-900 bg-opacity-95" style="z-index: 100;">
+          <div class="spinner-border text-info mb-2" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <span class="text-slate-400 small font-monospace text-uppercase" style="letter-spacing: 1px;">Fetching device parameters...</span>
+        </div>
+
+        <!-- Saving Overlay -->
+        <div v-if="isSaving" class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-slate-900 bg-opacity-95" style="z-index: 100;">
+          <div class="spinner-border text-info mb-2" role="status">
+            <span class="visually-hidden">Saving...</span>
+          </div>
+          <span class="text-slate-400 small font-monospace text-uppercase" style="letter-spacing: 1px;">Saving parameters to camera...</span>
+        </div>
+
         <!-- We use v-if because the child state is hoisted and d-flex overrides v-show -->
         <Transition name="fade">
           <CameraConfigurator 
@@ -176,7 +219,7 @@ const handleSaveAll = () => {
 
       <!-- Unified Save Button -->
       <div class="p-3 bg-slate-900 border-top border-slate-700 rounded-bottom-3 flex-shrink-0">
-        <button @click="handleSaveAll" class="btn btn-primary w-100 py-2 fw-bold text-uppercase" style="font-size: 0.8rem; letter-spacing: 1px;">
+        <button @click="handleSaveAll" :disabled="isLoadingConfig || isSaving" class="btn btn-primary w-100 py-2 fw-bold text-uppercase" style="font-size: 0.8rem; letter-spacing: 1px;">
           <i class="bi bi-cloud-upload me-2"></i> {{ t('cameraConfig.save') || 'Save Settings' }}
         </button>
       </div>

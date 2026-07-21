@@ -121,7 +121,7 @@ function applyScheduleConfig(schedule) {
   // Broadcast updated configuration to all Kiosks
   state.broadcastToKiosks(JSON.stringify({
     type: 'system_config_response',
-    config: state.globalSystemConfig
+    config: state.getMergedSystemConfig()
   }));
 
   // Broadcast updated PIR & UDP settings to camera clients

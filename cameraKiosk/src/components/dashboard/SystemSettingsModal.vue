@@ -39,7 +39,8 @@ const props = defineProps({
       streamAiRecording: true,
       streamAiTelegram: true,
       telegramInterval: 10,
-      maxDuration: 30
+      maxDuration: 30,
+      cameraDetectionGracePeriod: 5
     })
   }
 })
@@ -64,6 +65,7 @@ const telegramAlertMotion = ref(props.initialConfig.telegramAlertMotion !== unde
 const burnBoundingBoxes = ref(props.initialConfig.burnBoundingBoxes !== undefined ? props.initialConfig.burnBoundingBoxes : true)
 const cameraDetectionEnabled = ref(props.initialConfig.cameraDetectionEnabled !== undefined ? props.initialConfig.cameraDetectionEnabled : true)
 const cameraDetectionMode = ref(props.initialConfig.cameraDetectionMode || 'AI')
+const cameraDetectionGracePeriod = ref(props.initialConfig.cameraDetectionGracePeriod || 5)
 const streamAiDetection = ref(props.initialConfig.streamAiDetection !== undefined ? props.initialConfig.streamAiDetection : true)
 const objectTracking = ref(props.initialConfig.objectTracking !== undefined ? props.initialConfig.objectTracking : true)
 const getClosestSensitivityPreset = (val) => {
@@ -220,7 +222,10 @@ const getSecondsLabel = (sec) => {
   return `${sec / 60}m`
 }
 
+const isSaving = ref(false)
+
 const saveConfig = () => {
+  isSaving.value = true
   localStorage.setItem('showFpsMeter', showFpsMeter.value ? 'true' : 'false')
   window.dispatchEvent(new Event('fpsMeterToggle'))
 
@@ -257,22 +262,30 @@ const saveConfig = () => {
     streamAiTelegram: streamAiTelegram.value,
     telegramInterval: telegramInterval.value,
     maxDuration: maxDuration.value,
+    cameraDetectionGracePeriod: cameraDetectionGracePeriod.value,
     schedules: schedules.value
   })
-  emit('close')
 }
 </script>
 
 <template>
   <div class="modal-overlay d-flex align-items-center justify-content-center p-3">
-    <div class="modal-content-custom bg-slate-900 border border-slate-700 rounded-3 shadow-lg p-4">
+    <div class="modal-content-custom bg-slate-900 border border-slate-700 rounded-3 shadow-lg p-4 position-relative">
       
+      <!-- Saving Overlay -->
+      <div v-if="isSaving" class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-slate-900 bg-opacity-75 rounded-3 animate-fade-in" style="z-index: 1000;">
+        <div class="spinner-border text-info mb-2" role="status">
+          <span class="visually-hidden">Saving...</span>
+        </div>
+        <span class="text-slate-400 small font-monospace text-uppercase" style="letter-spacing: 1px;">Saving settings...</span>
+      </div>
+
       <!-- Modal Header -->
       <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
         <h6 class="text-white mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">
           <i class="bi bi-sliders2-vertical me-2 text-info"></i>{{ $t('settings.title') }}
         </h6>
-        <button @click="emit('close')" class="btn-close btn-close-white shadow-none"></button>
+        <button @click="emit('close')" :disabled="isSaving" class="btn-close btn-close-white shadow-none"></button>
       </div>
 
       <!-- Tab Navigation -->
@@ -449,6 +462,29 @@ const saveConfig = () => {
                 <span class="text-slate-500" style="font-size: 0.7rem;">{{ $t('settings.camera.enableDesc') }}</span>
               </div>
               <input class="form-check-input custom-switch m-0" type="checkbox" role="switch" id="cameraDetectionMasterSwitch" v-model="cameraDetectionEnabled">
+            </div>
+
+            <!-- Grace Period Config -->
+            <div class="mt-3 pt-3 border-top border-slate-700 transition-all"
+                 :style="{ opacity: cameraDetectionEnabled ? 1 : 0.4, pointerEvents: cameraDetectionEnabled ? 'auto' : 'none' }">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="text-slate-300 small fw-bold text-uppercase m-0">
+                  {{ $t('settings.camera.gracePeriod') }}
+                </label>
+                <span class="badge bg-info text-dark font-monospace fw-bold">{{ cameraDetectionGracePeriod }}s</span>
+              </div>
+              <span class="text-slate-500 d-block mb-2" style="font-size: 0.7rem;">
+                {{ $t('settings.camera.gracePeriodDesc') }}
+              </span>
+              <input 
+                type="range" 
+                class="form-range custom-slider" 
+                min="1" 
+                max="30" 
+                step="1" 
+                v-model.number="cameraDetectionGracePeriod"
+                :disabled="!cameraDetectionEnabled"
+              >
             </div>
           </div>
 
@@ -853,7 +889,7 @@ const saveConfig = () => {
 
       <!-- Modal Footer -->
       <div class="d-flex gap-2 mt-4 flex-shrink-0">
-        <button @click="saveConfig" class="btn btn-info text-dark flex-grow-1 py-2 fw-bold text-uppercase" style="font-size: 0.75rem;">
+        <button @click="saveConfig" :disabled="isSaving" class="btn btn-info text-dark flex-grow-1 py-2 fw-bold text-uppercase" style="font-size: 0.75rem;">
           {{ $t('settings.save') }}
         </button>
       </div>

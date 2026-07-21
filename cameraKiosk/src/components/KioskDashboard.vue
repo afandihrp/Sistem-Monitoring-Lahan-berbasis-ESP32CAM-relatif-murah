@@ -89,6 +89,7 @@ const showSystemConfig = ref(false)
 const showDeviceListModal = ref(false)
 const showAnalyticsModal = ref(false)
 const sortOrder = ref('desc')
+const isFetchingData = ref(false)
 let lastObjectUrl = null
 
 const currentStreamIndex = ref(0)
@@ -139,6 +140,7 @@ const detectBackend = async () => {
 }
 
 const connectWS = () => {
+  isFetchingData.value = true
   ws = new WebSocket(backendWsUrl.value)
 
   ws.onopen = () => {
@@ -149,12 +151,14 @@ const connectWS = () => {
   ws.onclose = () => {
     console.log('WebSocket connection closed')
     wsStatus.value = 'Offline'
+    isFetchingData.value = false
     setTimeout(connectWS, 3000)
   }
 
   ws.onerror = (error) => {
     console.error('WebSocket error:', error)
     wsStatus.value = 'Offline'
+    isFetchingData.value = false
   }
 
   ws.onmessage = async (event) => {
@@ -224,12 +228,13 @@ const connectWS = () => {
         systemConfig.value = { ...systemConfig.value, ...data.config }
         localStorage.setItem('systemConfig', JSON.stringify(systemConfig.value))
       } else if (data.type === 'save_ai_config_success') {
-        alert('AI Configuration Saved Successfully!')
+        console.log('AI Configuration Saved Successfully!')
       } else if (data.type === 'system_config_response') {
         systemConfig.value = data.config
         localStorage.setItem('systemConfig', JSON.stringify(data.config))
       } else if (data.type === 'save_system_config_success') {
-        alert('System Settings Saved Successfully!')
+        isFetchingData.value = false
+        showSystemConfig.value = false
       } else if (data.type === 'servo_angle_update') {
         const device = devices.value.find(d => d.id === data.deviceId)
         if (device) {
@@ -263,6 +268,7 @@ const connectWS = () => {
           timestamp: data.timestamp,
           trigger: `Motion (${data.sensor.charAt(0).toUpperCase() + data.sensor.slice(1)})`,
           location: data.location,
+          mac: data.mac || null,
           sensor: data.sensor,
           imageUrl: 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Capturing+Image...'
         })
@@ -282,12 +288,14 @@ const connectWS = () => {
           events.value[eventIndex].aiDetails = data.aiDetails;
         }
       } else if (data.type === 'historical_logs') {
+        isFetchingData.value = false
         events.value = data.logs.map((log, index) => {
           return {
             id: `hist_${Date.now()}_${index}`,
             timestamp: log.timestamp, // Keep ISO string
             trigger: log.sensor ? `Motion (${log.sensor.charAt(0).toUpperCase() + log.sensor.slice(1)})` : 'Motion',
             location: log.location || 'Unknown',
+            mac: log.mac || null,
             sensor: log.sensor,
             imageUrl: log.imageUrl || 'https://via.placeholder.com/640x360/1e293b/f8fafc?text=Motion+Detected',
             videoUrl: log.videoUrl,
@@ -296,13 +304,17 @@ const connectWS = () => {
           };
         }).reverse();
       } else if (data.type === 'servo_config_response') {
+        isFetchingData.value = false
         window.dispatchEvent(new CustomEvent('servo_config_received', { detail: data }));
       } else if (data.type === 'save_servo_config_success') {
-        alert('Servo Configuration Saved Successfully via WebSocket!');
+        isFetchingData.value = false
+        window.dispatchEvent(new CustomEvent('save_servo_config_success', { detail: data }));
       } else if (data.type === 'camera_config_response') {
+        isFetchingData.value = false
         window.dispatchEvent(new CustomEvent('camera_config_received', { detail: data }));
       } else if (data.type === 'save_camera_config_success') {
-        alert('Camera Sensor Configuration Saved Successfully via WebSocket!');
+        isFetchingData.value = false
+        window.dispatchEvent(new CustomEvent('save_camera_config_success', { detail: data }));
       }
     } catch (e) {
       console.error('Failed to parse WebSocket message:', e)
@@ -313,6 +325,7 @@ const connectWS = () => {
 const handleRequestServoConfig = (event) => {
   const { mac } = event.detail;
   if (ws && ws.readyState === 1) {
+    isFetchingData.value = true
     ws.send(JSON.stringify({ type: 'get_servo_config', mac }));
   }
 };
@@ -320,6 +333,7 @@ const handleRequestServoConfig = (event) => {
 const handleRequestCameraConfig = (event) => {
   const { mac } = event.detail;
   if (ws && ws.readyState === 1) {
+    isFetchingData.value = true
     ws.send(JSON.stringify({ type: 'get_camera_config', mac }));
   }
 };
@@ -423,6 +437,7 @@ const handleSetAiEnabled = (enabled) => {
 const handleDeleteSingleEvent = (timestamp) => {
   if (confirm('Are you sure? Data will be permanently deleted')) {
     if (ws && ws.readyState === 1) {
+      isFetchingData.value = true
       ws.send(JSON.stringify({ type: 'delete_event_single', timestamp }));
     }
   }
@@ -431,6 +446,7 @@ const handleDeleteSingleEvent = (timestamp) => {
 const handleDeleteBatchEvents = (dateStr) => {
   if (confirm('Are you sure? Data will be permanently deleted')) {
     if (ws && ws.readyState === 1) {
+      isFetchingData.value = true
       ws.send(JSON.stringify({ type: 'delete_event_batch', date: dateStr }));
     }
   }
@@ -440,6 +456,7 @@ const handleDeleteBatchEvents = (dateStr) => {
 const handleSaveServoConfig = (eventOrData) => {
   const payload = eventOrData.detail || eventOrData;
   if (ws && ws.readyState === 1) {
+    isFetchingData.value = true
     ws.send(JSON.stringify({ 
       type: 'save_servo_config', 
       mac: payload.mac, 
@@ -453,6 +470,7 @@ const handleSaveServoConfig = (eventOrData) => {
 const handleSaveCameraConfig = (eventOrData) => {
   const payload = eventOrData.detail || eventOrData;
   if (ws && ws.readyState === 1) {
+    isFetchingData.value = true
     ws.send(JSON.stringify({ 
       type: 'save_camera_config', 
       mac: payload.mac, 
@@ -473,6 +491,7 @@ const handleSaveSystemConfig = (config) => {
   }
 
   if (ws && ws.readyState === 1) {
+    isFetchingData.value = true
     ws.send(JSON.stringify({ 
       type: 'save_system_config', 
       config 
@@ -529,6 +548,9 @@ const effectiveWindowWidth = computed(() => {
 
 <template>
   <div :class="['main-wrapper', 'd-flex', 'flex-column', { 'force-mobile': isForceMobile }]" data-bs-theme="dark">
+    <!-- Global Loading Progress Bar -->
+    <div v-if="isFetchingData" class="global-loading-bar"></div>
+
     <TopNav 
       :currentTime="currentTime" 
       :wsStatus="wsStatus" 
@@ -579,6 +601,7 @@ const effectiveWindowWidth = computed(() => {
           :backendUrl="backendBaseUrl"
           :eventsPerPage="eventsPerPage"
           :sortOrder="sortOrder"
+          :loading="isFetchingData"
           @loadMoreEvents="loadMoreEvents"
           @dateSelected="handleDateSelected"
           @deleteSingle="handleDeleteSingleEvent"
@@ -685,5 +708,21 @@ const effectiveWindowWidth = computed(() => {
   border-left: none !important;
   border-top: 1px solid #1e293b;
   height: auto !important;
+}
+
+.global-loading-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa, #3b82f6);
+  background-size: 200% 100%;
+  animation: loading-bar-flow 1.5s infinite linear;
+  z-index: 9999;
+}
+@keyframes loading-bar-flow {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 </style>

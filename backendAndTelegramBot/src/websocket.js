@@ -342,7 +342,7 @@ function initWebSocket(servers) {
       ws.send(JSON.stringify({
         type: 'system_config_response',
         config: {
-          ...state.globalSystemConfig,
+          ...state.getMergedSystemConfig(),
           schedules: sqlliteScheduler.getAllSchedules()
         }
       }));
@@ -459,6 +459,7 @@ function initWebSocket(servers) {
               type: 'motion_event',
               sensor: data.sensor,
               location: location,
+              mac: device?.mac || null,
               deviceId: deviceId,
               timestamp: new Date().toISOString()
             });
@@ -468,6 +469,7 @@ function initWebSocket(servers) {
               type: 'motion_event',
               sensor: data.sensor,
               location: location,
+              mac: device?.mac || null,
               deviceId: deviceId,
               timestamp: new Date().toISOString()
             });
@@ -549,30 +551,34 @@ function initWebSocket(servers) {
               state.broadcastToKiosks(aiConfigPayload);
             }
           } else if (data.type === 'save_system_config' && !isCamera) {
-            const config = data.config;
+            let config = data.config;
             if (config) {
+              // Create a shallow copy to modify and keep config object safe
+              config = { ...config };
+
               // Extract schedules and save to SQLite
               if (config.schedules !== undefined) {
                 sqlliteScheduler.saveAllSchedules(config.schedules);
                 delete config.schedules; // Remove from JSON config
               }
 
+              // Update globalSystemConfig directly with the incoming flat config
               state.globalSystemConfig = { ...state.globalSystemConfig, ...config };
               
-              // Sync legacy global AI settings
-              state.globalPirAiDetection = config.pirAiDetection !== undefined ? config.pirAiDetection : state.globalPirAiDetection;
-              state.globalPirAiRecording = config.pirAiRecording !== undefined ? config.pirAiRecording : state.globalPirAiRecording;
-              state.globalStreamAiDetection = config.streamAiDetection !== undefined ? config.streamAiDetection : state.globalStreamAiDetection;
-              if (config.streamAiRecording !== undefined) {
-                let rawStreamAiRecording = config.streamAiRecording;
+              // Sync state's main properties
+              state.globalPirAiDetection = state.globalSystemConfig.pirAiDetection !== undefined ? state.globalSystemConfig.pirAiDetection : state.globalPirAiDetection;
+              state.globalPirAiRecording = state.globalSystemConfig.pirAiRecording !== undefined ? state.globalSystemConfig.pirAiRecording : state.globalPirAiRecording;
+              state.globalStreamAiDetection = state.globalSystemConfig.streamAiDetection !== undefined ? state.globalSystemConfig.streamAiDetection : state.globalStreamAiDetection;
+              if (state.globalSystemConfig.streamAiRecording !== undefined) {
+                let rawStreamAiRecording = state.globalSystemConfig.streamAiRecording;
                 if (rawStreamAiRecording === true) rawStreamAiRecording = 'continuous';
                 if (rawStreamAiRecording === false) rawStreamAiRecording = 'off';
                 state.globalStreamAiRecording = rawStreamAiRecording;
               }
-              state.globalStreamAiTelegram = config.streamAiTelegram !== undefined ? config.streamAiTelegram : state.globalStreamAiTelegram;
-              state.globalTelegramInterval = config.telegramInterval !== undefined ? config.telegramInterval : state.globalTelegramInterval;
-              state.globalObjectTracking = config.objectTracking !== undefined ? config.objectTracking : state.globalObjectTracking;
-              state.globalMaxDuration = config.maxDuration !== undefined ? config.maxDuration : state.globalMaxDuration;
+              state.globalStreamAiTelegram = state.globalSystemConfig.streamAiTelegram !== undefined ? state.globalSystemConfig.streamAiTelegram : state.globalStreamAiTelegram;
+              state.globalTelegramInterval = state.globalSystemConfig.telegramInterval !== undefined ? state.globalSystemConfig.telegramInterval : state.globalTelegramInterval;
+              state.globalObjectTracking = state.globalSystemConfig.objectTracking !== undefined ? state.globalSystemConfig.objectTracking : state.globalObjectTracking;
+              state.globalMaxDuration = state.globalSystemConfig.maxDuration !== undefined ? state.globalSystemConfig.maxDuration : state.globalMaxDuration;
 
               // Handle cameraDetectionEnabled state change
               if (config.cameraDetectionEnabled !== undefined && config.cameraDetectionEnabled !== state.globalAiEnabled) {
@@ -620,7 +626,7 @@ function initWebSocket(servers) {
               const systemConfigPayload = JSON.stringify({
                 type: 'system_config_response',
                 config: {
-                  ...state.globalSystemConfig,
+                  ...state.getMergedSystemConfig(),
                   schedules: sqlliteScheduler.getAllSchedules()
                 }
               });
