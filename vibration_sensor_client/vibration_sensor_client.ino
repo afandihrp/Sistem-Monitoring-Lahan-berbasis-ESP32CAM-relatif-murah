@@ -1,9 +1,13 @@
 #include <WiFiUdp.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
+#include <WebServer.h>
 
 #define SENSOR_PIN 0 // Menggunakan pin 0 untuk SW420
 #define BUZZER_PIN 2 // Pin untuk Buzzer
+#define RELAY_PIN 1  // Pin untuk Relay (aktif low, pull-up)
+
+WebServer server(80);
 
 #define DEBUG_LED_PIN 8 // Pin 8 is the standard built-in LED for ESP32-C3 SuperMini.
 
@@ -323,6 +327,42 @@ void sendPing() {
   http.end();
 }
 
+// ================= RELAY CONTROL =================
+void turnOnRelay() {
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, LOW); // Pull to GND to turn ON
+  Serial.println("[RELAY] Turned ON");
+}
+
+void turnOffRelay() {
+  pinMode(RELAY_PIN, INPUT_PULLUP); // Set to pull-up mode to turn OFF
+  Serial.println("[RELAY] Turned OFF");
+}
+
+void handleDoRelay() {
+  bool hasOn = server.hasArg("on_relay");
+  bool hasOff = server.hasArg("off_relay");
+
+  for (int i = 0; i < server.args(); i++) {
+    if (server.argName(i) == "on_relay" || server.arg(i) == "on_relay") {
+      hasOn = true;
+    }
+    if (server.argName(i) == "off_relay" || server.arg(i) == "off_relay") {
+      hasOff = true;
+    }
+  }
+
+  if (hasOn) {
+    turnOnRelay();
+    server.send(200, "text/plain", "Relay ON");
+  } else if (hasOff) {
+    turnOffRelay();
+    server.send(200, "text/plain", "Relay OFF");
+  } else {
+    server.send(400, "text/plain", "Bad Request. Use do?on_relay or do?off_relay");
+  }
+}
+
 // ================= SETUP =================
 void setup() {
   Serial.begin(115200);
@@ -334,6 +374,8 @@ void setup() {
   // Start LED Task
   xTaskCreate(ledTask, "LED Task", 2048, NULL, 1, NULL);
   __atomic_store_n(&ledNotificationState, LED_STATE_CONNECTING_WIFI, __ATOMIC_SEQ_CST);
+
+  turnOffRelay(); // Pastikan relay mati di awal (input pull-up)
 
   pinMode(SENSOR_PIN, INPUT);
   pinMode(BUZZER_PIN, OUTPUT);
@@ -348,11 +390,17 @@ void setup() {
   }
   Serial.println("Gateway ditemukan. Sistem standby memonitor getaran...");
   
+  server.on("/do", handleDoRelay);
+  server.begin();
+  Serial.println("HTTP Web Server started on port 80.");
+
   __atomic_store_n(&ledNotificationState, LED_STATE_OFF, __ATOMIC_SEQ_CST);
 }
 
 // ================= LOOP =================
 void loop() {
+  server.handleClient();
+
   if (millis() - lastPingTime >= 5000) {
     lastPingTime = millis();
     sendPing();
