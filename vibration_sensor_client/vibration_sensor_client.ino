@@ -1,13 +1,10 @@
 #include <WiFiUdp.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
-#include <WebServer.h>
 
 #define SENSOR_PIN 0 // Menggunakan pin 0 untuk SW420
 #define BUZZER_PIN 2 // Pin untuk Buzzer
-#define RELAY_PIN 1  // Pin untuk Relay (aktif low, pull-up)
-
-WebServer server(80);
+#define RELAY_PIN 1  // Pin untuk Relay 2 Channel 12V
 
 #define DEBUG_LED_PIN 8 // Pin 8 is the standard built-in LED for ESP32-C3 SuperMini.
 
@@ -109,6 +106,11 @@ const int REQUIRED_CONSECUTIVE_NORMAL =
 int cutCounter = 0;
 int normalCounter = 0;
 bool alertSent = false;
+
+// ================= TIMER RELAY =================
+unsigned long relayStartTime = 0;
+bool relayActive = false;
+const unsigned long RELAY_DURATION = 30000; // 30 detik (30000 ms)
 
 // ================= WIFI =================
 void connectWiFi() {
@@ -327,42 +329,6 @@ void sendPing() {
   http.end();
 }
 
-// ================= RELAY CONTROL =================
-void turnOnRelay() {
-  pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW); // Pull to GND to turn ON
-  Serial.println("[RELAY] Turned ON");
-}
-
-void turnOffRelay() {
-  pinMode(RELAY_PIN, INPUT_PULLUP); // Set to pull-up mode to turn OFF
-  Serial.println("[RELAY] Turned OFF");
-}
-
-void handleDoRelay() {
-  bool hasOn = server.hasArg("on_relay");
-  bool hasOff = server.hasArg("off_relay");
-
-  for (int i = 0; i < server.args(); i++) {
-    if (server.argName(i) == "on_relay" || server.arg(i) == "on_relay") {
-      hasOn = true;
-    }
-    if (server.argName(i) == "off_relay" || server.arg(i) == "off_relay") {
-      hasOff = true;
-    }
-  }
-
-  if (hasOn) {
-    turnOnRelay();
-    server.send(200, "text/plain", "Relay ON");
-  } else if (hasOff) {
-    turnOffRelay();
-    server.send(200, "text/plain", "Relay OFF");
-  } else {
-    server.send(400, "text/plain", "Bad Request. Use do?on_relay or do?off_relay");
-  }
-}
-
 // ================= SETUP =================
 void setup() {
   Serial.begin(115200);
@@ -375,11 +341,12 @@ void setup() {
   xTaskCreate(ledTask, "LED Task", 2048, NULL, 1, NULL);
   __atomic_store_n(&ledNotificationState, LED_STATE_CONNECTING_WIFI, __ATOMIC_SEQ_CST);
 
-  turnOffRelay(); // Pastikan relay mati di awal (input pull-up)
-
   pinMode(SENSOR_PIN, INPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW); // Pastikan buzzer mati di awal
+
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, HIGH); // Relay Active-Low: HIGH = mati di awal
 
   connectWiFi();
 
@@ -390,16 +357,19 @@ void setup() {
   }
   Serial.println("Gateway ditemukan. Sistem standby memonitor getaran...");
   
-  server.on("/do", handleDoRelay);
-  server.begin();
-  Serial.println("HTTP Web Server started on port 80.");
-
   __atomic_store_n(&ledNotificationState, LED_STATE_OFF, __ATOMIC_SEQ_CST);
 }
 
 // ================= LOOP =================
 void loop() {
-  server.handleClient();
+  // --- DEBUGGING ---
+  static unsigned long lastDebugTime = 0;
+  if (millis() - lastDebugTime >= 1000) {
+    lastDebugTime = millis();
+    Serial.printf("[DEBUG] Loop jalan | Sensor=%d | Alert=%d | Relay=%d | Counter=%d\n", 
+                  digitalRead(SENSOR_PIN), alertSent, relayActive, cutCounter);
+  }
+  // -----------------
 
   if (millis() - lastPingTime >= 5000) {
     lastPingTime = millis();
@@ -408,7 +378,7 @@ void loop() {
 
   int sensorState = digitalRead(SENSOR_PIN);
 
-  Serial.printf("Sensor State=%d\n", sensorState);
+  // Serial.printf("Sensor State=%d\n", sensorState); // Dimatikan sementara agar serial tidak banjir
 
   if (sensorState == HIGH) { // Alarm dipicu saat getaran tinggi
     cutCounter++;
@@ -421,6 +391,12 @@ void loop() {
       Serial.println("ANOMALY DETECTED - ALARM TRIGGERED");
 
       digitalWrite(BUZZER_PIN, HIGH); // Nyalakan Buzzer
+
+      // Aktifkan Relay dan mulai timer 30 detik
+      digitalWrite(RELAY_PIN, LOW); // Relay Active-Low: LOW = menyala
+      relayActive = true;
+      relayStartTime = millis();
+
       sendAlert();
 
       alertSent = true;
@@ -439,6 +415,13 @@ void loop() {
       }
       normalCounter = REQUIRED_CONSECUTIVE_NORMAL; // Mencegah overflow
     }
+  }
+
+  // Pengecekan Timer Relay (Matikan relay jika sudah 30 detik)
+  if (relayActive && (millis() - relayStartTime >= RELAY_DURATION)) {
+    digitalWrite(RELAY_PIN, HIGH); // Relay Active-Low: HIGH = mati
+    relayActive = false;
+    Serial.println("Relay dimatikan (30 detik berlalu).");
   }
 
   delay(100);
