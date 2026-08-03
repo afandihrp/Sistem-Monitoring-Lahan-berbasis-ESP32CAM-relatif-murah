@@ -33,9 +33,9 @@ class PersonDetector:
             input_node = self.compiled_model.inputs[0]
             input_shape = input_node.shape
             
-            # Typically [1, H, W, C] for TFLite models
-            self.input_height = input_shape[1]
-            self.input_width = input_shape[2]
+            self.is_nchw = (input_shape[1] == 3)
+            self.input_height = input_shape[2] if self.is_nchw else input_shape[1]
+            self.input_width = input_shape[3] if self.is_nchw else input_shape[2]
             
             if input_node.element_type == ov.Type.f32:
                 self.input_dtype = np.float32
@@ -55,8 +55,9 @@ class PersonDetector:
             self.output_details = self.interpreter.get_output_details()
 
             self.input_shape = self.input_details[0]['shape']
-            self.input_height = self.input_shape[1]
-            self.input_width = self.input_shape[2]
+            self.is_nchw = (self.input_shape[1] == 3)
+            self.input_height = self.input_shape[2] if self.is_nchw else self.input_shape[1]
+            self.input_width = self.input_shape[3] if self.is_nchw else self.input_shape[2]
             self.input_dtype = self.input_details[0]['dtype']
 
             output_shape = self.output_details[0]['shape']
@@ -77,6 +78,8 @@ class PersonDetector:
         # Preprocessing
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         img_resized = cv2.resize(img_rgb, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
+        if self.is_nchw:
+            img_resized = np.transpose(img_resized, (2, 0, 1))
         img_input = np.expand_dims(img_resized, axis=0)
 
         if self.input_dtype == np.float32:
@@ -108,75 +111,99 @@ class PersonDetector:
         orig_h, orig_w = img_bgr.shape[:2]
         num_channels = output_data.shape[1]
 
-        boxes = []
+        boxes_for_nms = []
         confidences = []
+        box_coords_norm = []
 
         if num_channels == 6:
-            # YOLO26 End-to-End Format: [x1, y1, x2, y2, confidence, class_id]
+            # YOLO End-to-End Format: [x1, y1, x2, y2, confidence, class_id]
             class_confs = output_data[:, 4]
             class_ids = output_data[:, 5].astype(np.int32)
 
-            # Filter hanya untuk class 0 (person) dan confidence > CONF_THRESHOLD
             mask = (class_ids == 0) & (class_confs > config.CONF_THRESHOLD)
 
             if np.any(mask):
                 matching_rows = output_data[mask]
                 matching_confs = class_confs[mask]
 
-                x1 = (matching_rows[:, 0] * orig_w).astype(np.int32)
-                y1 = (matching_rows[:, 1] * orig_h).astype(np.int32)
-                x2 = (matching_rows[:, 2] * orig_w).astype(np.int32)
-                y2 = (matching_rows[:, 3] * orig_h).astype(np.int32)
+                max_coord = np.max(matching_rows[:, :4])
+                if max_coord <= 1.0:
+                    x1_n = matching_rows[:, 0]
+                    y1_n = matching_rows[:, 1]
+                    x2_n = matching_rows[:, 2]
+                    y2_n = matching_rows[:, 3]
+                else:
+                    x1_n = matching_rows[:, 0] / self.input_width
+                    y1_n = matching_rows[:, 1] / self.input_height
+                    x2_n = matching_rows[:, 2] / self.input_width
+                    y2_n = matching_rows[:, 3] / self.input_height
 
-                boxes = np.column_stack((x1, y1, x2, y2)).tolist()
+                x1_abs = x1_n * orig_w
+                y1_abs = y1_n * orig_h
+                w_abs  = (x2_n - x1_n) * orig_w
+                h_abs  = (y2_n - y1_n) * orig_h
+
+                boxes_for_nms = np.column_stack((x1_abs, y1_abs, w_abs, h_abs)).tolist()
                 confidences = matching_confs.tolist()
+                box_coords_norm = np.column_stack((x1_n, y1_n, x2_n, y2_n))
         else:
             # Standard YOLOv8/v11 Format: [xc, yc, w, h, class_0, class_1, ...]
-            # 1. Ambil class scores (kolom index 4 ke atas)
             class_scores = output_data[:, 4:]
             
-            # 2. Cari class dengan score tertinggi untuk setiap bounding box
             class_ids = np.argmax(class_scores, axis=1)
             class_confs = class_scores[np.arange(len(class_scores)), class_ids]
 
-            # 3. Filter hanya untuk class 0 (person) dan confidence > CONF_THRESHOLD
+            # 1. Filter by confidence threshold & class 0 (person)
             mask = (class_ids == 0) & (class_confs > config.CONF_THRESHOLD)
 
             if np.any(mask):
                 matching_rows = output_data[mask]
                 matching_confs = class_confs[mask]
-                
-                xc = matching_rows[:, 0]
-                yc = matching_rows[:, 1]
-                w  = matching_rows[:, 2]
-                h  = matching_rows[:, 3]
-                
-                x1 = ((xc - w / 2) * orig_w).astype(np.int32)
-                y1 = ((yc - h / 2) * orig_h).astype(np.int32)
-                x2 = ((xc + w / 2) * orig_w).astype(np.int32)
-                y2 = ((yc + h / 2) * orig_h).astype(np.int32)
-                
-                boxes = np.column_stack((x1, y1, x2, y2)).tolist()
-                confidences = matching_confs.tolist()
 
-        # NMS (Non-Maximum Suppression)
+                max_coord = np.max(matching_rows[:, :4])
+                if max_coord <= 1.0:
+                    xc_n = matching_rows[:, 0]
+                    yc_n = matching_rows[:, 1]
+                    w_n  = matching_rows[:, 2]
+                    h_n  = matching_rows[:, 3]
+                else:
+                    xc_n = matching_rows[:, 0] / self.input_width
+                    yc_n = matching_rows[:, 1] / self.input_height
+                    w_n  = matching_rows[:, 2] / self.input_width
+                    h_n  = matching_rows[:, 3] / self.input_height
+
+                x1_n = xc_n - w_n / 2.0
+                y1_n = yc_n - h_n / 2.0
+                x2_n = xc_n + w_n / 2.0
+                y2_n = yc_n + h_n / 2.0
+
+                x1_abs = x1_n * orig_w
+                y1_abs = y1_n * orig_h
+                w_abs  = w_n * orig_w
+                h_abs  = h_n * orig_h
+
+                boxes_for_nms = np.column_stack((x1_abs, y1_abs, w_abs, h_abs)).tolist()
+                confidences = matching_confs.tolist()
+                box_coords_norm = np.column_stack((x1_n, y1_n, x2_n, y2_n))
+
+        # 2. Non-Maximum Suppression (NMS) Filtering
         final_boxes = []
-        if len(boxes) > 0:
+        if len(boxes_for_nms) > 0:
             indices = cv2.dnn.NMSBoxes(
-                boxes, confidences,
-                score_threshold=0.0,  # Already pre-filtered above; set to 0.0 to avoid double-dropping detections
-                nms_threshold=config.NMS_THRESHOLD
+                boxes_for_nms, confidences,
+                score_threshold=float(config.CONF_THRESHOLD),
+                nms_threshold=float(config.NMS_THRESHOLD)
             )
             if len(indices) > 0:
                 for i in indices.flatten():
-                    x1, y1, x2, y2 = boxes[i]
+                    x1_n, y1_n, x2_n, y2_n = box_coords_norm[i]
                     final_boxes.append({
-                        "confidence": round(confidences[i], 2),
+                        "confidence": round(float(confidences[i]), 2),
                         "posisi": [
-                            round(float(x1 / orig_w), 4),
-                            round(float(y1 / orig_h), 4),
-                            round(float(x2 / orig_w), 4),
-                            round(float(y2 / orig_h), 4)
+                            round(float(max(0.0, min(x1_n, 1.0))), 4),
+                            round(float(max(0.0, min(y1_n, 1.0))), 4),
+                            round(float(max(0.0, min(x2_n, 1.0))), 4),
+                            round(float(max(0.0, min(y2_n, 1.0))), 4)
                         ]
                     })
 

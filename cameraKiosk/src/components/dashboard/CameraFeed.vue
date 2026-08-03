@@ -249,21 +249,21 @@ const drawBoxes = () => {
     const bh = (y2_norm - y1_norm) * rect.height
 
     ctx.strokeStyle = '#ff0000'
-    ctx.lineWidth = 2
+    ctx.lineWidth = 1
     ctx.strokeRect(bx1, by1, bw, bh)
 
     const label = props.detectionMode === 'Pixel'
       ? 'Motion'
       : `Person ${Math.round(conf * 100)}%`
-    ctx.font = 'bold 11px Arial'
+    ctx.font = 'bold 10px Arial'
     const textMetrics = ctx.measureText(label)
-    const textHeight = 14
+    const textHeight = 13
     
     ctx.fillStyle = '#ff0000'
-    ctx.fillRect(bx1, by1 - textHeight, textMetrics.width + 6, textHeight)
+    ctx.fillRect(bx1, by1 - textHeight, textMetrics.width + 4, textHeight)
     
     ctx.fillStyle = '#ffffff'
-    ctx.fillText(label, bx1 + 3, by1 - 4)
+    ctx.fillText(label, bx1 + 2, by1 - 3)
   })
 }
 

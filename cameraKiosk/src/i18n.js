@@ -83,7 +83,7 @@ const messages = {
         enableDesc: 'Activate real-time frame detection alerts',
         engineMode: 'Detection Engine Mode',
         engineModeDesc: 'Select whether to run YOLO neural network, cheap pixel differencing, or a Hybrid of both',
-        modeAi: 'AI (YOLO)',
+        modeAi: 'AI (YOLO 11)',
         modePixel: 'Pixel Comparison',
         modeHybrid: 'Hybrid',
         
@@ -313,7 +313,7 @@ const messages = {
         enableDesc: 'Aktifkan peringatan deteksi bingkai waktu nyata',
         engineMode: 'Mode Mesin Deteksi',
         engineModeDesc: 'Pilih apakah akan menjalankan jaringan saraf YOLO, perbedaan piksel ringan, atau Hibrida keduanya',
-        modeAi: 'AI (YOLO)',
+        modeAi: 'AI (YOLO 11)',
         modePixel: 'Perbandingan Piksel',
         modeHybrid: 'Hibrida',
         

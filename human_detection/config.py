@@ -1,10 +1,10 @@
 # Configuration settings for the human detection subsystem
 
-MODEL_PATH = "yolo26n_float32.tflite"
+MODEL_PATH = "best.tflite"
 
 # Detection and NMS Hyperparameters
 CONF_THRESHOLD = 0.50
-NMS_THRESHOLD = 0.95
+NMS_THRESHOLD = 0.45
 
 # Performance and Hardware
 NUM_THREADS = 2
