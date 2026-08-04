@@ -1,5 +1,3 @@
-const previousState = new Map();
-
 /**
  * Calculates the next servo angle to follow the first detected person.
  * 
@@ -40,29 +38,15 @@ function calculateNextFollowerAngle(deviceId, currentAngle, boxCoordinates, defa
   const averageCenterX = (leftmostCenterX + rightmostCenterX) / 2;
   const offset = averageCenterX - 0.5; // range: -0.5 to 0.5
 
-  const now = Date.now();
-  let state = previousState.get(deviceId) || { lastOffset: 0, lastTime: now };
-
-  let derivative = 0;
-  const dt = (now - state.lastTime) / 1000; // in seconds
-  if (dt > 0 && dt < 1.0) { // Calculate derivative only if updates are reasonably close
-    derivative = (offset - state.lastOffset) / dt;
-  }
-  
-  // Save current state for next frame
-  previousState.set(deviceId, { lastOffset: offset, lastTime: now });
-
-  // Only adjust if the offset is significant (reduced deadband to 0.05 for active centering)
+  // Only adjust if the offset is significant (deadband 0.10 for active centering)
   if (Math.abs(offset) > 0.10) {
     const angleValue = currentAngle !== undefined ? currentAngle : defaultAngle;
 
-    // Constants for PD Controller
+    // Constant for Proportional (P) Controller
     const Kp = 45;
-    const Kd = 2;
 
     // Map offset to angle adjustment. Left pan increases angle, Right pan decreases angle.
-    // Kd dampens the speed as it approaches the target to reduce oscillation.
-    const deltaAngle = (offset * Kp) + (derivative * Kd);
+    const deltaAngle = offset * Kp;
     let newAngle = Math.round(angleValue + deltaAngle);
     newAngle = Math.max(0, Math.min(180, newAngle));
 
