@@ -216,6 +216,25 @@ flowchart TD
 | ![Desain Enclosure Tahan Cuaca Node Kamera](zfoto/8.jpeg) |
 | *Gambar 3.2: Desain Enclosure Tahan Cuaca Node Kamera* |
 
+### 5. Dokumentasi Fisik & Realisasi PCB Hardware
+
+| Tampak Depan PCB Custom | Tampak Belakang PCB Custom |
+| :---: | :---: |
+| ![Tampak Depan PCB](zfoto/tampak%20depan%20pcb.png) | ![Tampak PCB Belakang](zfoto/tampak%20pcb%20belakang.jpg) |
+| *Tampak Depan PCB Custom Node Kamera* | *Tampak Belakang PCB Custom Node Kamera* |
+
+| Tampilan PCB Terpasang ESP32-CAM | Node Kamera Terpasang di Casing Enclosure |
+| :---: | :---: |
+| ![Tampilan PCB dengan ESP32-CAM](zfoto/tampilan%20pcb%20dengan%20esp32cam.png) | ![Tampak Kamera dengan PCB Terpasang di Casing](zfoto/tampak%20kamera%20dengan%20pcb%20terpasang%20di%20casing.png) |
+| *Tampilan PCB Terpasang Modul ESP32-CAM* | *Node Kamera & PCB Terpasang di Casing Enclosure* |
+
+<br>
+
+| Instalasi Sensor Getaran di Pagar Area Lahan |
+| :---: |
+| ![Tampak Instalasi Sensor Getaran di Pagar](zfoto/tampak%20instalasi%20sensor%20getaran%20di%20pagar.jpg) |
+| *Tampak Instalasi Sensor Getaran pada Pagar Area Pemantauan* |
+
 ---
 
 <a id="panduan-instalasi-aplikasi"></a>
@@ -409,5 +428,21 @@ npm run dev
 <a id="demo-tampilan-antarmuka"></a>
 ## 📸 Demo & Tampilan Antarmuka
 
-* **Kiosk Monitoring Dashboard**: Tampilan live stream video 4:3, kontrol slider manual PTZ, status koneksi WS/AI, dan log kejadian real-time.
-* **Telegram Security Alerts**: Foto snapshot FHD dengan *bounding box* merah tipis (1px) beserta lampiran video MP4 rekaman kejadian yang dapat langsung diputar di ponsel pengguna.
+### 1. Antarmuka Kiosk UI & Dashboard Pemantauan
+
+| Halaman Login Kiosk UI |
+| :---: |
+| ![Tampak UI Login Page](zfoto/tampak%20ui%20login%20page.png) |
+| *Halaman Autentikasi Pengguna (Login Page)* |
+
+| Dashboard Pemantauan Desktop (Desktop View) | Dashboard Pemantauan Mobile (Mobile View) |
+| :---: | :---: |
+| ![Tampak UI Dashboard Kiosk Desktop](zfoto/tampak%20ui%20dashboard%20kiosk%20desktop.png) | ![Tampak Dashboard Kiosk di Mobile](zfoto/tampak%20dashboard%20kiosk%20di%20mobile.png) |
+| *Dashboard Pemantauan Utama Kiosk UI (Desktop View)* | *Dashboard Pemantauan Utama Kiosk UI (Mobile View)* |
+
+### 2. Deteksi Manusia AI & Bounding Box Overlay
+
+| Hasil Snapshot Deteksi Manusia dengan Bounding Box (YOLO 11) |
+| :---: |
+| ![Hasil Snapshot Deteksi Bounding Box Manusia](zfoto/tampak%20gambar%20dengan%20bounding%20box%20pada%20objek%20manusia.png) |
+| *Hasil Snapshot Foto Resolusi Tinggi dengan Overlay Bounding Box Merah Tipis (1px) Hasil Inferensi YOLO 11* |
