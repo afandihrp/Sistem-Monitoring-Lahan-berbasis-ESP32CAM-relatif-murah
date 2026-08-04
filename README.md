@@ -5,19 +5,24 @@ Sistem monitoring keamanan pintar berbasis IoT yang mengintegrasikan kamera **ES
 ---
 
 ## 📋 Daftar Isi
-1. [Panduan Instalasi Aplikasi (Server-Side)](#panduan-instalasi-aplikasi)
+1. [Panduan Pengoperasian Sistem (System Operation Guide)](#panduan-pengoperasian-sistem)
+   * [1. Autentikasi & Login Pengguna](#1-autentikasi--login-pengguna)
+   * [2. Pemilihan Kamera & Feed Live Streaming](#2-pemilihan-kamera--feed-live-streaming)
+   * [3. Kontrol Pergerakan Manual Servo (PTZ)](#3-kontrol-pergerakan-manual-servo-ptz)
+   * [4. Modal Pengaturan Terpadu (Hardware, PTZ & AI)](#4-modal-pengaturan-terpadu-hardware-ptz--ai)
+   * [5. Peninjauan Event Logs & Pemutaran Video Rekaman MP4](#5-peninjauan-event-logs--pemutaran-video-rekaman-mp4)
+   * [6. Kontrol & Pengujian Node Sensor Getar](#6-kontrol--pengujian-node-sensor-getar)
+   * [7. Penerimaan Notifikasi Peringatan di Bot Telegram](#7-penerimaan-notifikasi-peringatan-di-bot-telegram)
+2. [Panduan Instalasi Aplikasi (Server-Side)](#panduan-instalasi-aplikasi)
    * [Instalasi pada Linux (Ubuntu, Linux Mint, Debian)](#1-instalasi-pada-linux-ubuntu-linux-mint--debian-based)
    * [Instalasi pada Windows (Windows 10 / 11)](#2-instalasi-pada-windows-windows-10--11)
    * [Startup Scripts Opsi Cepat (Windows & Linux)](#3-startup-scripts-opsi-cepat-windows-batch--linux-shell)
-2. [Setup Hardware & Perkabelan](#setup-hardware-perkabelan)
+3. [Setup Hardware & Perkabelan](#setup-hardware-perkabelan)
    * [Pinout ESP32-CAM (AI-Thinker)](#1-pinout-esp32-cam-ai-thinker)
    * [Pinout Node Sensor Getar](#2-pinout-node-sensor-getar-vibration-sensor-node)
    * [Konfigurasi Arduino IDE](#3-konfigurasi-arduino-ide)
    * [Skematik Rangkaian & Desain Hardware Node](#4-skematik-rangkaian--desain-hardware-node)
    * [Dokumentasi Fisik & Realisasi PCB Hardware](#5-dokumentasi-fisik--realisasi-pcb-hardware)
-3. [Panduan Pengoperasian & Konfigurasi](#panduan-pengoperasian-konfigurasi)
-   * [Modal Pengaturan Kamera & Servo (Kiosk UI)](#1-modal-pengaturan-kamera--servo-kiosk-ui)
-   * [Pengujian Relay Node Sensor Getar](#2-pengujian-relay-node-sensor-getar)
 4. [Fitur Utama](#fitur-utama)
    * [Pelacakan Gerakan Otomatis (PIR)](#1-pelacakan-gerakan-otomatis-pir-triggered-servo-rotation)
    * [Node Sensor Getar & HTTP Relay API](#2-node-sensor-getar--http-relay-control-api)
@@ -34,6 +39,128 @@ Sistem monitoring keamanan pintar berbasis IoT yang mengintegrasikan kamera **ES
    * [Payload WebSocket (ESP32-CAM <-> Backend)](#2-skema-payload-websocket-esp32-cam---backend-nodejs)
    * [Payload WebSocket (Backend <-> Kiosk UI)](#3-skema-payload-websocket-backend-nodejs---kiosk-ui-frontend)
 8. [Demo & Tampilan Antarmuka](#demo-tampilan-antarmuka)
+
+---
+
+<a id="panduan-pengoperasian-sistem"></a>
+## 📱 Panduan Pengoperasian Sistem (System Operation Guide)
+
+Panduan langkah demi langkah bagi pengguna akhir (*end-user*) untuk mengoperasikan seluruh antarmuka sistem Kiosk UI, mengontrol perangkat kamera, memutar video rekaman, hingga menerima peringatan keamanan:
+
+---
+
+### 1. Autentikasi & Login Pengguna
+1. **Perilaku Autentikasi Berbasis Jaringan (Smart IP-Based Bypass)**:
+   * 🟢 **Akses Jaringan Lokal (LAN / Wi-Fi Lokal / Localhost)**:
+     * Jika pengguna mengakses portal dari jaringan Wi-Fi/LAN lokal (rentang IP privat `127.0.0.1`, `192.168.x.x`, `10.x.x.x`, atau `172.16-31.x.x`), sistem **secara otomatis membebaskan login** (*Bypass Authentication*). Pengguna akan langsung diarahkan ke Dashboard Pemantauan Utama tanpa perlu memasukkan kata sandi.
+   * 🔴 **Akses Jaringan Luar (Tailscale Funnel / VPN Tunneling / IP Publik)**:
+     * Jika pengguna mengakses sistem secara *remote* dari luar jaringan lokal menggunakan **Tailscale Funnel** (`runFunnel`), VPN *Tunneling*, atau rute publik eksternal, sistem **secara otomatis mewajibkan autentikasi login** demi mencegah akses tanpa izin.
+2. Buka peramban (*browser*) dan akses URL portal sistem:
+   * **Akses Nginx (Rekomendasi)**: `http://localhost` (atau IP Lokal server).
+   * **Akses Remote Tailscale Funnel**: `https://<subdomain-tailscale-anda>.ts.net`.
+   * **Akses Langsung Dev Server**: `http://localhost:5173`.
+3. Masukkan kata sandi autentikasi sistem:
+   * **Kata Sandi Default**: `admin` (kata sandi bawaan sistem).
+   * **Kata Sandi Kustom**: Jika sudah diubah pada file environment `backendAndTelegramBot/.env`, masukkan kata sandi yang dikonfigurasi pada variabel `SYSTEM_PASSWORD` (atau `ADMIN_PASSWORD`).
+4. Tekan tombol **Login** untuk menyimpan token autentikasi JWT aman (*HttpOnly Cookie*) dan membuka Dashboard Pemantauan Utama.
+
+| Halaman Autentikasi Kiosk UI |
+| :---: |
+| ![Tampak UI Login Page](zfoto/tampak%20ui%20login%20page.png) |
+| *Tampilan Halaman Autentikasi Pengguna (Login Page)* |
+
+---
+
+### 2. Pemilihan Kamera & Feed Live Streaming
+1. **Melihat Video Streaming**: Setelah berhasil login, layar utama akan menampilkan tayangan langsung (*Live Stream*) beresolusi optimal dengan rasio 4:3.
+2. **Memilih Kamera Aktif**: Jika terdapat lebih dari satu kamera ESP32-CAM terhubung, klik nama/tab kamera pada **Bilah Daftar Kamera (Active Camera List)** di bagian atas atau samping layar untuk berpindah tayangan.
+3. **Memantau Indikator Status**:
+   * **FPS Meter**: Menampilkan kecepatan *frame rate* per detik secara *real-time* di sudut video.
+   * **Indikator Koneksi**: Memantau status hijau (*Connected*) atau merah (*Disconnected*) WebSocket backend gateway.
+   * **Hitung Mundur Sapuan Servo**: Menampilkan jeda waktu menuju penyapuan sudut berikutnya.
+
+| Dashboard Pemantauan Desktop | Dashboard Pemantauan Mobile |
+| :---: | :---: |
+| ![Tampak UI Dashboard Kiosk Desktop](zfoto/tampak%20ui%20dashboard%20kiosk%20desktop.png) | ![Tampak Dashboard Kiosk di Mobile](zfoto/tampak%20dashboard%20kiosk%20di%20mobile.png) |
+| *Dashboard Utama Kiosk UI (Desktop View)* | *Dashboard Utama Kiosk UI (Mobile View)* |
+
+---
+
+### 3. Kontrol Pergerakan Manual Servo (PTZ)
+1. **Mengarahkan Kamera**: Gunakan tombol kontrol arah PTZ pada panel antarmuka untuk memutar kamera ESP32-CAM secara manual (sudut $0^\circ$ hingga $180^\circ$).
+2. **Penyesuaian Sudut Presisi**: Geser *slider* sudut servo (*tilt/pan slider*) untuk menargetkan posisi pandang tertentu secara fleksibel dan cepat.
+3. **Reset Posisi Awal**: Tekan tombol **Default Angle** untuk mengembalikan kamera ke sudut diam standar (misal $90^\circ$).
+
+| Antarmuka Slider Servo Pan/Tilt PTZ |
+| :---: |
+| ![Tampak Slider Servo Tilt](zfoto/tampak%20slider%20servo%20tilt.png) |
+| *Tampilan Panel Kontrol Slider Sudut Motor Servo Pan/Tilt pada Kiosk UI* |
+
+---
+
+### 4. Modal Pengaturan Terpadu (Hardware, PTZ & AI)
+Klik ikon **Settings (⚙️)** di bagian kanan atas layar untuk membuka modal konfigurasi terpadu:
+
+#### A. Tab Hardware Kamera:
+* **Pengaturan Citra**: Sesuaikan tingkat *Brightness* (Kecerahan), *Contrast* (Kontras), dan *Saturation* (Saturasi).
+* **Koreksi Otomatis**: Aktifkan/nonaktifkan *Auto White Balance (AWB)* dan *Auto Exposure Control (AEC)*.
+* **Efek & Flash**: Pilih *Special Effects* (seperti Grayscale / Negative) dan sesuaikan intensitas lampu sorot LED Flash.
+* **Identitas Kamera**: Ubah nama alias lokasi kamera (misal *"Kamera Garasi Depan"*) berdasarkan alamat MAC unik.
+
+#### B. Tab PTZ & Mode Sapuan Servo:
+* **Mode Operasi Servo**:
+  * **Sweep Mode**: Kamera akan menyapu area pemantauan secara berkala berdasarkan interval waktu.
+  * **Auto Return Mode**: Kamera akan kembali ke sudut diam default setelah terpicu gerakan.
+* **Timer Interval**: Tentukan interval penyapuan otomatis (misal `15s`, `30s`, atau `Off`).
+* **Pemetaan Sudut PIR**: Tentukan sudut kemiringan servo khusus untuk setiap sensor PIR Kiri, Tengah, dan Kanan.
+
+#### C. Tab Konfigurasi AI & Sistem:
+* **Deteksi Manusia YOLO 11**: Aktifkan atau nonaktifkan sakelar inferensi AI deteksi manusia secara *real-time*.
+* **Ambang Batas Kepercayaan (Confidence Threshold)**: Tentukan batas minimal skor deteksi AI sebelum memicu perekaman video dan notifikasi.
+
+---
+
+### 5. Peninjauan Event Logs & Pemutaran Video Rekaman MP4
+1. **Membuka Panel Log Kejadian**: Navigasi ke bagian **Event Logs** di bagian bawah dashboard untuk melihat daftar riwayat kejadian keamanan.
+2. **Filter & Detail Kejadian**: Setiap log mencantumkan:
+   * Waktu pasti kejadian (*Timestamp*).
+   * Jenis pemicu (*PIR Motion Detected*, *Vibration Relay Triggered*, atau *YOLO Human Detected*).
+   * Alamat MAC & Nama Kamera sumber.
+3. **Melihat Snapshot Foto & Memutar Rekaman Video MP4**:
+   * Klik ikon **View Snapshot** untuk melihat foto resolusi tinggi FHD beserta *bounding box* merah tipis (1px) manusia.
+   * Klik tombol **Play Video (▶)** pada baris kejadian untuk memutar langsung rekaman video MP4 berdurasi penuh yang di-render secara *asynchronous* oleh backend FFmpeg dari SQLite database `camera_data.db`.
+
+| Tabel Riwayat Kejadian (Event Logs) |
+| :---: |
+| ![Tampak Event Logs](zfoto/tampak%20event%20logs.png) |
+| *Tampilan Tabel Riwayat Kejadian Keamanan (Event Logs) pada Kiosk UI* |
+
+| Hasil Snapshot Deteksi Manusia dengan Bounding Box (YOLO 11) |
+| :---: |
+| ![Hasil Snapshot Deteksi Bounding Box Manusia](zfoto/tampak%20gambar%20dengan%20bounding%20box%20pada%20objek%20manusia.png) |
+| *Tampilan Snapshot Hasil Deteksi Manusia YOLO 11 dengan Bounding Box Overlay* |
+
+---
+
+### 6. Kontrol & Pengujian Node Sensor Getar
+1. **Pengujian Relay Manual di Kiosk UI**: Tekan tombol **Trigger Relay Test** pada dasbor untuk mengirimkan perintah HTTP GET ke Node Sensor Getar (`vibration_sensor_client`).
+2. **Pengujian HTTP Client (cURL / REST Client)**:
+   * Untuk menyalakan relay (Active-Low ON):
+     ```bash
+     curl "http://<IP_NODE_GETAR>/do?relay=1"
+     ```
+   * Untuk mematikan relay (Active-Low OFF):
+     ```bash
+     curl "http://<IP_NODE_GETAR>/do?relay=0"
+     ```
+
+---
+
+### 7. Penerimaan Notifikasi Peringatan di Bot Telegram
+1. **Notifikasi Otomatis**: Saat terjadi ancaman getaran atau manusia terdeteksi oleh AI YOLO 11, Bot Telegram akan secara otomatis memancarkan peringatan instan ke obrolan pengguna.
+2. **Review Snapshot & Video**:
+   * Pesan Telegram pertama memuat **Foto Snapshot FHD** berisikan *bounding box* subjek manusia.
+   * Pesan Telegram kedua memuat **File Video Rekaman MP4** yang dapat langsung diputar secara kontekstual di dalam aplikasi Telegram seluler maupun desktop.
 
 ---
 
@@ -327,29 +454,6 @@ cd "../start script/linux"
 | :---: |
 | ![Tampak Instalasi Sensor Getaran di Pagar](zfoto/tampak%20instalasi%20sensor%20getaran%20di%20pagar.jpg) |
 | *Tampak Instalasi Sensor Getaran pada Pagar Area Pemantauan* |
-
----
-
-<a id="panduan-pengoperasian-konfigurasi"></a>
-## ⚙️ Panduan Pengoperasian & Konfigurasi
-
-### 1. Modal Pengaturan Kamera & Servo (Kiosk UI)
-* Klik ikon **Settings** di atas layar feed streaming untuk membuka modal pengaturan terpadu.
-* **Tab Hardware**: Mengatur Brightness, Contrast, Saturation, AWB, AEC, Special Effects, serta penamaan kamera berbasis MAC address.
-* **Tab PTZ & Sweep**: 
-  * Mode Servo: Pilih antara **Sweep Mode** (sapuan otomatis) atau **Auto Return Mode**.
-  * Servo Timer: Pilih interval waktu (misal 15s, 30s, atau Off).
-  * Default Servo Angle: Menentukan sudut diam standar kamera (misal 90°).
-
-### 2. Pengujian Relay Node Sensor Getar
-* Gunakan file pengujian REST Client `vibration_sensor_client/test.rest` atau perintah `curl` untuk menguji relay:
-  ```bash
-  # Menyalahkan Relay (ON)
-  curl "http://<IP_NODE_GETAR>/do?relay=1"
-
-  # Mematikan Relay (OFF)
-  curl "http://<IP_NODE_GETAR>/do?relay=0"
-  ```
 
 ---
 
@@ -677,6 +781,11 @@ flowchart TD
 | :---: | :---: |
 | ![Tampak UI Dashboard Kiosk Desktop](zfoto/tampak%20ui%20dashboard%20kiosk%20desktop.png) | ![Tampak Dashboard Kiosk di Mobile](zfoto/tampak%20dashboard%20kiosk%20di%20mobile.png) |
 | *Dashboard Pemantauan Utama Kiosk UI (Desktop View)* | *Dashboard Pemantauan Utama Kiosk UI (Mobile View)* |
+
+| Panel Kontrol Slider Servo Pan/Tilt PTZ | Tabel Riwayat Kejadian (Event Logs) |
+| :---: | :---: |
+| ![Tampak Slider Servo Tilt](zfoto/tampak%20slider%20servo%20tilt.png) | ![Tampak Event Logs](zfoto/tampak%20event%20logs.png) |
+| *Tampilan Panel Kontrol Slider Sudut Servo PTZ* | *Tampilan Tabel Riwayat Kejadian Keamanan (Event Logs)* |
 
 ### 2. Deteksi Manusia AI & Bounding Box Overlay
 

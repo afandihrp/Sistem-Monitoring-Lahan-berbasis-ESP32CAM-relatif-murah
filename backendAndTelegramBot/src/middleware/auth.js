@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-kiosk-key-change-me';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || process.env.SYSTEM_PASSWORD || 'admin';
 
 // Check if an IP belongs to a private/local network
 function isLocalIP(ip) {

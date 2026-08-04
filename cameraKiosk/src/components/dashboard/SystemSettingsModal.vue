@@ -222,12 +222,22 @@ const getSecondsLabel = (sec) => {
   return `${sec / 60}m`
 }
 
+let sysSaveTimeoutTimer = null
+
 const isSaving = ref(false)
 
 const saveConfig = () => {
   isSaving.value = true
   localStorage.setItem('showFpsMeter', showFpsMeter.value ? 'true' : 'false')
   window.dispatchEvent(new Event('fpsMeterToggle'))
+
+  if (sysSaveTimeoutTimer) clearTimeout(sysSaveTimeoutTimer)
+  sysSaveTimeoutTimer = setTimeout(() => {
+    if (isSaving.value) {
+      console.warn('[SystemSettingsModal] Saving system configuration timed out after 8 seconds')
+      isSaving.value = false
+    }
+  }, 8000)
 
   emit('save', {
     pirEnabled: pirEnabled.value,
@@ -285,7 +295,7 @@ const saveConfig = () => {
         <h6 class="text-white mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">
           <i class="bi bi-sliders2-vertical me-2 text-info"></i>{{ $t('settings.title') }}
         </h6>
-        <button @click="emit('close')" :disabled="isSaving" class="btn-close btn-close-white shadow-none"></button>
+        <button @click="emit('close')" class="btn-close btn-close-white shadow-none"></button>
       </div>
 
       <!-- Tab Navigation -->

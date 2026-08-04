@@ -49,6 +49,15 @@ const fetchServoConfig = () => {
   window.dispatchEvent(new CustomEvent('request_servo_config', { detail: { mac: props.mac } }));
 }
 
+let fetchTimeoutTimer = null
+let saveTimeoutTimer = null
+
+const handleCloseModal = () => {
+  if (fetchTimeoutTimer) clearTimeout(fetchTimeoutTimer)
+  if (saveTimeoutTimer) clearTimeout(saveTimeoutTimer)
+  emit('close')
+}
+
 const handleCameraConfigReceived = (event) => {
   const { mac, config } = event.detail;
   if (mac === props.mac) {
@@ -59,6 +68,7 @@ const handleCameraConfigReceived = (event) => {
     originalCamConfig.value = JSON.parse(JSON.stringify(camConfig.value));
     hasReceivedCam.value = true
     if (hasReceivedServo.value) {
+      if (fetchTimeoutTimer) clearTimeout(fetchTimeoutTimer)
       isLoadingConfig.value = false
     }
   }
@@ -73,6 +83,7 @@ const handleServoConfigReceived = (event) => {
     originalServoConfig.value = JSON.parse(JSON.stringify(servoConfig.value));
     hasReceivedServo.value = true
     if (hasReceivedCam.value) {
+      if (fetchTimeoutTimer) clearTimeout(fetchTimeoutTimer)
       isLoadingConfig.value = false
     }
   }
@@ -81,6 +92,7 @@ const handleServoConfigReceived = (event) => {
 const handleSaveSuccess = (event) => {
   const { mac } = event.detail;
   if (mac === props.mac) {
+    if (saveTimeoutTimer) clearTimeout(saveTimeoutTimer)
     isSaving.value = false
     emit('close')
   }
@@ -93,9 +105,19 @@ onMounted(() => {
   window.addEventListener('save_servo_config_success', handleSaveSuccess);
   fetchCameraConfig();
   fetchServoConfig();
+
+  // 8-Second Fetching Timeout Guard
+  fetchTimeoutTimer = setTimeout(() => {
+    if (isLoadingConfig.value) {
+      console.warn('[CameraSettingsModal] Fetching device parameters timed out after 8 seconds');
+      isLoadingConfig.value = false;
+    }
+  }, 8000);
 })
 
 onUnmounted(() => {
+  if (fetchTimeoutTimer) clearTimeout(fetchTimeoutTimer);
+  if (saveTimeoutTimer) clearTimeout(saveTimeoutTimer);
   window.removeEventListener('camera_config_received', handleCameraConfigReceived);
   window.removeEventListener('servo_config_received', handleServoConfigReceived);
   window.removeEventListener('save_camera_config_success', handleSaveSuccess);
@@ -141,6 +163,13 @@ const handleSaveAll = () => {
     emit('close')
   } else {
     isSaving.value = true
+    saveTimeoutTimer = setTimeout(() => {
+      if (isSaving.value) {
+        console.warn('[CameraSettingsModal] Saving parameters timed out after 8 seconds');
+        isSaving.value = false;
+        alert('Save request timed out (8 seconds). Please verify connection.');
+      }
+    }, 8000);
   }
 }
 
@@ -157,7 +186,7 @@ const handleSaveAll = () => {
           <h6 class="text-white mb-0 text-uppercase fw-bold" style="letter-spacing: 1px;">
             <i class="bi bi-camera me-2 text-info"></i>{{ t('cameraConfig.title') || 'Camera Settings' }}
           </h6>
-          <button @click="emit('close')" :disabled="isLoadingConfig || isSaving" class="btn-close btn-close-white shadow-none"></button>
+          <button @click="handleCloseModal" class="btn-close btn-close-white shadow-none"></button>
         </div>
         
         <ul class="nav nav-tabs custom-tabs border-0">
