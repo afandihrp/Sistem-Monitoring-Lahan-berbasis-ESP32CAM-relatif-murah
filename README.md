@@ -20,8 +20,12 @@ Sistem monitoring keamanan pintar berbasis IoT yang mengintegrasikan kamera **ES
 5. [Panduan Instalasi Aplikasi (Server-Side)](#panduan-instalasi-aplikasi)
    * [Instalasi pada Linux (Ubuntu, Linux Mint, Debian)](#1-instalasi-pada-linux-ubuntu-linux-mint--debian-based)
    * [Instalasi pada Windows (Windows 10 / 11)](#2-instalasi-pada-windows-windows-10--11)
-6. [Panduan Pengoperasian & Konfigurasi](#panduan-pengoperasian-konfigurasi)
-7. [Demo & Tampilan Antarmuka](#demo-tampilan-antarmuka)
+6. [Dokumentasi API & Skema Payload WebSocket](#dokumentasi-api--skema-payload-websocket)
+   * [HTTP REST API Endpoint Registry](#1-http-rest-api-endpoint-registry)
+   * [Payload WebSocket (ESP32-CAM <-> Backend)](#2-skema-payload-websocket-esp32-cam---backend-nodejs)
+   * [Payload WebSocket (Backend <-> Kiosk UI)](#3-skema-payload-websocket-backend-nodejs---kiosk-ui-frontend)
+7. [Panduan Pengoperasian & Konfigurasi](#panduan-pengoperasian-konfigurasi)
+8. [Demo & Tampilan Antarmuka](#demo-tampilan-antarmuka)
 
 ---
 
@@ -399,6 +403,172 @@ npm run dev
    nginx -s stop
    ```
 *(Aplikasi kini dapat diakses langsung via browser di `http://localhost` tanpa perlu mengetik nomor port)*
+
+---
+
+<a id="dokumentasi-api--skema-payload-websocket"></a>
+## 🌐 Dokumentasi API & Skema Payload WebSocket
+
+### 1. HTTP REST API Endpoint Registry
+
+#### A. Backend Gateway Server (Port 3000)
+| Endpoint | Method | Hak Akses | Deskripsi & Fungsionalitas | Contoh Request Payload | Contoh Response Output |
+| :--- | :---: | :---: | :--- | :--- | :--- |
+| `/api/login` | `POST` | Publik | Autentikasi pengguna Kiosk UI | `{"password": "123"}` | `{"success": true, "message": "Logged in successfully"}` |
+| `/api/logout` | `POST` | Session | Logout session & hapus cookie auth | `-` | `{"success": true}` |
+| `/api/verify` | `GET` | Cookie/IP | Verifikasi status autentikasi session / IP Lokal | `-` | `{"success": true, "local": true, "authenticated": true}` |
+| `/upload` | `POST` | ESP32 | High-Res FHD Image upload dari ESP32-CAM | `Raw Binary JPEG Buffer` | `{"status": "ok", "file": "snapshot-1722..."}` |
+| `/api/ping` | `GET` | Publik | Health-check endpoint gateway backend | `-` | `{"status": "pong", "timestamp": 1722800000000}` |
+
+#### B. Node Sensor Getar (Port 80)
+| Endpoint | Method | Deskripsi | Query Parameters | Contoh Request URL | Respon Output |
+| :--- | :---: | :--- | :--- | :--- | :--- |
+| `/do` | `GET` | Kontrol HTTP Relay Active-Low | `relay=1` (ON) / `relay=0` (OFF) | `http://192.168.1.50/do?relay=1` | `HTTP 200 OK (Relay ON)` |
+
+---
+
+### 2. Skema Payload WebSocket (ESP32-CAM <-> Backend Node.js)
+
+#### A. Pesan dari ESP32-CAM ke Backend:
+* **Heartbeat Keep-Alive (Pong)**:
+  ```json
+  { "type": "pong" }
+  ```
+* **Status Sinyal PIR Motion**:
+  ```json
+  {
+    "type": "motion",
+    "sensor": "pir_left"
+  }
+  ```
+* **Status Selesai Menyapu (Sweep Completed)**:
+  ```json
+  {
+    "type": "sweep_status",
+    "value": "off"
+  }
+  ```
+
+#### B. Pesan dari Backend ke ESP32-CAM:
+* **Kontrol Pergerakan Servo (PTZ)**:
+  ```json
+  {
+    "type": "servo_control",
+    "value": 90
+  }
+  ```
+* **Kontrol Sapuan Servo (Sweep)**:
+  ```json
+  {
+    "type": "sweep_control",
+    "value": "once"
+  }
+  ```
+* **Update Konfigurasi Hardware Kamera**:
+  ```json
+  {
+    "type": "camera_config_update",
+    "config": {
+      "brightness": 0,
+      "contrast": 0,
+      "saturation": 0,
+      "awb": 1,
+      "aec": 1,
+      "framesize": 6,
+      "flashIntensity": 50
+    }
+  }
+  ```
+
+---
+
+### 3. Skema Payload WebSocket (Backend Node.js <-> Kiosk UI Frontend)
+
+#### A. Pesan Broadcast Backend ke Kiosk UI:
+* **Daftar Perangkat Terhubung (`device_list`)**:
+  ```json
+  {
+    "type": "device_list",
+    "devices": [
+      {
+        "id": "A4:CF:12:89:56:4C",
+        "ip": "192.168.1.100",
+        "name": "Kamera Garasi Kiri",
+        "type": "Camera",
+        "currentAngle": 90,
+        "sweepActive": "off",
+        "nextTimerTime": 1722800015000,
+        "servoMode": "sweep"
+      }
+    ]
+  }
+  ```
+* **Broadcast Bounding Box Deteksi AI (`stream_boxes`)**:
+  ```json
+  {
+    "type": "stream_boxes",
+    "deviceId": "A4:CF:12:89:56:4C",
+    "boxes": [
+      {
+        "confidence": 0.92,
+        "posisi": [0.15, 0.20, 0.45, 0.85]
+      }
+    ]
+  }
+  ```
+* **Perubahan Stream Aktif (`active_stream_updated`)**:
+  ```json
+  {
+    "type": "active_stream_updated",
+    "deviceId": "A4:CF:12:89:56:4C"
+  }
+  ```
+* **Real-Time Event Log (`motion_event`)**:
+  ```json
+  {
+    "type": "motion_event",
+    "deviceId": "A4:CF:12:89:56:4C",
+    "event": "PIR Motion Detected (PIR Left)",
+    "timestamp": 1722800000000
+  }
+  ```
+
+#### B. Pesan Kontrol dari Kiosk UI ke Backend:
+* **Mengganti Kamera Aktif (`set_active_stream`)**:
+  ```json
+  {
+    "type": "set_active_stream",
+    "deviceId": "A4:CF:12:89:56:4C"
+  }
+  ```
+* **Menyimpan Konfigurasi Servo & PTZ (`save_servo_config`)**:
+  ```json
+  {
+    "type": "save_servo_config",
+    "mac": "A4:CF:12:89:56:4C",
+    "config": {
+      "servoMode": "sweep",
+      "servoTimer": "15s",
+      "defaultAngle": 90,
+      "leftPirAngle": 45,
+      "middlePirAngle": 90,
+      "rightPirAngle": 135
+    }
+  }
+  ```
+* **Menyimpan Konfigurasi Hardware Kamera (`save_camera_config`)**:
+  ```json
+  {
+    "type": "save_camera_config",
+    "mac": "A4:CF:12:89:56:4C",
+    "config": {
+      "name": "Kamera Depan Kandang",
+      "brightness": 1,
+      "contrast": 0,
+      "specialEffect": "None"
+    }
+  }
+  ```
 
 ---
 
