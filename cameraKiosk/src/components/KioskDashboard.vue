@@ -91,6 +91,20 @@ const showAnalyticsModal = ref(false)
 const sortOrder = ref('desc')
 const isFetchingData = ref(false)
 let lastObjectUrl = null
+let fetchingSafetyTimer = null
+
+const startFetchingData = (timeoutMs = 2500) => {
+  isFetchingData.value = true
+  if (fetchingSafetyTimer) clearTimeout(fetchingSafetyTimer)
+  fetchingSafetyTimer = setTimeout(() => {
+    isFetchingData.value = false
+  }, timeoutMs)
+}
+
+const stopFetchingData = () => {
+  if (fetchingSafetyTimer) clearTimeout(fetchingSafetyTimer)
+  isFetchingData.value = false
+}
 
 const currentStreamIndex = ref(0)
 const currentStream = computed(() => {
@@ -140,25 +154,27 @@ const detectBackend = async () => {
 }
 
 const connectWS = () => {
-  isFetchingData.value = true
+  startFetchingData(2000)
   ws = new WebSocket(backendWsUrl.value)
 
   ws.onopen = () => {
     console.log('Connected to WebSocket server')
     wsStatus.value = 'Online'
+    // Automatically clear initial sync indicator after 1 second
+    setTimeout(stopFetchingData, 1000)
   }
 
   ws.onclose = () => {
     console.log('WebSocket connection closed')
     wsStatus.value = 'Offline'
-    isFetchingData.value = false
+    stopFetchingData()
     setTimeout(connectWS, 3000)
   }
 
   ws.onerror = (error) => {
     console.error('WebSocket error:', error)
     wsStatus.value = 'Offline'
-    isFetchingData.value = false
+    stopFetchingData()
   }
 
   ws.onmessage = async (event) => {
@@ -218,8 +234,9 @@ const connectWS = () => {
         } else {
           pendingActiveStreamId = data.deviceId
         }
-      } else if (data.type === 'storage_update') {  // <--- TAMBAHKAN BLOK INI
-        storageData.value = data;                   // <---
+      } else if (data.type === 'storage_update') {
+        storageData.value = data;
+        stopFetchingData()
       } else if (data.type === 'ai_status') {
         aiConnected.value = data.isConnected
       } else if (data.type === 'ai_enabled_updated') {
@@ -233,7 +250,7 @@ const connectWS = () => {
         systemConfig.value = data.config
         localStorage.setItem('systemConfig', JSON.stringify(data.config))
       } else if (data.type === 'save_system_config_success') {
-        isFetchingData.value = false
+        stopFetchingData()
         showSystemConfig.value = false
       } else if (data.type === 'servo_angle_update') {
         const device = devices.value.find(d => d.id === data.deviceId)
@@ -247,6 +264,7 @@ const connectWS = () => {
         }
       } else if (data.type === 'device_list') {
         devices.value = data.devices
+        stopFetchingData()
         if (pendingActiveStreamId) {
           const index = devices.value.findIndex(d => d.id === pendingActiveStreamId)
           if (index !== -1) {
@@ -288,7 +306,7 @@ const connectWS = () => {
           events.value[eventIndex].aiDetails = data.aiDetails;
         }
       } else if (data.type === 'historical_logs') {
-        isFetchingData.value = false
+        stopFetchingData()
         events.value = data.logs.map((log, index) => {
           return {
             id: `hist_${Date.now()}_${index}`,
@@ -304,16 +322,16 @@ const connectWS = () => {
           };
         }).reverse();
       } else if (data.type === 'servo_config_response') {
-        isFetchingData.value = false
+        stopFetchingData()
         window.dispatchEvent(new CustomEvent('servo_config_received', { detail: data }));
       } else if (data.type === 'save_servo_config_success') {
-        isFetchingData.value = false
+        stopFetchingData()
         window.dispatchEvent(new CustomEvent('save_servo_config_success', { detail: data }));
       } else if (data.type === 'camera_config_response') {
-        isFetchingData.value = false
+        stopFetchingData()
         window.dispatchEvent(new CustomEvent('camera_config_received', { detail: data }));
       } else if (data.type === 'save_camera_config_success') {
-        isFetchingData.value = false
+        stopFetchingData()
         window.dispatchEvent(new CustomEvent('save_camera_config_success', { detail: data }));
       }
     } catch (e) {
@@ -325,7 +343,7 @@ const connectWS = () => {
 const handleRequestServoConfig = (event) => {
   const { mac } = event.detail;
   if (ws && ws.readyState === 1) {
-    isFetchingData.value = true
+    startFetchingData(3000)
     ws.send(JSON.stringify({ type: 'get_servo_config', mac }));
   }
 };
@@ -333,7 +351,7 @@ const handleRequestServoConfig = (event) => {
 const handleRequestCameraConfig = (event) => {
   const { mac } = event.detail;
   if (ws && ws.readyState === 1) {
-    isFetchingData.value = true
+    startFetchingData(3000)
     ws.send(JSON.stringify({ type: 'get_camera_config', mac }));
   }
 };
@@ -437,7 +455,7 @@ const handleSetAiEnabled = (enabled) => {
 const handleDeleteSingleEvent = (timestamp) => {
   if (confirm('Are you sure? Data will be permanently deleted')) {
     if (ws && ws.readyState === 1) {
-      isFetchingData.value = true
+      startFetchingData(2000)
       ws.send(JSON.stringify({ type: 'delete_event_single', timestamp }));
     }
   }
@@ -446,7 +464,7 @@ const handleDeleteSingleEvent = (timestamp) => {
 const handleDeleteBatchEvents = (dateStr) => {
   if (confirm('Are you sure? Data will be permanently deleted')) {
     if (ws && ws.readyState === 1) {
-      isFetchingData.value = true
+      startFetchingData(2000)
       ws.send(JSON.stringify({ type: 'delete_event_batch', date: dateStr }));
     }
   }
@@ -456,7 +474,7 @@ const handleDeleteBatchEvents = (dateStr) => {
 const handleSaveServoConfig = (eventOrData) => {
   const payload = eventOrData.detail || eventOrData;
   if (ws && ws.readyState === 1) {
-    isFetchingData.value = true
+    startFetchingData(3000)
     ws.send(JSON.stringify({ 
       type: 'save_servo_config', 
       mac: payload.mac, 
@@ -470,7 +488,7 @@ const handleSaveServoConfig = (eventOrData) => {
 const handleSaveCameraConfig = (eventOrData) => {
   const payload = eventOrData.detail || eventOrData;
   if (ws && ws.readyState === 1) {
-    isFetchingData.value = true
+    startFetchingData(3000)
     ws.send(JSON.stringify({ 
       type: 'save_camera_config', 
       mac: payload.mac, 
@@ -491,7 +509,7 @@ const handleSaveSystemConfig = (config) => {
   }
 
   if (ws && ws.readyState === 1) {
-    isFetchingData.value = true
+    startFetchingData(3000)
     ws.send(JSON.stringify({ 
       type: 'save_system_config', 
       config 
