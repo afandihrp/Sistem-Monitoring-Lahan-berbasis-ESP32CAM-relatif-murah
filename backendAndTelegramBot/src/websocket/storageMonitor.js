@@ -61,12 +61,6 @@ async function checkStorageAndPurge() {
       console.log(`[Storage] Auto-purge complete. Disk usage dropped to ${currentPercentage}%.`);
       isPurging = false;
       broadcastStoragePayload();
-
-      // Broadcast log terbaru ke Dashboard Kiosk karena datanya banyak yang dihapus
-      if (state.wssInstance) {
-        const logsPayload = JSON.stringify({ type: 'historical_logs', logs: getLogs() });
-        state.broadcastToKiosks(logsPayload);
-      }
     }
   } catch (err) {
     console.error('[Storage] Error checking disk space:', err);

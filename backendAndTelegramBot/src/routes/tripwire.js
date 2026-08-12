@@ -17,13 +17,16 @@ function handleTripwire(wss) {
         timestamp: new Date().toISOString()
       });
 
-      const payloadLogs = JSON.stringify({
-        type: 'historical_logs',
-        logs: getLogs()
+      const motionEvent = JSON.stringify({
+        type: 'motion_event',
+        sensor: sensor,
+        location: location,
+        mac: null,
+        timestamp: new Date().toISOString()
       });
       wss.clients.forEach((client) => {
         if (client.readyState === 1 && (!client.path || !client.path.startsWith('/camera'))) {
-          client.send(payloadLogs);
+          client.send(motionEvent);
         }
       });
 

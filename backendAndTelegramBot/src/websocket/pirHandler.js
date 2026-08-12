@@ -222,13 +222,7 @@ async function handlePirTrigger(ip, sensor, wss) {
       aiDetails: aiDetails
     });
 
-    const payloadLogs = JSON.stringify({
-      type: 'historical_logs',
-      logs: getLogs()
-    });
-
     state.broadcastToKiosks(motionPayload);
-    state.broadcastToKiosks(payloadLogs);
 
     // Await Telegram notification completion
     await telegramPromise;

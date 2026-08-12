@@ -49,7 +49,7 @@ const schedulerManager = require('./websocket/schedulerManager');
 
 // Import AI and Logger services
 const { aiClient } = require('./services/aiClient');
-const { logEvent, getLogs, deleteEventSingle, deleteEventsByDate } = require('./services/sqllite_logger');
+const { logEvent, getLogs, getLogsByDate, getAnalyticsSummary, deleteEventSingle, deleteEventsByDate } = require('./services/sqllite_logger');
 
 // Hardcoded API key for ESP32-CAM security
 const CAMERA_API_KEY = 'momo_gemoy_api_key_123';
@@ -300,12 +300,6 @@ function initWebSocket(servers) {
       // Send current device list to the new Kiosk immediately
       broadcastDeviceList();
 
-      // Send historical logs to the kiosk
-      const historicalLogs = getLogs();
-      if (historicalLogs && historicalLogs.length > 0) {
-        ws.send(JSON.stringify({ type: 'historical_logs', logs: historicalLogs }));
-      }
-
       // Send current AI server connection status immediately
       ws.send(JSON.stringify({ type: 'ai_status', isConnected: aiClient.isConnected }));
 
@@ -474,14 +468,7 @@ function initWebSocket(servers) {
               timestamp: new Date().toISOString()
             });
 
-            // Broadcast updated historical logs
-            const payloadLogs = JSON.stringify({
-              type: 'historical_logs',
-              logs: getLogs()
-            });
-
             state.broadcastToKiosks(payload);
-            state.broadcastToKiosks(payloadLogs);
           } else if (data.type === 'set_ai_enabled' && !isCamera) {
             state.globalAiEnabled = data.enabled;
             console.log(`[AI Status] Global AI state updated to: ${state.globalAiEnabled ? 'ENABLED' : 'DISABLED'}`);
@@ -736,15 +723,25 @@ function initWebSocket(servers) {
               if (partialConfigToSend.quality) cameraDevice.currentQuality = partialConfigToSend.quality;
               console.log(`Pushed partial updated camera config to camera ${data.mac}`);
             }
+          } else if (data.type === 'fetch_historical_logs' && !isCamera) {
+            console.log(`[Storage] Request fetch historical logs for date: ${data.date}`);
+            const logs = getLogsByDate(data.date);
+            ws.send(JSON.stringify({ type: 'historical_logs', logs: logs }));
+          } else if (data.type === 'fetch_analytics' && !isCamera) {
+            console.log(`[Storage] Request fetch analytics for scope: ${data.scope} date: ${data.date}`);
+            const stats = getAnalyticsSummary(data.scope, data.date);
+            ws.send(JSON.stringify({ type: 'analytics_result', stats: stats }));
           } else if (data.type === 'delete_event_single' && !isCamera) {
             console.log(`[Storage] Request delete single event: ${data.timestamp}`);
             if (deleteEventSingle(data.timestamp)) {
-              ws.send(JSON.stringify({ type: 'historical_logs', logs: getLogs() }));
+              // Get the date string (YYYY-MM-DD) from the timestamp
+              const dateStr = data.timestamp.split('T')[0];
+              ws.send(JSON.stringify({ type: 'historical_logs', logs: getLogsByDate(dateStr) }));
             }
           } else if (data.type === 'delete_event_batch' && !isCamera) {
             console.log(`[Storage] Request batch delete for date: ${data.date}`);
             if (deleteEventsByDate(data.date)) {
-              ws.send(JSON.stringify({ type: 'historical_logs', logs: getLogs() }));
+              ws.send(JSON.stringify({ type: 'historical_logs', logs: getLogsByDate(data.date) }));
             }
           }
         } catch (e) {

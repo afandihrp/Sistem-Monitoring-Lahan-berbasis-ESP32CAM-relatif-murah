@@ -48,6 +48,8 @@ const insertLogStmt = db.prepare(`
 
 const getAllLogsStmt = db.prepare('SELECT * FROM logs ORDER BY timestamp ASC');
 
+const getLogsByDateStmt = db.prepare('SELECT * FROM logs WHERE timestamp LIKE ? ORDER BY timestamp ASC');
+
 // Match by mac when available (stable FK), fallback to deviceId for legacy rows
 const updateLogWithAiStmt = db.prepare(`
   UPDATE logs 
@@ -135,6 +137,82 @@ function getLogs() {
   } catch (error) {
     console.error('Error reading logs from SQLite:', error);
     return [];
+  }
+}
+
+/**
+ * Fetch logs for a specific date (YYYY-MM-DD), resolving camera names dynamically.
+ */
+function getLogsByDate(dateString) {
+  try {
+    const { getAllDeviceConfigs } = require('./sqllite_config');
+    const configsMap = getAllDeviceConfigs();
+    // Match any ISO timestamp that starts with the date string (e.g. '2026-08-12%')
+    const rows = getLogsByDateStmt.all(`${dateString}%`);
+    return rows.map(row => mapRowToLog(row, configsMap));
+  } catch (error) {
+    console.error('Error reading logs by date from SQLite:', error);
+    return [];
+  }
+}
+
+/**
+ * Calculate analytics summary for a given scope and date.
+ * @param {string} scope - 'today', 'month', 'year', 'all'
+ * @param {string} targetDateStr - ISO date string (e.g. '2026-08-12')
+ */
+function getAnalyticsSummary(scope, targetDateStr) {
+  try {
+    let likePattern = '%';
+    if (scope === 'today' && targetDateStr) {
+      likePattern = `${targetDateStr.substring(0, 10)}%`; // YYYY-MM-DD
+    } else if (scope === 'month' && targetDateStr) {
+      likePattern = `${targetDateStr.substring(0, 7)}%`; // YYYY-MM
+    } else if (scope === 'year' && targetDateStr) {
+      likePattern = `${targetDateStr.substring(0, 4)}%`; // YYYY
+    }
+
+    const { getAllDeviceConfigs } = require('./sqllite_config');
+    const configsMap = getAllDeviceConfigs();
+    const rows = getLogsByDateStmt.all(likePattern);
+
+    let totalAlerts = 0;
+    let humanAlerts = 0;
+    let videoAlerts = 0;
+    const hourlyData = Array(24).fill(0);
+    const breakdown = { location: {}, sensor: {} };
+
+    rows.forEach(r => {
+      const log = mapRowToLog(r, configsMap);
+      totalAlerts++;
+      if (log.humanPresence) humanAlerts++;
+      if (log.videoUrl) videoAlerts++;
+
+      if (log.timestamp) {
+        const date = new Date(log.timestamp);
+        const hour = date.getHours();
+        if (hour >= 0 && hour < 24) {
+          hourlyData[hour]++;
+        }
+      }
+
+      const loc = log.location || 'Unknown';
+      breakdown.location[loc] = (breakdown.location[loc] || 0) + 1;
+
+      const rawTrigger = log.trigger || 'System';
+      breakdown.sensor[rawTrigger] = (breakdown.sensor[rawTrigger] || 0) + 1;
+    });
+
+    return {
+      totalAlerts,
+      humanAlerts,
+      videoAlerts,
+      hourlyData,
+      breakdown
+    };
+  } catch (error) {
+    console.error('Error calculating analytics from SQLite:', error);
+    return null;
   }
 }
 
@@ -294,6 +372,8 @@ function deleteOldestEvent() {
 module.exports = {
   logEvent,
   getLogs,
+  getLogsByDate,
+  getAnalyticsSummary,
   updateLatestLogWithAI,
   updateLatestLogVideo,
   deleteEventSingle,

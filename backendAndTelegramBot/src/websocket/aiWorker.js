@@ -147,8 +147,10 @@ function stopAiRecording(deviceId, reason) {
         // Broadcast updated logs to all Kiosks
         if (state.wssInstance) {
           const payloadLogs = JSON.stringify({
-            type: 'historical_logs',
-            logs: getLogs()
+            type: 'motion_video_update',
+            sensor: sensorName,
+            deviceId: deviceId,
+            videoUrl: videoUrl
           });
           state.broadcastToKiosks(payloadLogs);
         }
@@ -451,14 +453,7 @@ function triggerAiWorker() {
                     aiDetails: aiDetails
                   });
      
-                  // Broadcast updated historical logs
-                  const payloadLogs = JSON.stringify({
-                    type: 'historical_logs',
-                    logs: getLogs()
-                  });
-     
                   state.broadcastToKiosks(updatePayload);
-                  state.broadcastToKiosks(payloadLogs);
               } else {
                 console.log(`[AI Record] Image capture disabled for Pixel/Hybrid mode on ${deviceId}. Skipping image save & Telegram alerts.`);
               }

@@ -153,6 +153,29 @@ const detectBackend = async () => {
   console.log(`[Backend] Using Nginx reverse proxy at ${backendBaseUrl.value}`)
 }
 
+function fetchLogsForDate(dateObj) {
+  if (ws && ws.readyState === 1) {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    startFetchingData(2000);
+    ws.send(JSON.stringify({ type: 'fetch_historical_logs', date: dateStr }));
+  }
+}
+
+const analyticsData = ref(null);
+
+function fetchAnalytics(scope, dateObj) {
+  if (ws && ws.readyState === 1) {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    ws.send(JSON.stringify({ type: 'fetch_analytics', scope: scope, date: dateStr }));
+  }
+}
+
 const connectWS = () => {
   startFetchingData(2000)
   ws = new WebSocket(backendWsUrl.value)
@@ -160,6 +183,8 @@ const connectWS = () => {
   ws.onopen = () => {
     console.log('Connected to WebSocket server')
     wsStatus.value = 'Online'
+    // Fetch logs for the currently selected date
+    fetchLogsForDate(selectedDate.value)
     // Automatically clear initial sync indicator after 1 second
     setTimeout(stopFetchingData, 1000)
   }
@@ -305,6 +330,13 @@ const connectWS = () => {
           events.value[eventIndex].humanPresence = data.humanPresence;
           events.value[eventIndex].aiDetails = data.aiDetails;
         }
+      } else if (data.type === 'motion_video_update') {
+        const eventIndex = events.value.findIndex(e => e.sensor === data.sensor);
+        if (eventIndex !== -1) {
+          events.value[eventIndex].videoUrl = data.videoUrl;
+        }
+      } else if (data.type === 'analytics_result') {
+        analyticsData.value = data.stats;
       } else if (data.type === 'historical_logs') {
         stopFetchingData()
         events.value = data.logs.map((log, index) => {
@@ -405,6 +437,7 @@ const filteredEvents = computed(() => {
 const handleDateSelected = (date) => {
   selectedDate.value = date
   currentEventPage.value = 1 // Reset pagination when date changes
+  fetchLogsForDate(date)
 }
 
 const triggerCameraAction = (direction) => {
@@ -657,9 +690,10 @@ const effectiveWindowWidth = computed(() => {
     <!-- Analytics & Statistics Modal -->
     <AnalyticsModal 
       v-if="showAnalyticsModal"
-      :events="events"
+      :analyticsData="analyticsData"
       :selectedDate="selectedDate"
       :devices="devices"
+      @fetchAnalytics="(scope) => fetchAnalytics(scope, selectedDate)"
       @close="showAnalyticsModal = false"
     />
   </div>

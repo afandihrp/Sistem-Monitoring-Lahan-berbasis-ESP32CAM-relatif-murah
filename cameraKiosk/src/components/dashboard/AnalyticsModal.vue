@@ -8,9 +8,9 @@ Chart.register(...registerables)
 const { locale } = useI18n()
 
 const props = defineProps({
-  events: {
-    type: Array,
-    required: true
+  analyticsData: {
+    type: Object,
+    default: null
   },
   selectedDate: {
     type: Date,
@@ -22,63 +22,23 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'fetchAnalytics'])
 
 // Stats Scope: 'today' or 'all'
 const statsScope = ref('today')
 
-// Filtered Events based on scope
-const filteredEvents = computed(() => {
-  if (statsScope.value === 'all') {
-    return props.events
-  }
-  
-  const targetDate = new Date(props.selectedDate)
-  
-  if (statsScope.value === 'today') {
-    const targetDateStr = targetDate.toDateString()
-    return props.events.filter(e => {
-      if (!e.timestamp) return false
-      return new Date(e.timestamp).toDateString() === targetDateStr
-    })
-  }
-  
-  if (statsScope.value === 'month') {
-    // Calendar month of targetDate
-    const year = targetDate.getFullYear()
-    const month = targetDate.getMonth()
-    
-    return props.events.filter(e => {
-      if (!e.timestamp) return false
-      const d = new Date(e.timestamp)
-      return d.getFullYear() === year && d.getMonth() === month
-    })
-  }
+watch(statsScope, (newScope) => {
+  emit('fetchAnalytics', newScope)
+})
 
-  if (statsScope.value === 'year') {
-    // Calendar year of targetDate
-    const year = targetDate.getFullYear()
-    
-    return props.events.filter(e => {
-      if (!e.timestamp) return false
-      const d = new Date(e.timestamp)
-      return d.getFullYear() === year
-    })
-  }
-  
-  return props.events
+onMounted(() => {
+  emit('fetchAnalytics', statsScope.value)
 })
 
 // KPI Metrics
-const totalAlerts = computed(() => filteredEvents.value.length)
-
-const humanAlerts = computed(() => {
-  return filteredEvents.value.filter(e => e.humanPresence).length
-})
-
-const videoAlerts = computed(() => {
-  return filteredEvents.value.filter(e => e.videoUrl).length
-})
+const totalAlerts = computed(() => props.analyticsData?.totalAlerts || 0)
+const humanAlerts = computed(() => props.analyticsData?.humanAlerts || 0)
+const videoAlerts = computed(() => props.analyticsData?.videoAlerts || 0)
 
 const humanSuccessRate = computed(() => {
   if (totalAlerts.value === 0) return 0
@@ -107,16 +67,7 @@ const translateTrigger = (trigger) => {
 
 // Hourly Alert Distribution (0-23 hours)
 const hourlyData = computed(() => {
-  const data = Array(24).fill(0)
-  filteredEvents.value.forEach(event => {
-    if (!event.timestamp) return
-    const date = new Date(event.timestamp)
-    const hour = date.getHours()
-    if (hour >= 0 && hour < 24) {
-      data[hour]++
-    }
-  })
-  return data
+  return props.analyticsData?.hourlyData || Array(24).fill(0)
 })
 
 const maxHourlyCount = computed(() => {
@@ -132,19 +83,20 @@ const getHourLabel = (hour) => {
 const activePieDataType = ref('location') // 'location' or 'sensor'
 
 const pieBreakdown = computed(() => {
-  const breakdown = {}
+  if (!props.analyticsData || !props.analyticsData.breakdown) return []
   
-  if (activePieDataType.value === 'location') {
-    filteredEvents.value.forEach(e => {
-      const loc = e.location || 'Unknown'
-      breakdown[loc] = (breakdown[loc] || 0) + 1
-    })
+  const rawBreakdown = activePieDataType.value === 'location' 
+    ? props.analyticsData.breakdown.location 
+    : props.analyticsData.breakdown.sensor;
+  
+  const breakdown = {};
+  if (activePieDataType.value === 'sensor') {
+    Object.entries(rawBreakdown).forEach(([trigger, count]) => {
+      const name = translateTrigger(trigger);
+      breakdown[name] = (breakdown[name] || 0) + count;
+    });
   } else {
-    filteredEvents.value.forEach(e => {
-      const rawTrigger = e.trigger || 'System'
-      const name = translateTrigger(rawTrigger)
-      breakdown[name] = (breakdown[name] || 0) + 1
-    })
+    Object.assign(breakdown, rawBreakdown);
   }
   
   const total = totalAlerts.value
@@ -163,14 +115,7 @@ const pieBreakdown = computed(() => {
   return list.map((item, index) => {
     // Choose colors
     const colors = [
-      '#3b82f6', // blue
-      '#ef4444', // red
-      '#10b981', // green
-      '#f59e0b', // orange
-      '#8b5cf6', // purple
-      '#06b6d4', // cyan
-      '#ec4899', // pink
-      '#eab308', // yellow
+      '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#eab308'
     ]
     const color = colors[index % colors.length]
     return { ...item, color }

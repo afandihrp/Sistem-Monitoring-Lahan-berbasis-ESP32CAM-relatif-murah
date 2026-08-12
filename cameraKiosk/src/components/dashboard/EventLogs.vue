@@ -187,13 +187,6 @@ const openVideo = (event) => {
     <DateSorter v-if="windowWidth <= 1000" :selectedDate="selectedDate" @dateSelected="(date) => emit('dateSelected', date)" />
 
     <div class="overflow-auto custom-scrollbar flex-grow-1 event-list-container" style="min-height: 300px; position: relative;">
-      <!-- Overlay Loading Spinner -->
-      <div v-if="loading" class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-slate-900 bg-opacity-75" style="z-index: 10;">
-        <div class="spinner-border text-info mb-2" role="status">
-          <span class="visually-hidden">Loading...</span>
-        </div>
-        <span class="text-slate-400 small font-monospace text-uppercase" style="letter-spacing: 1px;">Synchronizing...</span>
-      </div>
 
       <div v-if="events.length > 0">
         <!-- Grid View Mode -->
