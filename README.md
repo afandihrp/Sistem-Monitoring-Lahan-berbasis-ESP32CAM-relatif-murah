@@ -1,6 +1,8 @@
 # Sistem Monitoring Keamanan & Bounding Box AI Berbasis ESP32-CAM & Sensor Getar
 
-Sistem monitoring keamanan pintar berbasis IoT yang mengintegrasikan kamera **ESP32-CAM**, sensor gerak PIR multi-arah, **Node Sensor Getar (Vibration Sensor Node)** dengan kontrol relay HTTP, motor servo pemutar kamera otomatis, kecerdasan buatan (**AI YOLO 11**) untuk deteksi dan pelacakan manusia (*Object Tracking* berbasis *Proportional Controller*), penyimpanan terpusat **SQLite Database**, serta bot Telegram untuk notifikasi instan berupa foto snapshot dan rekaman video MP4 secara *real-time*.
+Sistem monitoring keamanan pintar berbasis IoT yang mengintegrasikan kamera **ESP32-CAM**, sensor gerak PIR multi-arah, **Node Sensor Getar (Vibration Sensor Node)** dengan kontrol relay HTTP, motor servo pemutar kamera otomatis, kecerdasan buatan (**AI YOLO 11**) untuk deteksi dan pelacakan manusia (*Object Tracking* berbasis *Proportional Controller*), penyimpanan terpusat **SQLite Database**, serta bot Telegram untuk notifikasi instan berupa foto snapshot dan rekaman video MP4.
+
+LINK GITHUB https://github.com/afandihrp/Sistem-Monitoring-Lahan-berbasis-ESP32CAM-relatif-murah.git
 
 ---
 
