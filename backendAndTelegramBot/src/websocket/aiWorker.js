@@ -409,8 +409,10 @@ function triggerAiWorker() {
                     console.error('[AI Record] Failed to get annotated stream frame (using raw frame):', aiErr.message);
                   }
      
-                  // Save the finalized image
-                  fs.writeFileSync(filepath, imageToSave);
+                  // Save the finalized image asynchronously to prevent freezing the Node.js event loop
+                  fs.writeFile(filepath, imageToSave, (err) => {
+                    if (err) console.error('[AI Record] Error saving image:', err);
+                  });
      
                   // Send motion alert to Telegram immediately on detect
                   const shouldTelegramAlert = isPixelOrHybrid ? state.globalSystemConfig.telegramAlertMotion : state.globalStreamAiTelegram;

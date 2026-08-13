@@ -57,9 +57,9 @@ function renderVideo(frameBuffers, outputFilename, maxDuration = 30) {
       const inputPattern = path.join(sessionDir, 'frame_%03d.jpg');
       let ffmpegCmd;
       if (process.platform === 'win32') {
-        ffmpegCmd = `ffmpeg -y -framerate ${inputFramerate} -i "${inputPattern}" -r 10 -c:v libx264 -preset ultrafast -crf 30 -profile:v baseline -level 3.0 -pix_fmt yuv420p -movflags +faststart "${outputPath}"`;
+        ffmpegCmd = `ffmpeg -y -framerate ${inputFramerate} -i "${inputPattern}" -threads 1 -r 10 -c:v libx264 -preset ultrafast -crf 30 -profile:v baseline -level 3.0 -pix_fmt yuv420p -movflags +faststart "${outputPath}"`;
       } else {
-        ffmpegCmd = `nice -n 19 ffmpeg -y -framerate ${inputFramerate} -i "${inputPattern}" -r 10 -c:v libx264 -preset ultrafast -crf 30 -profile:v baseline -level 3.0 -pix_fmt yuv420p -movflags +faststart "${outputPath}"`;
+        ffmpegCmd = `nice -n 19 ffmpeg -y -framerate ${inputFramerate} -i "${inputPattern}" -threads 1 -r 10 -c:v libx264 -preset ultrafast -crf 30 -profile:v baseline -level 3.0 -pix_fmt yuv420p -movflags +faststart "${outputPath}"`;
       }
 
       console.log(`[VideoRenderer] Memulai rendering video: ${ffmpegCmd}`);
